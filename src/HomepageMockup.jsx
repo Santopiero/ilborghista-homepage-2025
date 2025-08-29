@@ -255,7 +255,7 @@ const ImageCarousel = ({ images, className = "" }) => {
         <div className="absolute inset-0 bg-black/30" />
       </div>
       <div className="relative max-w-6xl mx-auto px-6 pt-16 pb-20 text-center text-white">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight drop-shadow-md">UFF Trova cosa fare vicino a te</h1>
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight drop-shadow-md">Vuoi scopare?</h1>
         <p className="mt-3 text-base md:text-lg drop-shadow">Eventi, esperienze e borghi in tutta Italia. Cerca e parti.</p>
         <div className="mt-6 bg-white/95 backdrop-blur rounded-2xl p-3 md:p-4 inline-block w-full md:w-auto shadow-lg">
           <form className="flex flex-col gap-3 md:flex-row md:items-center" onSubmit={(e)=>e.preventDefault()} aria-label="Ricerca">

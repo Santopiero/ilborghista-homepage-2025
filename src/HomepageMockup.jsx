@@ -1,87 +1,35 @@
-import { useState, useRef } from "react";
-import {
-  MapPin, Clock, Heart, Search, ChevronRight, ChevronLeft,
-  Star, User, Car, Gift, Utensils, Send
-} from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { MapPin, Clock, Heart, Search, ChevronRight, ChevronLeft, Star, User, Car, Gift, Utensils, Send } from "lucide-react";
 
 export default function HomepageMockup() {
   const HERO_IMAGE_URL = "https://images.unsplash.com/photo-1520974735194-6c1f1c1d0b35?q=80&w=1600&auto=format&fit=crop";
-  const FALLBACK_IMG   = "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1600&auto=format&fit=crop";
+  const FALLBACK_IMG = "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1600&auto=format&fit=crop";
   const handleImgError = (e) => { e.currentTarget.onerror = null; e.currentTarget.src = FALLBACK_IMG; };
 
   const [expanded, setExpanded] = useState(false);
   const servicesRef = useRef(null);
 
-  // === Component: riutilizzabile per caroselli con dots ===
-  // --- Sostituisci questo blocco ---
-const ImageCarousel = ({ images, className = "" }) => {
-  const [active, setActive] = useState(0);
-  const ref = useRef(null);
-
-  const onScroll = (e) => {
-    const w = e.currentTarget.clientWidth;
-    const idx = Math.round(e.currentTarget.scrollLeft / w);
-    setActive(idx);
-  };
-
-  const goTo = (i) => {
-    const el = ref.current;
-    if (!el) return;
-    el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
-    setActive(i);
-  };
-
-  return (
-    <div className={`relative overflow-hidden ${className}`}>
-      <div
-        ref={ref}
-        className="flex w-full h-full overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth"
-        onScroll={onScroll}
-      >
-        {images.map((src, i) => (
-          <img
-            key={i}
-            src={src}
-            alt=""
-            loading="lazy"
-            className="min-w-full h-full object-cover flex-shrink-0 snap-center"
-            onError={(e)=> (e.currentTarget.src = FALLBACK_IMG)}
-          />
-        ))}
-      </div>
-
-      {/* barra + dots cliccabili */}
-      <div className="absolute inset-x-0 bottom-0 z-20">
-        <div className="pointer-events-none bg-gradient-to-t from-black/40 to-transparent h-6 w-full" />
-        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-2">
-          {images.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => goTo(i)}
-              className={`w-2.5 h-2.5 rounded-full ring-1 ring-black/10 ${
-                i === active ? "bg-[#D54E30]" : "bg-white/80"
-              }`}
-              aria-label={`Vai all'immagine ${i + 1} di ${images.length}`}
-              aria-current={i === active ? "true" : "false"}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-// --- fine blocco ---
-
+  // ——— Registrazione: stato di successo (dopo submit Netlify) ———
+  const [signupSuccess, setSignupSuccess] = useState(false);
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("grazie") === "1") {
+        setSignupSuccess(true);
+        url.searchParams.delete("grazie");
+        window.history.replaceState({}, "", url.pathname + url.hash);
+      }
+    } catch {}
+  }, []);
 
   // === COMPONENTI UI ===
   const ServiceTile = ({ img, label, icon: Icon, count }) => (
     <a href="#" className="group relative w-40 h-24 sm:w-44 sm:h-28 rounded-2xl overflow-hidden shadow-lg ring-1 ring-[#E1B671]/60 hover:ring-[#D54E30] transition">
       <img loading="lazy" src={img} alt={label} className="absolute inset-0 w-full h-full object-cover duration-300 group-hover:scale-105" onError={handleImgError} />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent"></div>
       <div className="absolute top-2 left-2 flex items-center gap-2">
-        {Icon ? <Icon size={18} className="text-white drop-shadow" /> : null}
-        {typeof count !== "undefined" ? (
+        {Icon ? <Icon size={18} className="text-white drop-shadow"/> : null}
+        {typeof count !== 'undefined' ? (
           <span className="text-[11px] font-semibold text-white bg-[#D54E30]/90 rounded-full px-2 py-0.5 shadow">{count}</span>
         ) : null}
       </div>
@@ -101,18 +49,10 @@ const ImageCarousel = ({ images, className = "" }) => {
     </a>
   );
 
-  // ===== Card: Sagra (3 foto + dots) =====
   const CardSagra = () => (
     <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white">
       <div className="h-40 w-full relative">
-        <ImageCarousel
-          className="h-40 w-full"
-          images={[
-            "https://images.unsplash.com/photo-1551218808-94e220e084d2?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?q=80&w=1200&auto=format&fit=crop"
-          ]}
-        />
+        <img loading="lazy" src="https://images.unsplash.com/photo-1551218808-94e220e084d2?q=80&w=1200&auto=format&fit=crop" alt="Cover sagra" className="h-40 w-full object-cover" onError={handleImgError} />
         <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-green-600 text-white border border-green-700 shadow-sm">In corso</span>
         <div className="absolute bottom-2 right-2 w-20 h-28 bg-white rounded-md shadow-md border border-neutral-200 overflow-hidden">
           <img src="https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=800&auto=format&fit=crop" alt="Locandina" className="w-full h-full object-contain" onError={handleImgError} />
@@ -131,21 +71,13 @@ const ImageCarousel = ({ images, className = "" }) => {
     </article>
   );
 
-  // ===== Card: Sagra ANNULLATA (3 foto + dots) =====
   const CardSagraAnnullata = () => (
     <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white">
       <div className="h-40 w-full relative">
-        <ImageCarousel
-          className="h-40 w-full"
-          images={[
-            "https://images.unsplash.com/photo-1478145046317-39f10e56b5e9?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1501426026826-31c667bdf23d?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1514511547904-6f585f3f5d5b?q=80&w=1200&auto=format&fit=crop"
-          ]}
-        />
+        <img loading="lazy" src="https://images.unsplash.com/photo-1478145046317-39f10e56b5e9?q=80&w=1200&auto=format&fit=crop" alt="Cover sagra" className="h-40 w-full object-cover" onError={handleImgError} />
         <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#D54E30] text-white border border-[#6B271A] shadow-sm">Annullata</span>
         <div className="absolute bottom-2 right-2 w-20 h-28 bg-white rounded-md shadow-md border border-neutral-200 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=800&auto=format&fit=crop" alt="Locandina" className="w-full h-full object-contain" style={{ filter: "saturate(0.85) grayscale(0.1) opacity(0.95)" }} onError={handleImgError} />
+          <img src="https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=800&auto=format&fit=crop" alt="Locandina" className="w-full h-full object-contain" style={{filter:"saturate(0.85) grayscale(0.1) opacity(0.95)"}} onError={handleImgError} />
         </div>
       </div>
       <div className="p-4 text-left space-y-2">
@@ -161,17 +93,11 @@ const ImageCarousel = ({ images, className = "" }) => {
     </article>
   );
 
-  // ===== Card: Concerto (3 foto + dots) =====
   const CardConcerto = () => (
     <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white">
-      <ImageCarousel
-        className="h-40 w-full"
-        images={[
-          "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1200&auto=format&fit=crop",
-          "https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=1200&auto=format&fit=crop",
-          "https://images.unsplash.com/photo-1483412033650-1015ddeb83d1?q=80&w=1200&auto=format&fit=crop"
-        ]}
-      />
+      <div className="h-40 w-full">
+        <img loading="lazy" src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1200&auto=format&fit=crop" alt="Concerto" className="h-40 w-full object-cover" onError={handleImgError} />
+      </div>
       <div className="p-4 text-left space-y-2">
         <div className="flex flex-col items-start gap-1">
           <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">Concerto</span>
@@ -185,21 +111,13 @@ const ImageCarousel = ({ images, className = "" }) => {
     </article>
   );
 
-  // ===== Card: Fiera (3 foto + dots) =====
   const CardFiera = () => (
     <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white">
       <div className="h-40 w-full relative">
-        <ImageCarousel
-          className="h-40 w-full"
-          images={[
-            "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1523986371872-9d3ba2e2f642?q=80&w=1200&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1520975922323-2155a3b6f2b6?q=80&w=1200&auto=format&fit=crop"
-          ]}
-        />
+        <img loading="lazy" src="https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop" alt="Fiera" className="h-40 w-full object-cover" onError={handleImgError} />
         <div className="absolute bottom-2 right-2 w-20 h-28 bg-white rounded-sm shadow-md border border-neutral-200 overflow-hidden rotate-1">
           <img src="https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop" alt="Poster" className="w-full h-full object-contain" onError={handleImgError} />
-          <span className="absolute -top-2 left-3 w-10 h-3 bg-[#E1B671] rotate-[-6deg] rounded-[2px]" />
+          <span className="absolute -top-2 left-3 w-10 h-3 bg-[#E1B671] rotate-[-6deg] rounded-[2px]"></span>
         </div>
       </div>
       <div className="p-4 text-left space-y-2">
@@ -216,10 +134,15 @@ const ImageCarousel = ({ images, className = "" }) => {
     </article>
   );
 
-  // ===== ExperienceCard (usa ImageCarousel) =====
   const ExperienceCard = ({ images, title, location, region, meta, priceFrom }) => (
     <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white">
-      <ImageCarousel className="h-40 w-full" images={images} />
+      <div className="h-40 w-full relative overflow-hidden">
+        <div className="flex h-40 w-full overflow-x-auto gap-1 no-scrollbar snap-x snap-mandatory">
+          {images.map((src, i) => (
+            <img key={i} loading="lazy" src={src} alt="" className="h-40 w-full object-cover rounded-[2px] flex-shrink-0 snap-center min-w-full" onError={handleImgError}/>
+          ))}
+        </div>
+      </div>
       <div className="p-4 text-left space-y-2">
         <div className="flex items-start justify-between gap-2">
           <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">Esperienza</span>
@@ -238,7 +161,7 @@ const ImageCarousel = ({ images, className = "" }) => {
         <img loading="lazy" src={img} alt={title} className="h-40 w-full object-cover" onError={handleImgError} />
       </div>
       <div className="p-4 text-left space-y-2">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start justify_between gap-2">
           <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">Prodotto tipico</span>
           <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">da {priceFrom}</span>
         </div>
@@ -255,7 +178,7 @@ const ImageCarousel = ({ images, className = "" }) => {
         <div className="absolute inset-0 bg-black/30" />
       </div>
       <div className="relative max-w-6xl mx-auto px-6 pt-16 pb-20 text-center text-white">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight drop-shadow-md">Trova cose da fare intorno a te</h1>
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight drop-shadow-md">Trova cosa fare vicino a te</h1>
         <p className="mt-3 text-base md:text-lg drop-shadow">Eventi, esperienze e borghi in tutta Italia. Cerca e parti.</p>
         <div className="mt-6 bg-white/95 backdrop-blur rounded-2xl p-3 md:p-4 inline-block w-full md:w-auto shadow-lg">
           <form className="flex flex-col gap-3 md:flex-row md:items-center" onSubmit={(e)=>e.preventDefault()} aria-label="Ricerca">
@@ -272,7 +195,7 @@ const ImageCarousel = ({ images, className = "" }) => {
             <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_nearby">Vicino a me</button>
             <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_family">Con bambini</button>
           </div>
-          <div className="text-sm text-gray-700 mt-2">Sei un Comune? <a href="#" className="font-semibold underline text-[#6B271A]">Scopri i nostri servizi</a></div>
+          <div className="text-sm text-gray-700 mt-2">Sei un Comune? <a href="#registrazione" className="font-semibold underline text-[#6B271A]">Scopri i nostri servizi</a></div>
         </div>
       </div>
     </section>
@@ -286,7 +209,8 @@ const ImageCarousel = ({ images, className = "" }) => {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <a href="#" className="text-xl font-extrabold text-[#6B271A]">il borghista</a>
             <div className="flex items-center gap-3">
-              <a href="#" className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]" data-event="auth_click">
+              {/* collegato alla sezione di registrazione */}
+              <a href="#registrazione" className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]" data-event="auth_click">
                 <User size={18} /> Accedi / Registrati
               </a>
             </div>
@@ -300,8 +224,8 @@ const ImageCarousel = ({ images, className = "" }) => {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <h2 className="text-lg font-extrabold text-[#6B271A]">Servizi</h2>
           <div className="relative mt-3">
-            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent rounded-l-2xl" />
-            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent rounded-r-2xl" />
+            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent rounded-l-2xl"></div>
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent rounded-r-2xl"></div>
             <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pr-10" ref={servicesRef}>
               <ServiceTile img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=900&auto=format&fit=crop" label="Esperienze" icon={Utensils} count={238} />
               <ServiceTile img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=900&auto=format&fit=crop" label="Prodotti tipici" icon={Gift} count={120} />
@@ -334,10 +258,10 @@ const ImageCarousel = ({ images, className = "" }) => {
         </section>
 
         {/* PROSSIMI EVENTI & SAGRE */}
-        <section className="max-w-6xl mx-auto px-4 sm:px-6">
+        <section className="max-w-6xl mx_auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Prossimi eventi e sagre</h2>
-            <a href="#" className="text-sm font-semibold underline flex items-center gap-1">Vedi tutti <ChevronRight size={16}/></a>
+            <a href="#" className="text-sm font-semibold underline flex items_center gap-1">Vedi tutti <ChevronRight size={16}/></a>
           </div>
           <div className="mt-3 flex items-center justify-between">
             <div className="flex flex-wrap gap-2 text-xs">
@@ -433,9 +357,108 @@ const ImageCarousel = ({ images, className = "" }) => {
           </div>
         </section>
 
+        {/* ——— REGISTRAZIONE COMUNI & SINDACI (integrata) ——— */}
+        <section id="registrazione" className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="rounded-3xl bg-[#FAF5E0] p-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-extrabold text-[#6B271A]">Registrazione Comuni & Sindaci</h2>
+                <p className="text-sm text-gray-700">Aumenta la visibilità degli eventi e dei servizi ufficiali del tuo Comune su IlBorghista.it</p>
+              </div>
+              <ul className="text-sm text-gray-700 grid sm:grid-cols-3 gap-2 md:w-1/2">
+                <li className="rounded-xl bg-white border p-3">Pagina Comune verificata</li>
+                <li className="rounded-xl bg-white border p-3">Eventi in vetrina regionale</li>
+                <li className="rounded-xl bg-white border p-3">Supporto & reportistica</li>
+              </ul>
+            </div>
+
+            {signupSuccess ? (
+              <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                Richiesta inviata! Ti contatteremo entro 1–2 giorni lavorativi all’email indicata.
+              </div>
+            ) : null}
+
+            <form
+              name="RegistrazioneSindaci"
+              method="POST"
+              data-netlify="true"
+              netlify-honeypot="bot-field"
+              action="/?grazie=1#registrazione"
+              className="mt-4 grid md:grid-cols-2 gap-4 bg-white border rounded-2xl p-4"
+            >
+              <input type="hidden" name="form-name" value="RegistrazioneSindaci" />
+              <p className="hidden">
+                <label>Non compilare: <input name="bot-field" /></label>
+              </p>
+
+              <div>
+                <label className="text-sm font-semibold text-[#6B271A]">Comune*</label>
+                <input name="comune" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Arnad" />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-[#6B271A]">Provincia / Regione*</label>
+                <input name="provincia_regione" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. AO / Valle d'Aosta" />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-[#6B271A]">Referente*</label>
+                <input name="referente" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Mario Rossi" />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-[#6B271A]">Ruolo*</label>
+                <input name="ruolo" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Sindaco / Uff. Turismo" />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-[#6B271A]">Email istituzionale*</label>
+                <input type="email" name="email" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="nome@comune.xx.it" />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-[#6B271A]">Telefono</label>
+                <input name="telefono" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="+39 ..." />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-[#6B271A]">Sito web del Comune</label>
+                <input type="url" name="sito" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="https://www.comune.xx.it" />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-[#6B271A]">Popolazione (stima)</label>
+                <input type="number" name="popolazione" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. 3.200" />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-sm font-semibold text-[#6B271A]">Note</label>
+                <textarea name="note" rows="4" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Eventi ricorrenti, esigenze, contatti preferiti..."></textarea>
+              </div>
+
+              <div className="md:col-span-2 flex flex-col gap-2 text-sm">
+                <label className="inline-flex items-start gap-2">
+                  <input type="checkbox" name="privacy" required className="mt-1" />
+                  <span>Ho letto e accetto l’<a className="underline" href="#" target="_blank" rel="noreferrer">informativa privacy</a>*</span>
+                </label>
+                <label className="inline-flex items-start gap-2">
+                  <input type="checkbox" name="marketing" className="mt-1" />
+                  <span>Desidero ricevere aggiornamenti su funzionalità e bandi per i Comuni</span>
+                </label>
+              </div>
+
+              <div className="md:col-span-2">
+                <button className="w-full md:w-auto inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#D54E30] text-white font-semibold">
+                  Invia richiesta
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
         {/* FOOTER */}
         <footer className="mt-8 border-t">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 text-sm text-gray-600 flex flex-col md:flex-row items-center justify-between gap-2">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 text-sm text-gray-600 flex flex-col md:flex-row items-center justify_between gap-2">
             <div>© {new Date().getFullYear()} IlBorghista</div>
             <div className="flex gap-4">
               <a href="#" className="hover:underline">Privacy</a>

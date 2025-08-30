@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { MapPin, Clock, Heart, Search, ChevronRight, ChevronLeft, Star, User, Car, Gift, Utensils, Send } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export default function HomepageMockup() {
   const HERO_IMAGE_URL = "https://images.unsplash.com/photo-1520974735194-6c1f1c1d0b35?q=80&w=1600&auto=format&fit=crop";
@@ -9,7 +10,7 @@ export default function HomepageMockup() {
   const [expanded, setExpanded] = useState(false);
   const servicesRef = useRef(null);
 
-  // ——— Registrazione: stato di successo (dopo submit Netlify) ———
+  // Success banner dopo submit Netlify (?grazie=1#registrazione)
   const [signupSuccess, setSignupSuccess] = useState(false);
   useEffect(() => {
     try {
@@ -21,6 +22,23 @@ export default function HomepageMockup() {
       }
     } catch {}
   }, []);
+
+  // === PARTNER: auto-scroll ===
+  const partnersRef = useRef(null);
+  const [partnersPaused, setPartnersPaused] = useState(false);
+  useEffect(() => {
+    const el = partnersRef.current;
+    if (!el) return;
+    const id = setInterval(() => {
+      if (!partnersRef.current || partnersPaused) return;
+      const node = partnersRef.current;
+      node.scrollLeft += 1;
+      if (node.scrollLeft + node.clientWidth >= node.scrollWidth - 1) {
+        node.scrollLeft = 0;
+      }
+    }, 20);
+    return () => clearInterval(id);
+  }, [partnersPaused]);
 
   // === COMPONENTI UI ===
   const ServiceTile = ({ img, label, icon: Icon, count }) => (
@@ -195,11 +213,24 @@ export default function HomepageMockup() {
             <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_nearby">Vicino a me</button>
             <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_family">Con bambini</button>
           </div>
-          <div className="text-sm text-gray-700 mt-2">Sei un Comune? <a href="#registrazione" className="font-semibold underline text-[#6B271A]">Scopri i nostri servizi</a></div>
+          <div className="text-sm text-gray-700 mt-2">
+  Sei un Comune?{" "}
+  <Link to="/registrazione-comune" className="font-semibold underline text-[#6B271A]">
+    Scopri i nostri servizi
+  </Link>
+</div>
+
         </div>
       </div>
     </section>
   );
+
+  // === LOGHI PARTNER (placeholder) ===
+  const partners = Array.from({length: 10}).map((_,i)=>({
+    id: i+1,
+    img: `https://dummyimage.com/160x64/FAF5E0/6B271A&text=Partner+${i+1}`
+  }));
+  const partnersLoop = [...partners, ...partners];
 
   return (
     <>
@@ -209,10 +240,14 @@ export default function HomepageMockup() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <a href="#" className="text-xl font-extrabold text-[#6B271A]">il borghista</a>
             <div className="flex items-center gap-3">
-              {/* collegato alla sezione di registrazione */}
-              <a href="#registrazione" className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]" data-event="auth_click">
-                <User size={18} /> Accedi / Registrati
-              </a>
+              <Link
+  to="/registrazione-comune"
+  className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]"
+  data-event="auth_click"
+>
+  <User size={18} /> Registrati
+</Link>
+
             </div>
           </div>
         </header>
@@ -340,6 +375,37 @@ export default function HomepageMockup() {
           </div>
         </section>
 
+        {/* I NOSTRI PARTNER (auto-scroll) */}
+        <section className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-extrabold text-[#6B271A]">I nostri partner</h2>
+          </div>
+          <div className="relative mt-3">
+            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent rounded-l-2xl"></div>
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent rounded-r-2xl"></div>
+
+            <div
+              ref={partnersRef}
+              onMouseEnter={()=>setPartnersPaused(true)}
+              onMouseLeave={()=>setPartnersPaused(false)}
+              className="flex gap-4 overflow-x-auto no-scrollbar items-center py-2"
+            >
+              {partnersLoop.map((p, idx) => (
+                <div key={`${p.id}-${idx}`} className="shrink-0">
+                  <div className="h-16 w-40 rounded-2xl bg-white border flex items-center justify-center shadow-sm">
+                    <img
+                      src={p.img}
+                      alt={`Logo partner ${p.id}`}
+                      className="max-h-12 object-contain"
+                      onError={(e)=>{ e.currentTarget.src = `https://dummyimage.com/160x64/ffffff/999&text=Partner+${p.id}`; }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* TRUST / NEWSLETTER */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="rounded-3xl bg-[#FAF5E0] p-6 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -357,108 +423,144 @@ export default function HomepageMockup() {
           </div>
         </section>
 
-        {/* ——— REGISTRAZIONE COMUNI & SINDACI (integrata) ——— */}
-        <section id="registrazione" className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="rounded-3xl bg-[#FAF5E0] p-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-extrabold text-[#6B271A]">Registrazione Comuni & Sindaci</h2>
-                <p className="text-sm text-gray-700">Aumenta la visibilità degli eventi e dei servizi ufficiali del tuo Comune su IlBorghista.it</p>
+        {/* ——— REGISTRAZIONE COMUNI & SINDACI (hero con foto) ——— */}
+        <section id="registrazione" className="relative">
+          {/* Background immagine + overlay */}
+          <div className="absolute inset-0">
+            <img
+              src="https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=1600&auto=format&fit=crop"
+              alt="Borgo italiano — registrazione Comuni"
+              className="w-full h-full object-cover"
+              onError={handleImgError}
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/45 to-black/20" />
+          </div>
+
+          {/* Contenuto */}
+          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-12 md:py-16">
+            <div className="grid md:grid-cols-2 gap-6 items-stretch">
+              {/* Colonna sinistra */}
+              <div className="text-white">
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[12px] font-bold bg-white/10 ring-1 ring-white/20 backdrop-blur">
+                  Per Comuni & Sindaci
+                </span>
+                <h2 className="mt-3 text-2xl sm:text-3xl font-extrabold leading-snug">
+                  Metti il tuo <span className="text-[#E1B671]">borgo</span> in vetrina
+                </h2>
+                <p className="mt-2 text-sm sm:text-base text-white/90 max-w-prose">
+                  Pubblica eventi ufficiali, esperienze e prodotti tipici del tuo Comune su IlBorghista.it.
+                  Aumenta la visibilità e intercetta chi cerca cosa fare <em>vicino a sé</em>.
+                </p>
+                <ul className="mt-4 grid gap-2 text-sm">
+                  <li className="inline-flex items-center gap-2">
+                    <Star className="shrink-0" size={16} /> Vetrina regionale e ricerche geolocalizzate
+                  </li>
+                  <li className="inline-flex items-center gap-2">
+                    <MapPin className="shrink-0" size={16} /> Pagina Comune verificata con calendario
+                  </li>
+                  <li className="inline-flex items-center gap-2">
+                    <Send className="shrink-0" size={16} /> Supporto dedicato e report periodici
+                  </li>
+                </ul>
               </div>
-              <ul className="text-sm text-gray-700 grid sm:grid-cols-3 gap-2 md:w-1/2">
-                <li className="rounded-xl bg-white border p-3">Pagina Comune verificata</li>
-                <li className="rounded-xl bg-white border p-3">Eventi in vetrina regionale</li>
-                <li className="rounded-xl bg-white border p-3">Supporto & reportistica</li>
-              </ul>
+
+              {/* Colonna destra: form */}
+              <div className="bg-white/95 backdrop-blur-md rounded-2xl p-5 md:p-6 shadow-2xl ring-1 ring-black/5">
+                <div className="mb-4">
+                  <div className="text-[#6B271A] font-extrabold">Richiedi l’accesso</div>
+                  <div className="text-sm text-gray-600">Rispondiamo entro 1–2 giorni lavorativi.</div>
+                </div>
+
+                {signupSuccess ? (
+                  <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                    Richiesta inviata! Ti contatteremo all’email indicata.
+                  </div>
+                ) : null}
+
+                <form
+                  name="RegistrazioneSindaci"
+                  method="POST"
+                  data-netlify="true"
+                  netlify-honeypot="bot-field"
+                  action="/?grazie=1#registrazione"
+                  className="grid md:grid-cols-2 gap-4"
+                  aria-label="Registrazione Comuni & Sindaci"
+                >
+                  <input type="hidden" name="form-name" value="RegistrazioneSindaci" />
+                  <p className="hidden">
+                    <label>Non compilare: <input name="bot-field" /></label>
+                  </p>
+
+                  <div>
+                    <label className="text-sm font-semibold text-[#6B271A]">Comune*</label>
+                    <input name="comune" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Arnad" />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-[#6B271A]">Provincia / Regione*</label>
+                    <input name="provincia_regione" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. AO / Valle d'Aosta" />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-[#6B271A]">Referente*</label>
+                    <input name="referente" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Mario Rossi" />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-[#6B271A]">Ruolo*</label>
+                    <input name="ruolo" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Sindaco / Uff. Turismo" />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-[#6B271A]">Email istituzionale*</label>
+                    <input type="email" name="email" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="nome@comune.xx.it" />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-[#6B271A]">Telefono</label>
+                    <input name="telefono" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="+39 ..." />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-[#6B271A]">Sito web del Comune</label>
+                    <input type="url" name="sito" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="https://www.comune.xx.it" />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-[#6B271A]">Popolazione (stima)</label>
+                    <input type="number" name="popolazione" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. 3.200" />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-semibold text-[#6B271A]">Note</label>
+                    <textarea name="note" rows="4" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Eventi ricorrenti, esigenze, contatti preferiti..."></textarea>
+                  </div>
+
+                  <div className="md:col-span-2 flex flex-col gap-2 text-sm">
+                    <label className="inline-flex items-start gap-2">
+                      <input type="checkbox" name="privacy" required className="mt-1" />
+                      <span>Ho letto e accetto l’<a className="underline" href="#" target="_blank" rel="noreferrer">informativa privacy</a>*</span>
+                    </label>
+                    <label className="inline-flex items-start gap-2">
+                      <input type="checkbox" name="marketing" className="mt-1" />
+                      <span>Desidero ricevere aggiornamenti su funzionalità e bandi per i Comuni</span>
+                    </label>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <button className="w-full md:w-auto inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#D54E30] text-white font-semibold">
+                      Invia richiesta
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
-
-            {signupSuccess ? (
-              <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                Richiesta inviata! Ti contatteremo entro 1–2 giorni lavorativi all’email indicata.
-              </div>
-            ) : null}
-
-            <form
-              name="RegistrazioneSindaci"
-              method="POST"
-              data-netlify="true"
-              netlify-honeypot="bot-field"
-              action="/?grazie=1#registrazione"
-              className="mt-4 grid md:grid-cols-2 gap-4 bg-white border rounded-2xl p-4"
-            >
-              <input type="hidden" name="form-name" value="RegistrazioneSindaci" />
-              <p className="hidden">
-                <label>Non compilare: <input name="bot-field" /></label>
-              </p>
-
-              <div>
-                <label className="text-sm font-semibold text-[#6B271A]">Comune*</label>
-                <input name="comune" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Arnad" />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold text-[#6B271A]">Provincia / Regione*</label>
-                <input name="provincia_regione" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. AO / Valle d'Aosta" />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold text-[#6B271A]">Referente*</label>
-                <input name="referente" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Mario Rossi" />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold text-[#6B271A]">Ruolo*</label>
-                <input name="ruolo" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Sindaco / Uff. Turismo" />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold text-[#6B271A]">Email istituzionale*</label>
-                <input type="email" name="email" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="nome@comune.xx.it" />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold text-[#6B271A]">Telefono</label>
-                <input name="telefono" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="+39 ..." />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold text-[#6B271A]">Sito web del Comune</label>
-                <input type="url" name="sito" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="https://www.comune.xx.it" />
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold text-[#6B271A]">Popolazione (stima)</label>
-                <input type="number" name="popolazione" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. 3.200" />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-sm font-semibold text-[#6B271A]">Note</label>
-                <textarea name="note" rows="4" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Eventi ricorrenti, esigenze, contatti preferiti..."></textarea>
-              </div>
-
-              <div className="md:col-span-2 flex flex-col gap-2 text-sm">
-                <label className="inline-flex items-start gap-2">
-                  <input type="checkbox" name="privacy" required className="mt-1" />
-                  <span>Ho letto e accetto l’<a className="underline" href="#" target="_blank" rel="noreferrer">informativa privacy</a>*</span>
-                </label>
-                <label className="inline-flex items-start gap-2">
-                  <input type="checkbox" name="marketing" className="mt-1" />
-                  <span>Desidero ricevere aggiornamenti su funzionalità e bandi per i Comuni</span>
-                </label>
-              </div>
-
-              <div className="md:col-span-2">
-                <button className="w-full md:w-auto inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#D54E30] text-white font-semibold">
-                  Invia richiesta
-                </button>
-              </div>
-            </form>
           </div>
         </section>
 
         {/* FOOTER */}
         <footer className="mt-8 border-t">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 text-sm text-gray-600 flex flex-col md:flex-row items-center justify_between gap-2">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 text-sm text-gray-600 flex flex-col md:flex-row items-center justify-between gap-2">
             <div>© {new Date().getFullYear()} IlBorghista</div>
             <div className="flex gap-4">
               <a href="#" className="hover:underline">Privacy</a>

@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 
 /**
@@ -10,8 +10,6 @@ import { ChevronLeft } from "lucide-react";
  * - Hero "borgo" posizionata sotto le card
  */
 export default function RegistrazioneAttivita() {
-  const navigate = useNavigate();
-
   const categories = [
     {
       key: "dormire",
@@ -43,12 +41,12 @@ export default function RegistrazioneAttivita() {
     <main className="bg-white text-[#2a1d17]">
       {/* BARRA INDIETRO */}
       <div className="mx-auto max-w-6xl px-4 pt-6">
-        <button
-          onClick={() => navigate(-1)}
+        <Link
+          to="/"
           className="inline-flex items-center gap-2 text-[#6B271A] font-semibold hover:text-[#D54E30] transition"
         >
           <ChevronLeft size={18} /> Indietro
-        </button>
+        </Link>
       </div>
 
       {/* TESTATA */}

@@ -40,7 +40,80 @@ export default function HomepageMockup() {
     return () => clearInterval(id);
   }, [partnersPaused]);
 
-  // === COMPONENTI UI ===
+  /* ------------------- UI PRIMITIVES ------------------- */
+
+  function Carousel({ images = [], heightClass = "h-40", rounded = "rounded-2xl" }) {
+    const [idx, setIdx] = useState(0);
+    const touchStartX = useRef(0);
+    const touchEndX = useRef(0);
+
+    const clamp = (n) => (n < 0 ? images.length - 1 : n >= images.length ? 0 : n);
+    const go = (n) => setIdx(clamp(n));
+    const next = () => go(idx + 1);
+    const prev = () => go(idx - 1);
+
+    const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+    const onTouchMove = (e) => { touchEndX.current = e.touches[0].clientX; };
+    const onTouchEnd = () => {
+      const delta = touchEndX.current - touchStartX.current;
+      if (Math.abs(delta) > 40) { delta < 0 ? next() : prev(); }
+    };
+
+    return (
+      <div className={`relative w-full overflow-hidden ${rounded}`} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        <div
+          className={`flex ${heightClass} transition-transform duration-500`}
+          style={{ transform: `translateX(-${idx * 100}%)` }}
+        >
+          {images.map((src, i) => (
+            <img
+              key={i}
+              loading="lazy"
+              src={src}
+              alt=""
+              className={`w-full ${heightClass} object-cover flex-shrink-0`}
+              onError={handleImgError}
+            />
+          ))}
+        </div>
+
+        {/* Frecce (mostrate da md in su) */}
+        {images.length > 1 && (
+          <>
+            <button
+              onClick={prev}
+              className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 items-center justify-center rounded-full bg-white/90 shadow ring-1 ring-black/10 hover:bg-white"
+              aria-label="Precedente"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              onClick={next}
+              className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 items-center justify-center rounded-full bg-white/90 shadow ring-1 ring-black/10 hover:bg-white"
+              aria-label="Successivo"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </>
+        )}
+
+        {/* Dots */}
+        {images.length > 1 && (
+          <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-2">
+            {images.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => go(i)}
+                aria-label={`Vai alla foto ${i + 1}`}
+                className={`w-2.5 h-2.5 rounded-full transition ${i === idx ? "bg-white shadow ring-1 ring-black/10" : "bg-white/60 hover:bg-white"}`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const ServiceTile = ({ img, label, icon: Icon, count }) => (
     <a href="#" className="group relative w-40 h-24 sm:w-44 sm:h-28 rounded-2xl overflow-hidden shadow-lg ring-1 ring-[#E1B671]/60 hover:ring-[#D54E30] transition">
       <img loading="lazy" src={img} alt={label} className="absolute inset-0 w-full h-full object-cover duration-300 group-hover:scale-105" onError={handleImgError} />
@@ -67,105 +140,103 @@ export default function HomepageMockup() {
     </a>
   );
 
+  /* -------- Event Cards (ora con Carousel 3 foto + pallini) -------- */
+
+  function EventBadgeRow({ type = "Sagra", dateText = "28 AGO – 5 SET 2025", extra = null }) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">{type}</span>
+        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">{dateText}</span>
+        {extra}
+      </div>
+    );
+  }
+
+  function EventCardBase({ statusChip, images, title, place, time }) {
+    return (
+      <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white">
+        <div className="relative">
+          <Carousel images={images} />
+          {statusChip}
+        </div>
+        <div className="p-4 text-left space-y-2">
+          <EventBadgeRow />
+          <h3 className="text-base font-extrabold text-[#6B271A] leading-snug">{title}</h3>
+          <div className="flex items-center text-sm text-gray-600 gap-2"><MapPin size={16} className="text-[#D54E30]" /> {place}</div>
+          <div className="flex items-center text-sm text-gray-600 gap-2"><Clock size={16} className="text-[#6B271A]" /> {time}</div>
+        </div>
+      </article>
+    );
+  }
+
   const CardSagra = () => (
-    <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white">
-      <div className="h-40 w-full relative">
-        <img loading="lazy" src="https://images.unsplash.com/photo-1551218808-94e220e084d2?q=80&w=1200&auto=format&fit=crop" alt="Cover sagra" className="h-40 w-full object-cover" onError={handleImgError} />
-        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-green-600 text-white border border-green-700 shadow-sm">In corso</span>
-        <div className="absolute bottom-2 right-2 w-20 h-28 bg-white rounded-md shadow-md border border-neutral-200 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=800&auto=format&fit=crop" alt="Locandina" className="w-full h-full object-contain" onError={handleImgError} />
-        </div>
-      </div>
-      <div className="p-4 text-left space-y-2">
-        <div className="flex flex-col items-start gap-1">
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#D54E30] border border-[#E1B671]">Sagra</span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">28 AGO – 5 SET 2025</span>
-          <button className="mt-1 self-end rounded-full border border-gray-200 p-1 hover:bg-gray-50" aria-label="Aggiungi ai preferiti" data-event="favorite_click"><Heart size={18} className="text-[#D54E30]" /></button>
-        </div>
-        <h3 className="text-base font-extrabold text-[#6B271A] leading-snug">52ª Festa del Lard d’Arnad D.O.P. 2025</h3>
-        <div className="flex items-center text-sm text-gray-600 gap-2"><MapPin size={16} className="text-[#D54E30]" /> Arnad (AO) | Valle d'Aosta</div>
-        <div className="flex items-center text-sm text-gray-600 gap-2"><Clock size={16} className="text-[#6B271A]" /> Tutti i giorni dalle 17:00</div>
-      </div>
-    </article>
+    <EventCardBase
+      statusChip={<span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-green-600 text-white border border-green-700 shadow-sm">In corso</span>}
+      images={[
+        "https://images.unsplash.com/photo-1551218808-94e220e084d2?q=80&w=1200&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=1200&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1520974735194-6c1f1c1d0b35?q=80&w=1200&auto=format&fit=crop",
+      ]}
+      title="52ª Festa del Lard d’Arnad D.O.P. 2025"
+      place="Arnad (AO) | Valle d'Aosta"
+      time="Tutti i giorni dalle 17:00"
+    />
   );
 
   const CardSagraAnnullata = () => (
-    <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white">
-      <div className="h-40 w-full relative">
-        <img loading="lazy" src="https://images.unsplash.com/photo-1478145046317-39f10e56b5e9?q=80&w=1200&auto=format&fit=crop" alt="Cover sagra" className="h-40 w-full object-cover" onError={handleImgError} />
-        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#D54E30] text-white border border-[#6B271A] shadow-sm">Annullata</span>
-        <div className="absolute bottom-2 right-2 w-20 h-28 bg-white rounded-md shadow-md border border-neutral-200 overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=800&auto=format&fit=crop" alt="Locandina" className="w-full h-full object-contain" style={{filter:"saturate(0.85) grayscale(0.1) opacity(0.95)"}} onError={handleImgError} />
-        </div>
-      </div>
-      <div className="p-4 text-left space-y-2">
-        <div className="flex flex-col items-start gap-1">
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#D54E30] border border-[#E1B671]">Sagra</span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">28 AGO – 5 SET 2025</span>
-          <button className="mt-1 self-end rounded-full border border-gray-200 p-1 hover:bg-gray-50" aria-label="Aggiungi ai preferiti" data-event="favorite_click"><Heart size={18} className="text-[#D54E30]" /></button>
-        </div>
-        <h3 className="text-base font-extrabold text-[#6B271A] leading-snug">52ª Festa del Lard d’Arnad D.O.P. 2025</h3>
-        <div className="flex items-center text-sm text-gray-600 gap-2"><MapPin size={16} className="text-[#D54E30]" /> Arnad (AO) | Valle d'Aosta</div>
-        <div className="flex items-center text-sm text-gray-600 gap-2"><Clock size={16} className="text-[#6B271A]" /> Evento annullato</div>
-      </div>
-    </article>
+    <EventCardBase
+      statusChip={<span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#D54E30] text-white border border-[#6B271A] shadow-sm">Annullata</span>}
+      images={[
+        "https://images.unsplash.com/photo-1478145046317-39f10e56b5e9?q=80&w=1200&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=1200&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop",
+      ]}
+      title="52ª Festa del Lard d’Arnad D.O.P. 2025"
+      place="Arnad (AO) | Valle d'Aosta"
+      time="Evento annullato"
+    />
   );
 
   const CardConcerto = () => (
-    <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white">
-      <div className="h-40 w-full">
-        <img loading="lazy" src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1200&auto=format&fit=crop" alt="Concerto" className="h-40 w-full object-cover" onError={handleImgError} />
-      </div>
-      <div className="p-4 text-left space-y-2">
-        <div className="flex flex-col items-start gap-1">
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">Concerto</span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">28 AGO 2025</span>
-          <button className="mt-1 self-end rounded-full border border-gray-200 p-1 hover:bg-gray-50" aria-label="Aggiungi ai preferiti" data-event="favorite_click"><Heart size={18} className="text-[#D54E30]" /></button>
-        </div>
-        <h3 className="text-base font-extrabold text-[#6B271A] leading-snug">Apulia Suona 2025</h3>
-        <div className="flex items-center text-sm text-gray-600 gap-2"><MapPin size={16} className="text-[#D54E30]" /> Barletta (BT) | Puglia</div>
-        <div className="flex items-center text-sm text-gray-600 gap-2"><Clock size={16} className="text-[#6B271A]" /> Ore 21:00</div>
-      </div>
-    </article>
+    <EventCardBase
+      statusChip={null}
+      images={[
+        "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1200&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1200&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop",
+      ]}
+      title="Apulia Suona 2025"
+      place="Barletta (BT) | Puglia"
+      time="Ore 21:00"
+    />
   );
 
   const CardFiera = () => (
-    <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white">
-      <div className="h-40 w-full relative">
-        <img loading="lazy" src="https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop" alt="Fiera" className="h-40 w-full object-cover" onError={handleImgError} />
-        <div className="absolute bottom-2 right-2 w-20 h-28 bg-white rounded-sm shadow-md border border-neutral-200 overflow-hidden rotate-1">
-          <img src="https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop" alt="Poster" className="w-full h-full object-contain" onError={handleImgError} />
-          <span className="absolute -top-2 left-3 w-10 h-3 bg-[#E1B671] rotate-[-6deg] rounded-[2px]"></span>
-        </div>
-      </div>
-      <div className="p-4 text-left space-y-2">
-        <div className="flex flex-col items-start gap-1">
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">Fiera</span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">29 AGO 2025</span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200">Date non confermate</span>
-          <button className="mt-1 self-end rounded-full border border-gray-200 p-1 hover:bg-gray-50" aria-label="Aggiungi ai preferiti" data-event="favorite_click"><Heart size={18} className="text-[#D54E30]" /></button>
-        </div>
-        <h3 className="text-base font-extrabold text-[#6B271A] leading-snug">Edizione 2025 – Fiera di Santa Maria</h3>
-        <div className="flex items-center text-sm text-gray-600 gap-2"><MapPin size={16} className="text-[#D54E30]" /> Calcinate (BG) | Lombardia</div>
-        <div className="flex items-center text-sm text-gray-600 gap-2"><Clock size={16} className="text-[#6B271A]" /> Date non confermate</div>
-      </div>
-    </article>
+    <EventCardBase
+      statusChip={
+        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#6B271A] text-white border border-[#E1B671] shadow-sm">In evidenza</span>
+      }
+      images={[
+        "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=1200&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1200&auto=format&fit=crop",
+      ]}
+      title="Edizione 2025 – Fiera di Santa Maria"
+      place="Calcinate (BG) | Lombardia"
+      time="Date non confermate"
+    />
   );
 
+  /* -------- Esperienze (allineate + carousel + pallini) -------- */
+
   const ExperienceCard = ({ images, title, location, region, meta, priceFrom }) => (
-    <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white">
-      <div className="h-40 w-full relative overflow-hidden">
-        <div className="flex h-40 w-full overflow-x-auto gap-1 no-scrollbar snap-x snap-mandatory">
-          {images.map((src, i) => (
-            <img key={i} loading="lazy" src={src} alt="" className="h-40 w-full object-cover rounded-[2px] flex-shrink-0 snap-center min-w-full" onError={handleImgError}/>
-          ))}
-        </div>
+    <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white min-w-[280px] max-w-[280px]">
+      <div className="relative">
+        <Carousel images={images} />
+        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">da {priceFrom}</span>
       </div>
       <div className="p-4 text-left space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">Esperienza</span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">da {priceFrom}</span>
-        </div>
+        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">Esperienza</span>
         <h3 className="text-base font-extrabold text-[#6B271A] leading-snug">{title}</h3>
         <div className="flex items-center text-sm text-gray-600 gap-2"><MapPin size={16} className="text-[#D54E30]" /> {location} | {region}</div>
         {meta ? <div className="flex items-center text-sm text-gray-600 gap-2"><Clock size={16} className="text-[#6B271A]" /> {meta}</div> : null}
@@ -179,7 +250,7 @@ export default function HomepageMockup() {
         <img loading="lazy" src={img} alt={title} className="h-40 w-full object-cover" onError={handleImgError} />
       </div>
       <div className="p-4 text-left space-y-2">
-        <div className="flex items-start justify_between gap-2">
+        <div className="flex items-start justify-between gap-2">
           <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">Prodotto tipico</span>
           <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">da {priceFrom}</span>
         </div>
@@ -189,6 +260,7 @@ export default function HomepageMockup() {
     </article>
   );
 
+  /* ---------------- HERO ---------------- */
   const HeroHeader = () => (
     <section className="relative">
       <div className="absolute inset-0">
@@ -208,32 +280,41 @@ export default function HomepageMockup() {
               <Search size={18}/> Cerca
             </button>
           </form>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar mt-3 justify-center">
-            <button className="px-3 py-1.5 rounded-full bg-[#D54E30] text-white text-sm font-semibold whitespace-nowrap" data-event="shortcut_weekend">Questo weekend</button>
-            <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_nearby">Vicino a me</button>
-            <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_family">Con bambini</button>
-          </div>
-          <div className="text-sm text-gray-700 mt-2">
-  Sei un Comune?{" "}
-  <Link to="/registrazione-comune" className="font-semibold underline text-[#6B271A]">
-    Scopri i nostri servizi
-  </Link>
-</div>
 
+          {/* Pillole: scroll orizzontale su mobile, wrap su desktop */}
+          <div className="mt-3">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar md:flex-wrap md:overflow-visible justify-center md:justify-center">
+              <button className="px-3 py-1.5 rounded-full bg-[#D54E30] text-white text-sm font-semibold whitespace-nowrap" data-event="shortcut_weekend">Questo weekend</button>
+              <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_nearby">Vicino a me</button>
+              <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_family">Con bambini</button>
+              <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_food">Food & Wine</button>
+              <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_outdoor">Outdoor</button>
+            </div>
+          </div>
+
+          <div className="text-sm text-gray-700 mt-2">
+            Sei un Comune?{" "}
+            <Link to="/registrazione-comune" className="font-semibold underline text-[#6B271A]">
+              Scopri i nostri servizi
+            </Link>
+          </div>
         </div>
       </div>
     </section>
   );
 
   // === LOGHI PARTNER (placeholder) ===
-  const partners = Array.from({length: 10}).map((_,i)=>({
-    id: i+1,
-    img: `https://dummyimage.com/160x64/FAF5E0/6B271A&text=Partner+${i+1}`
-  }));
+  const partners = Array.from({length: 10}).map((_,i)=>({ id: i+1, img: `https://dummyimage.com/160x64/FAF5E0/6B271A&text=Partner+${i+1}` }));
   const partnersLoop = [...partners, ...partners];
 
   return (
     <>
+      {/* Utility per nascondere scrollbar nei container orizzontali */}
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+
       <main className="space-y-12">
         {/* TOP NAV */}
         <header className="bg-white/90 backdrop-blur border-b">
@@ -241,24 +322,34 @@ export default function HomepageMockup() {
             <a href="#" className="text-xl font-extrabold text-[#6B271A]">il borghista</a>
             <div className="flex items-center gap-3">
               <Link
-  to="/registrazione-comune"
-  className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]"
-  data-event="auth_click"
->
-  <User size={18} /> Registrati
-</Link>
-
+                to="/registrazione-comune"
+                className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]"
+                data-event="auth_click"
+              >
+                <User size={18} /> Registrati
+              </Link>
             </div>
           </div>
         </header>
 
+        {/* Banner successo (opzionale) */}
+        {signupSuccess && (
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <div className="rounded-xl bg-green-50 border border-green-200 text-green-800 px-4 py-3 text-sm">
+              ✅ Grazie! Iscrizione completata correttamente.
+            </div>
+          </div>
+        )}
+
         {/* HERO */}
         <HeroHeader />
 
-        {/* SERVIZI RAPIDI */}
+        {/* SERVIZI — mobile: orizzontale; desktop: griglia */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <h2 className="text-lg font-extrabold text-[#6B271A]">Servizi</h2>
-          <div className="relative mt-3">
+
+          {/* Mobile scroll */}
+          <div className="relative mt-3 md:hidden">
             <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent rounded-l-2xl"></div>
             <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent rounded-r-2xl"></div>
             <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pr-10" ref={servicesRef}>
@@ -267,13 +358,14 @@ export default function HomepageMockup() {
               <ServiceTile img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=900&auto=format&fit=crop" label="Noleggio auto" icon={Car} count={46} />
               <ServiceTile img="https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=900&auto=format&fit=crop" label="Invia cartoline" icon={Send} count={80} />
             </div>
-            {/* Arrow controls */}
-            <div className="absolute -left-2 top-1/2 -translate-y-1/2 hidden md:flex gap-2">
-              <button onClick={()=>servicesRef.current?.scrollBy({left:-320, behavior:'smooth'})} className="rounded-full bg-white shadow-lg ring-1 ring-[#E1B671] w-9 h-9 flex items-center justify-center hover:bg-[#FAF5E0]" aria-label="precedente"><ChevronLeft size={18} className="text-[#6B271A]"/></button>
-            </div>
-            <div className="absolute -right-2 top-1/2 -translate-y-1/2 hidden md:flex gap-2">
-              <button onClick={()=>servicesRef.current?.scrollBy({left:320, behavior:'smooth'})} className="rounded-full bg-white shadow-lg ring-1 ring-[#E1B671] w-9 h-9 flex items-center justify-center hover:bg-[#FAF5E0]" aria-label="successivo"><ChevronRight size={18} className="text-[#6B271A]"/></button>
-            </div>
+          </div>
+
+          {/* Desktop grid */}
+          <div className="hidden md:grid grid-cols-4 gap-4 mt-3">
+            <ServiceTile img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=900&auto=format&fit=crop" label="Esperienze" icon={Utensils} count={238} />
+            <ServiceTile img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=900&auto=format&fit=crop" label="Prodotti tipici" icon={Gift} count={120} />
+            <ServiceTile img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=900&auto=format&fit=crop" label="Noleggio auto" icon={Car} count={46} />
+            <ServiceTile img="https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=900&auto=format&fit=crop" label="Invia cartoline" icon={Send} count={80} />
           </div>
         </section>
 
@@ -293,17 +385,18 @@ export default function HomepageMockup() {
         </section>
 
         {/* PROSSIMI EVENTI & SAGRE */}
-        <section className="max-w-6xl mx_auto px-4 sm:px-6">
+        <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Prossimi eventi e sagre</h2>
-            <a href="#" className="text-sm font-semibold underline flex items_center gap-1">Vedi tutti <ChevronRight size={16}/></a>
+            <a href="#" className="text-sm font-semibold underline flex items-center gap-1">Vedi tutti <ChevronRight size={16}/></a>
           </div>
           <div className="mt-3 flex items-center justify-between">
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span className="px-2.5 py-1 rounded-full bg-[#FAF5E0] text-[#6B271A] font-semibold">Quando: Questo weekend ✕</span>
-              <span className="px-2.5 py-1 rounded-full bg-[#FAF5E0] text-[#6B271A] font-semibold">Distanza: 50 km ✕</span>
+            {/* Filtri pillole: mobile orizzontale, desktop wrap */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar md:flex-wrap md:overflow-visible text-xs">
+              <span className="px-2.5 py-1 rounded-full bg-[#FAF5E0] text-[#6B271A] font-semibold whitespace-nowrap">Quando: Questo weekend ✕</span>
+              <span className="px-2.5 py-1 rounded-full bg-[#FAF5E0] text-[#6B271A] font-semibold whitespace-nowrap">Distanza: 50 km ✕</span>
             </div>
-            <button className="text-sm font-semibold underline shrink-0" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} data-event="toggle_view">
+            <button className="text-sm font-semibold underline shrink-0 ml-3" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} data-event="toggle_view">
               {expanded ? "Mostra meno" : "Guarda tutti"}
             </button>
           </div>
@@ -329,13 +422,15 @@ export default function HomepageMockup() {
           )}
         </section>
 
-        {/* ESPERIENZE CONSIGLIATE */}
+        {/* ESPERIENZE CONSIGLIATE (allineate) */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Esperienze consigliate</h2>
             <a href="#" className="text-sm font-semibold underline flex items-center gap-1">Vedi tutte <ChevronRight size={16}/></a>
           </div>
-          <div className="mt-4 flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory">
+
+          {/* Mobile: orizzontale; Desktop: griglia 4 */}
+          <div className="mt-4 md:hidden flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory">
             {[
               { images:["https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1468596238068-7eee4927c4a2?q=80&w=1200&auto=format&fit=crop"], title:"Trekking al tramonto", location:"Arnad (AO)", region:"Valle d'Aosta", meta:"Durata 4h · Difficoltà media", priceFrom:"€25"},
               { images:["https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1493558103817-58b2924bce98?q=80&w=1200&auto=format&fit=crop"], title:"Giro in barca alle calette", location:"Otranto (LE)", region:"Puglia", meta:"Durata 2h · Attrezzatura inclusa", priceFrom:"€35"},
@@ -346,9 +441,22 @@ export default function HomepageMockup() {
               { images:["https://images.unsplash.com/photo-1453747063559-36695c8771bd?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop"], title:"Tour guidato del borgo", location:"Spello (PG)", region:"Umbria", meta:"Durata 1.5h", priceFrom:"€12"},
               { images:["https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1520975922323-2155a3b6f2b6?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop"], title:"Parapendio panoramico", location:"Monte Baldo (VR)", region:"Veneto", meta:"Durata 30' in volo", priceFrom:"€89"}
             ].map((e,i)=> (
-              <div key={i} className="min-w-[280px] max-w-[280px] flex-shrink-0">
-                <ExperienceCard {...e} />
-              </div>
+              <ExperienceCard key={i} {...e} />
+            ))}
+          </div>
+
+          <div className="mt-4 hidden md:grid grid-cols-4 gap-4">
+            {[
+              { images:["https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1468596238068-7eee4927c4a2?q=80&w=1200&auto=format&fit=crop"], title:"Trekking al tramonto", location:"Arnad (AO)", region:"Valle d'Aosta", meta:"Durata 4h · Difficoltà media", priceFrom:"€25"},
+              { images:["https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1493558103817-58b2924bce98?q=80&w=1200&auto=format&fit=crop"], title:"Giro in barca alle calette", location:"Otranto (LE)", region:"Puglia", meta:"Durata 2h · Attrezzatura inclusa", priceFrom:"€35"},
+              { images:["https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1523986371872-9d3ba2e2f642?q=80&w=1200&auto=format&fit=crop"], title:"Cooking class lucana", location:"Matera (MT)", region:"Basilicata", meta:"Durata 3h · Piccoli gruppi", priceFrom:"€59"},
+              { images:["https://images.unsplash.com/photo-1473625247510-8ceb1760943f?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1520975922323-2155a3b6f2b6?q=80&w=1200&auto=format&fit=crop"], title:"E-bike tra i vigneti", location:"Neive (CN)", region:"Piemonte", meta:"Durata 2h", priceFrom:"€29"},
+              { images:["https://images.unsplash.com/photo-1529429612778-cff757df97dd?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1472396961693-142e6e269027?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop"], title:"Passeggiata fotografica", location:"Erice (TP)", region:"Sicilia", meta:"Durata 3h", priceFrom:"€22"},
+              { images:["https://images.unsplash.com/photo-1470770903676-69b98201ea1c?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1460353581641-37baddab0fa2?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1473186505569-9c61870c11f9?q=80&w=1200&auto=format&fit=crop"], title:"Kayak al tramonto", location:"Santa Teresa (SS)", region:"Sardegna", meta:"Durata 2h", priceFrom:"€40"},
+              { images:["https://images.unsplash.com/photo-1453747063559-36695c8771bd?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop"], title:"Tour guidato del borgo", location:"Spello (PG)", region:"Umbria", meta:"Durata 1.5h", priceFrom:"€12"},
+              { images:["https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1520975922323-2155a3b6f2b6?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop"], title:"Parapendio panoramico", location:"Monte Baldo (VR)", region:"Veneto", meta:"Durata 30' in volo", priceFrom:"€89"}
+            ].map((e,i)=> (
+              <ExperienceCard key={i} {...e} />
             ))}
           </div>
         </section>
@@ -423,149 +531,14 @@ export default function HomepageMockup() {
           </div>
         </section>
 
-        {/* ——— REGISTRAZIONE COMUNI & SINDACI (hero con foto) ——— */}
-        <section id="registrazione" className="relative">
-          {/* Background immagine + overlay */}
-          <div className="absolute inset-0">
-            <img
-              src="https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=1600&auto=format&fit=crop"
-              alt="Borgo italiano — registrazione Comuni"
-              className="w-full h-full object-cover"
-              onError={handleImgError}
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/45 to-black/20" />
-          </div>
-
-          {/* Contenuto */}
-          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-12 md:py-16">
-            <div className="grid md:grid-cols-2 gap-6 items-stretch">
-              {/* Colonna sinistra */}
-              <div className="text-white">
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[12px] font-bold bg-white/10 ring-1 ring-white/20 backdrop-blur">
-                  Per Comuni & Sindaci
-                </span>
-                <h2 className="mt-3 text-2xl sm:text-3xl font-extrabold leading-snug">
-                  Metti il tuo <span className="text-[#E1B671]">borgo</span> in vetrina
-                </h2>
-                <p className="mt-2 text-sm sm:text-base text-white/90 max-w-prose">
-                  Pubblica eventi ufficiali, esperienze e prodotti tipici del tuo Comune su IlBorghista.it.
-                  Aumenta la visibilità e intercetta chi cerca cosa fare <em>vicino a sé</em>.
-                </p>
-                <ul className="mt-4 grid gap-2 text-sm">
-                  <li className="inline-flex items-center gap-2">
-                    <Star className="shrink-0" size={16} /> Vetrina regionale e ricerche geolocalizzate
-                  </li>
-                  <li className="inline-flex items-center gap-2">
-                    <MapPin className="shrink-0" size={16} /> Pagina Comune verificata con calendario
-                  </li>
-                  <li className="inline-flex items-center gap-2">
-                    <Send className="shrink-0" size={16} /> Supporto dedicato e report periodici
-                  </li>
-                </ul>
-              </div>
-
-              {/* Colonna destra: form */}
-              <div className="bg-white/95 backdrop-blur-md rounded-2xl p-5 md:p-6 shadow-2xl ring-1 ring-black/5">
-                <div className="mb-4">
-                  <div className="text-[#6B271A] font-extrabold">Richiedi l’accesso</div>
-                  <div className="text-sm text-gray-600">Rispondiamo entro 1–2 giorni lavorativi.</div>
-                </div>
-
-                {signupSuccess ? (
-                  <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                    Richiesta inviata! Ti contatteremo all’email indicata.
-                  </div>
-                ) : null}
-
-                <form
-                  name="RegistrazioneSindaci"
-                  method="POST"
-                  data-netlify="true"
-                  netlify-honeypot="bot-field"
-                  action="/?grazie=1#registrazione"
-                  className="grid md:grid-cols-2 gap-4"
-                  aria-label="Registrazione Comuni & Sindaci"
-                >
-                  <input type="hidden" name="form-name" value="RegistrazioneSindaci" />
-                  <p className="hidden">
-                    <label>Non compilare: <input name="bot-field" /></label>
-                  </p>
-
-                  <div>
-                    <label className="text-sm font-semibold text-[#6B271A]">Comune*</label>
-                    <input name="comune" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Arnad" />
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-semibold text-[#6B271A]">Provincia / Regione*</label>
-                    <input name="provincia_regione" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. AO / Valle d'Aosta" />
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-semibold text-[#6B271A]">Referente*</label>
-                    <input name="referente" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Mario Rossi" />
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-semibold text-[#6B271A]">Ruolo*</label>
-                    <input name="ruolo" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Sindaco / Uff. Turismo" />
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-semibold text-[#6B271A]">Email istituzionale*</label>
-                    <input type="email" name="email" required className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="nome@comune.xx.it" />
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-semibold text-[#6B271A]">Telefono</label>
-                    <input name="telefono" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="+39 ..." />
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-semibold text-[#6B271A]">Sito web del Comune</label>
-                    <input type="url" name="sito" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="https://www.comune.xx.it" />
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-semibold text-[#6B271A]">Popolazione (stima)</label>
-                    <input type="number" name="popolazione" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. 3.200" />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="text-sm font-semibold text-[#6B271A]">Note</label>
-                    <textarea name="note" rows="4" className="mt-1 w-full border rounded-xl px-3 py-2" placeholder="Es. Eventi ricorrenti, esigenze, contatti preferiti..."></textarea>
-                  </div>
-
-                  <div className="md:col-span-2 flex flex-col gap-2 text-sm">
-                    <label className="inline-flex items-start gap-2">
-                      <input type="checkbox" name="privacy" required className="mt-1" />
-                      <span>Ho letto e accetto l’<a className="underline" href="#" target="_blank" rel="noreferrer">informativa privacy</a>*</span>
-                    </label>
-                    <label className="inline-flex items-start gap-2">
-                      <input type="checkbox" name="marketing" className="mt-1" />
-                      <span>Desidero ricevere aggiornamenti su funzionalità e bandi per i Comuni</span>
-                    </label>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <button className="w-full md:w-auto inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#D54E30] text-white font-semibold">
-                      Invia richiesta
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* FOOTER */}
-        <footer className="mt-8 border-t">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 text-sm text-gray-600 flex flex-col md:flex-row items-center justify-between gap-2">
-            <div>© {new Date().getFullYear()} IlBorghista</div>
+        <footer className="border-t">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 text-sm text-gray-600 flex flex-col md:flex-row gap-2 md:items-center md:justify-between">
+            <div>© {new Date().getFullYear()} Il Borghista — Tutti i diritti riservati</div>
             <div className="flex gap-4">
               <a href="#" className="hover:underline">Privacy</a>
+              <a href="#" className="hover:underline">Cookie</a>
               <a href="#" className="hover:underline">Contatti</a>
-              <a href="#" className="hover:underline">Lavora con noi</a>
             </div>
           </div>
         </footer>

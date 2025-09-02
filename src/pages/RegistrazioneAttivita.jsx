@@ -1,6 +1,6 @@
-// src/pages/RegistrazioneAttivita.jsx
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { ChevronLeft } from "lucide-react";
 
 /**
  * Landing registrazione attività
@@ -10,42 +10,49 @@ import { Link } from "react-router-dom";
  * - Hero "borgo" posizionata sotto le card
  */
 export default function RegistrazioneAttivita() {
+  const navigate = useNavigate();
+
   const categories = [
     {
       key: "dormire",
       title: "Dormire",
-      // >>> rotta assoluta corretta per il tuo main.jsx
       to: "/registrazione-attivita/dormire",
-      img:
-        "https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=80&w=1600&auto=format&fit=crop",
+      img: "https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=80&w=1600&auto=format&fit=crop",
     },
     {
       key: "mangiare",
       title: "Mangiare & Bere",
       to: "/registrazione-attivita/mangiare",
-      img:
-        "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?q=80&w=1600&auto=format&fit=crop",
+      img: "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?q=80&w=1600&auto=format&fit=crop",
     },
     {
       key: "artigiani",
       title: "Artigiani",
       to: "/registrazione-attivita/artigiani",
-      img:
-        "https://images.unsplash.com/photo-1503602642458-232111445657?q=80&w=1600&auto=format&fit=crop",
+      img: "https://images.unsplash.com/photo-1503602642458-232111445657?q=80&w=1600&auto=format&fit=crop",
     },
     {
       key: "trasporti",
       title: "Trasporti",
       to: "/registrazione-attivita/trasporti",
-      img:
-        "https://images.unsplash.com/photo-1465447142348-e9952c393450?q=80&w=1600&auto=format&fit=crop",
+      img: "https://images.unsplash.com/photo-1465447142348-e9952c393450?q=80&w=1600&auto=format&fit=crop",
     },
   ];
 
   return (
     <main className="bg-white text-[#2a1d17]">
-      {/* TESTATA SEMPLICE */}
-      <section className="pt-12 md:pt-16">
+      {/* BARRA INDIETRO */}
+      <div className="mx-auto max-w-6xl px-4 pt-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-2 text-[#6B271A] font-semibold hover:text-[#D54E30] transition"
+        >
+          <ChevronLeft size={18} /> Indietro
+        </button>
+      </div>
+
+      {/* TESTATA */}
+      <section className="pt-6 md:pt-10">
         <div className="mx-auto max-w-6xl px-4">
           <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#6B271A]">
             Registra la tua <span className="text-[#E1B671]">attività</span>
@@ -59,7 +66,6 @@ export default function RegistrazioneAttivita() {
 
       {/* CARD CLICCABILI */}
       <section className="mt-6 md:mt-8">
-        {/* Mobile: flex con scroll orizzontale / Desktop: griglia 4 colonne */}
         <div className="mx-auto max-w-6xl px-4">
           {/* mobile */}
           <div className="flex gap-4 overflow-x-auto pb-2 md:hidden snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch]">
@@ -68,7 +74,6 @@ export default function RegistrazioneAttivita() {
                 key={c.key}
                 to={c.to}
                 className="group relative block min-w-[260px] snap-start overflow-hidden rounded-2xl shadow-sm ring-1 ring-zinc-100 hover:ring-[#E1B671]/40 transition-all"
-                aria-label={`Registra una struttura - categoria: ${c.title}`}
               >
                 <img
                   src={c.img}
@@ -93,7 +98,6 @@ export default function RegistrazioneAttivita() {
                 key={c.key}
                 to={c.to}
                 className="group relative block overflow-hidden rounded-2xl shadow-sm ring-1 ring-zinc-100 hover:ring-[#E1B671]/40 transition-all"
-                aria-label={`Registra una struttura - categoria: ${c.title}`}
               >
                 <img
                   src={c.img}
@@ -113,7 +117,7 @@ export default function RegistrazioneAttivita() {
         </div>
       </section>
 
-      {/* HERO “BORGO” SOTTO LE CARD (solo titolo + sottotitolo) */}
+      {/* HERO “BORGO” */}
       <section className="mt-10 md:mt-14">
         <div
           className="relative mx-auto max-w-7xl overflow-hidden rounded-2xl"
@@ -141,7 +145,7 @@ export default function RegistrazioneAttivita() {
         </div>
       </section>
 
-      {/* FOOTER SEMPLICE */}
+      {/* FOOTER */}
       <footer className="mt-10 md:mt-16 border-t border-zinc-100">
         <div className="mx-auto max-w-6xl px-4 py-8 text-sm text-zinc-500">
           © {new Date().getFullYear()} Il Borghista — Tutti i diritti riservati.

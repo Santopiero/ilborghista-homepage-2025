@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, MapPin, Upload, Trash2, Save, CheckCircle2,
-  Euro, Image, Camera, UtensilsCrossed, Clock, FileText
+  Euro, Image, Camera, UtensilsCrossed, Clock, FileText, Video as VideoIcon, Heart
 } from "lucide-react";
 
 /* ====================== BOZZA (localStorage) ====================== */
@@ -27,9 +27,10 @@ const defaultDraft = {
   coordinate: { lat: "", lng: "" },
 
   // Media
-  avatar: null,    // cover
-  gallery: [],     // immagini locali
+  avatar: null,    // cover (base64)
+  gallery: [],     // immagini locali (base64)
   menuFiles: [],   // immagini/pdf del menù (base64 + meta)
+  videos: [],      // [{ name, type, size, url }]  <-- Object URL (non in localStorage)
 
   // Servizi
   servizi: {
@@ -59,7 +60,13 @@ function useDraft() {
     const saved = localStorage.getItem(KEY);
     return saved ? JSON.parse(saved) : defaultDraft;
   });
-  useEffect(() => { localStorage.setItem(KEY, JSON.stringify(draft)); }, [draft]);
+
+  // Salva su localStorage escludendo i video (che usano Object URL)
+  useEffect(() => {
+    const toSave = JSON.stringify(draft, (k, v) => (k === "videos" ? [] : v));
+    localStorage.setItem(KEY, toSave);
+  }, [draft]);
+
   const reset = () => { localStorage.removeItem(KEY); setDraft(defaultDraft); };
   return { draft, setDraft, reset };
 }
@@ -129,6 +136,28 @@ function toBase64(file) {
     r.readAsDataURL(file);
   });
 }
+function revokeURL(url) {
+  try { URL.revokeObjectURL(url); } catch {}
+}
+
+/* === CHIP (pill responsive, non comprimibile) === */
+function ChipButton({ active, children, onClick, className = "" }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        `shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full border text-sm font-semibold ` +
+        (active
+          ? "bg-[#D54E30] text-white border-[#6B271A]"
+          : "bg-[#FAF5E0] text-[#6B271A] border-[#E1B671] hover:bg-[#F3E7C3]") +
+        (className ? ` ${className}` : "")
+      }
+    >
+      {children}
+    </button>
+  );
+}
 
 /* ====================== Stepper + Preview ====================== */
 const steps = [
@@ -143,9 +172,31 @@ const steps = [
 
 function Stepper({ step, setStep, completed }) {
   const pct = ((step - 1) / (steps.length - 1)) * 100;
+
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-7 gap-2">
+      {/* mobile: riga scrollabile, desktop: griglia 7 colonne */}
+      <div className="md:hidden -mx-1 px-1 flex gap-2 overflow-x-auto no-scrollbar">
+        {steps.map((s) => {
+          const isActive = s.id === step;
+          const isDone = completed.has(s.id);
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setStep(s.id)}
+              className={`shrink-0 whitespace-nowrap rounded-xl border px-3 py-2 text-sm font-semibold
+                ${isActive ? "border-[#D54E30] text-[#D54E30] bg-[#FAF5E0]"
+                          : isDone ? "border-green-500/40 text-green-700 bg-green-50"
+                                   : "border-neutral-200 text-neutral-700 bg-white hover:bg-neutral-50"}`}
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="hidden md:grid md:grid-cols-7 md:gap-2">
         {steps.map(s => {
           const isActive = s.id === step;
           const isDone = completed.has(s.id);
@@ -164,6 +215,7 @@ function Stepper({ step, setStep, completed }) {
           );
         })}
       </div>
+
       <div className="h-1.5 w-full bg-neutral-200 rounded-full overflow-hidden">
         <div className="h-full bg-[#D54E30] transition-all" style={{ width: `${pct}%` }} />
       </div>
@@ -194,6 +246,9 @@ function PreviewSidebar({ draft }) {
           <div className="text-xs text-gray-600 flex items-center gap-2 pt-1">
             <Clock size={14}/> Orari tipici: {draft.orari?.filter(x=>x.dal&&x.al).map(x=>`${x.dal}-${x.al}`).join(" / ") || "—"}
           </div>
+          {draft.videos?.length ? (
+            <div className="text-xs text-gray-600 pt-1">🎬 {draft.videos.length} video</div>
+          ) : null}
         </div>
       </div>
 
@@ -213,6 +268,14 @@ function PreviewSidebar({ draft }) {
 export default function Mangiare() {
   const { draft, setDraft, reset } = useDraft();
   const [step, setStep] = useState(1);
+
+  // libera gli Object URL dei video quando si smonta la pagina
+  useEffect(() => {
+    return () => {
+      (draft.videos || []).forEach(v => v?.url && revokeURL(v.url));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const completed = useMemo(() => {
     const d = new Set();
@@ -252,6 +315,8 @@ export default function Mangiare() {
   const submit = () => {
     console.log("SUBMIT RISTORAZIONE:", draft);
     alert("Richiesta inviata! Ti contatteremo per la verifica.");
+    // libera eventuali URL video prima del reset
+    (draft.videos || []).forEach(v => v?.url && revokeURL(v.url));
     reset();
     setStep(1);
   };
@@ -298,23 +363,22 @@ export default function Mangiare() {
                 </Field>
 
                 <Field label="Cucina (selezione rapida)">
-                  <div className="flex flex-wrap gap-2">
+                  {/* mobile: scroll orizzontale, desktop: wrap */}
+                  <div className="flex gap-2 overflow-x-auto md:flex-wrap md:overflow-visible -mx-1 px-1">
                     {["Locale","Mediterranea","Di mare","Carne","Vegetariana","Vegana","Senza glutine","Pasticceria"].map(tag=> {
                       const active = draft.cucina.includes(tag);
                       return (
-                        <button
+                        <ChipButton
                           key={tag}
-                          type="button"
+                          active={active}
                           onClick={()=>{
                             const set = new Set(draft.cucina);
                             active ? set.delete(tag) : set.add(tag);
                             setDraft({...draft, cucina: Array.from(set)});
                           }}
-                          className={`px-3 py-1.5 rounded-full border text-sm font-semibold
-                            ${active ? "bg-[#D54E30] text-white border-[#6B271A]" : "bg-[#FAF5E0] text-[#6B271A] border-[#E1B671]"}`}
                         >
                           {tag}
-                        </button>
+                        </ChipButton>
                       );
                     })}
                   </div>
@@ -368,21 +432,22 @@ export default function Mangiare() {
                 </div>
 
                 <Field label="Giorni di chiusura">
-                  <div className="flex flex-wrap gap-2">
+                  {/* mobile: scroll orizzontale, desktop: wrap */}
+                  <div className="flex gap-2 overflow-x-auto md:flex-wrap md:overflow-visible -mx-1 px-1">
                     {["Lun","Mar","Mer","Gio","Ven","Sab","Dom"].map(g=>{
                       const active = draft.giorniChiusura.includes(g);
                       return (
-                        <button key={g} type="button"
+                        <ChipButton
+                          key={g}
+                          active={active}
                           onClick={()=>{
                             const set = new Set(draft.giorniChiusura);
                             active ? set.delete(g) : set.add(g);
                             setDraft({...draft, giorniChiusura: Array.from(set)});
                           }}
-                          className={`px-2.5 py-1.5 rounded-lg border text-sm font-semibold
-                            ${active ? "bg-[#D54E30] text-white border-[#6B271A]" : "bg-[#FAF5E0] text-[#6B271A] border-[#E1B671]"}`}
                         >
                           {g}
-                        </button>
+                        </ChipButton>
                       );
                     })}
                   </div>
@@ -465,10 +530,11 @@ export default function Mangiare() {
             </Section>
           )}
 
-          {/* STEP 3 — Media (avatar + galleria) */}
+          {/* STEP 3 — Foto & Media (avatar + galleria + video) */}
           {step === 3 && (
             <Section title="Foto & Media">
               <div className="grid sm:grid-cols-2 gap-6">
+                {/* Avatar */}
                 <div>
                   <Field label="Foto profilo (cover)" error={errors.avatar}>
                     <Dropzone multiple={false} accept="image/*" onFiles={async (files)=>{
@@ -485,6 +551,8 @@ export default function Mangiare() {
                     )}
                   </Field>
                 </div>
+
+                {/* Galleria immagini */}
                 <div>
                   <Field label="Galleria (drag & drop)">
                     <Dropzone accept="image/*" onFiles={async (files)=>{
@@ -504,6 +572,56 @@ export default function Mangiare() {
                       </div>
                     ) : (
                       <p className="text-xs text-gray-500 mt-2 flex items-center gap-2"><Image size={14}/> Piatti, sala, esterni: almeno 6 foto.</p>
+                    )}
+                  </Field>
+                </div>
+
+                {/* Video */}
+                <div className="sm:col-span-2">
+                  <Field label="Video (MP4 / WebM)" hint="Suggerimento: clip brevi 10–30s, max ~20MB ciascuno">
+                    <Dropzone
+                      accept="video/mp4,video/webm"
+                      onFiles={async (files) => {
+                        const videos = [];
+                        for (const f of files) {
+                          const url = URL.createObjectURL(f); // Object URL per preview (no localStorage)
+                          videos.push({ name: f.name, type: f.type, size: f.size, url });
+                        }
+                        setDraft({ ...draft, videos: [...(draft.videos || []), ...videos] });
+                      }}
+                    />
+                    {draft.videos?.length ? (
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {draft.videos.map((v, i) => (
+                          <div key={i} className="border rounded-xl p-3">
+                            <div className="text-sm font-semibold mb-2 truncate flex items-center gap-2">
+                              <VideoIcon size={16} /> {v.name}
+                            </div>
+                            <video controls className="w-full h-40 object-cover rounded-lg border bg-black">
+                              <source src={v.url} type={v.type} />
+                            </video>
+                            <div className="flex justify-between items-center mt-2 text-xs text-gray-600">
+                              <span>{(v.size / (1024 * 1024)).toFixed(1)} MB</span>
+                              <button
+                                type="button"
+                                className="text-[#D54E30] font-semibold"
+                                onClick={() => {
+                                  const arr = [...draft.videos];
+                                  const [removed] = arr.splice(i, 1);
+                                  if (removed?.url) revokeURL(removed.url);
+                                  setDraft({ ...draft, videos: arr });
+                                }}
+                              >
+                                Rimuovi
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-2 flex items-center gap-2">
+                        <VideoIcon size={14}/> Carica brevi clip del locale, dei piatti o dell’atmosfera.
+                      </p>
                     )}
                   </Field>
                 </div>

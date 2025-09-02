@@ -2,6 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Utility to hide scrollbars where we use 'no-scrollbar' */
+/* puoi aggiungere piccoli fix qui sotto */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

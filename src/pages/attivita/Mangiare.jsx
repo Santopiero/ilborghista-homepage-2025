@@ -3,7 +3,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, MapPin, Upload, Trash2, Save, CheckCircle2,
-  Euro, Image, Camera, UtensilsCrossed, Clock, FileText, Video as VideoIcon, Heart
+  Euro, Image, Camera, UtensilsCrossed, Clock, FileText, Video as VideoIcon,
+  GripVertical, Plus
 } from "lucide-react";
 
 /* ====================== BOZZA (localStorage) ====================== */
@@ -31,6 +32,10 @@ const defaultDraft = {
   gallery: [],     // immagini locali (base64)
   menuFiles: [],   // immagini/pdf del menù (base64 + meta)
   videos: [],      // [{ name, type, size, url }]  <-- Object URL (non in localStorage)
+
+  // Layout media (ordine + titoli)
+  mediaOrder: [],  // es. ["avatar","g-0","v-0", null, ...]  (null = slot vuoto)
+  mediaTitles: {}, // es. { "avatar":"Cover", "g-0":"Esterno", "v-0":"Tour sala" }
 
   // Servizi
   servizi: {
@@ -140,25 +145,6 @@ function revokeURL(url) {
   try { URL.revokeObjectURL(url); } catch {}
 }
 
-/* === CHIP (pill responsive, non comprimibile) === */
-function ChipButton({ active, children, onClick, className = "" }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        `shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full border text-sm font-semibold ` +
-        (active
-          ? "bg-[#D54E30] text-white border-[#6B271A]"
-          : "bg-[#FAF5E0] text-[#6B271A] border-[#E1B671] hover:bg-[#F3E7C3]") +
-        (className ? ` ${className}` : "")
-      }
-    >
-      {children}
-    </button>
-  );
-}
-
 /* ====================== Stepper + Preview ====================== */
 const steps = [
   { id: 1, label: "Dati" },
@@ -172,31 +158,9 @@ const steps = [
 
 function Stepper({ step, setStep, completed }) {
   const pct = ((step - 1) / (steps.length - 1)) * 100;
-
   return (
     <div className="space-y-3">
-      {/* mobile: riga scrollabile, desktop: griglia 7 colonne */}
-      <div className="md:hidden -mx-1 px-1 flex gap-2 overflow-x-auto no-scrollbar">
-        {steps.map((s) => {
-          const isActive = s.id === step;
-          const isDone = completed.has(s.id);
-          return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setStep(s.id)}
-              className={`shrink-0 whitespace-nowrap rounded-xl border px-3 py-2 text-sm font-semibold
-                ${isActive ? "border-[#D54E30] text-[#D54E30] bg-[#FAF5E0]"
-                          : isDone ? "border-green-500/40 text-green-700 bg-green-50"
-                                   : "border-neutral-200 text-neutral-700 bg-white hover:bg-neutral-50"}`}
-            >
-              {s.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="hidden md:grid md:grid-cols-7 md:gap-2">
+      <div className="grid grid-cols-7 gap-2">
         {steps.map(s => {
           const isActive = s.id === step;
           const isDone = completed.has(s.id);
@@ -215,7 +179,6 @@ function Stepper({ step, setStep, completed }) {
           );
         })}
       </div>
-
       <div className="h-1.5 w-full bg-neutral-200 rounded-full overflow-hidden">
         <div className="h-full bg-[#D54E30] transition-all" style={{ width: `${pct}%` }} />
       </div>
@@ -261,6 +224,171 @@ function PreviewSidebar({ draft }) {
         </ul>
       </div>
     </aside>
+  );
+}
+
+/* ====================== MEDIA MANAGER (Step 3) ====================== */
+/**
+ * Costruisce una mappa key -> { type, src, title }
+ * key: "avatar" | `g-${index}` | `v-${index}`
+ */
+function buildMediaMap(draft) {
+  const map = {};
+  if (draft.avatar) map["avatar"] = { type: "image", src: draft.avatar, title: draft.mediaTitles?.["avatar"] || "Cover" };
+  draft.gallery.forEach((src, i) => {
+    const k = `g-${i}`;
+    map[k] = { type: "image", src, title: draft.mediaTitles?.[k] || "" };
+  });
+  (draft.videos || []).forEach((v, i) => {
+    const k = `v-${i}`;
+    map[k] = { type: "video", src: v.url, title: draft.mediaTitles?.[k] || (v.name || "") };
+  });
+  return map;
+}
+
+/** Ricostruisce l’array di slot (items + vuoti) seguendo mediaOrder */
+function buildSlotsFromOrder(draft, slots) {
+  const map = buildMediaMap(draft);
+  const keys = Object.keys(map);
+  const seen = new Set();
+  const out = [];
+
+  // 1) rispetta l'ordine salvato
+  for (const k of draft.mediaOrder || []) {
+    if (k === null) { out.push(null); continue; }
+    if (map[k] && !seen.has(k)) {
+      out.push({ key: k, ...map[k] });
+      seen.add(k);
+    } else {
+      out.push(null); // se non più presente, resta vuoto
+    }
+  }
+
+  // 2) aggiungi i media non ancora presenti in coda
+  for (const k of keys) {
+    if (!seen.has(k)) out.push({ key: k, ...map[k] });
+  }
+
+  // 3) pad fino a slots
+  while (out.length < slots) out.push(null);
+
+  return out.slice(0, slots);
+}
+
+function MediaGrid({ draft, setDraft, slots = 10 }) {
+  const [items, setItems] = useState(() => buildSlotsFromOrder(draft, slots));
+  const [slotCount, setSlotCount] = useState(slots);
+
+  // Allinea items quando cambia il draft (avatar/gallery/videos)
+  useEffect(() => {
+    setItems(buildSlotsFromOrder(draft, slotCount));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.avatar, draft.gallery, draft.videos, draft.mediaOrder, slotCount]);
+
+  // Aggiorna bozza: mediaOrder + mediaTitles
+  const persistLayout = (nextItems) => {
+    const nextOrder = nextItems.map(it => it?.key ?? null);
+    const nextTitles = { ...(draft.mediaTitles || {}) };
+    nextItems.forEach((it) => {
+      if (it?.key) nextTitles[it.key] = it.title || "";
+    });
+    setDraft({ ...draft, mediaOrder: nextOrder, mediaTitles: nextTitles });
+  };
+
+  const onDragStart = (e, from) => {
+    e.dataTransfer.setData("text/plain", String(from));
+  };
+  const onDragOver = (e) => e.preventDefault();
+  const onDrop = (e, to) => {
+    e.preventDefault();
+    const from = parseInt(e.dataTransfer.getData("text/plain"), 10);
+    if (Number.isNaN(from) || from === to) return;
+    setItems((arr) => {
+      const next = [...arr];
+      const tmp = next[from];
+      next[from] = next[to];
+      next[to] = tmp;
+      persistLayout(next);
+      return next;
+    });
+  };
+
+  const updateTitle = (idx, title) => {
+    setItems((arr) => {
+      const next = [...arr];
+      if (next[idx]) next[idx] = { ...next[idx], title };
+      persistLayout(next);
+      return next;
+    });
+  };
+
+  const clearSlot = (idx) => {
+    setItems((arr) => {
+      const next = [...arr];
+      next[idx] = null;
+      persistLayout(next);
+      return next;
+    });
+  };
+
+  const addEmptySlot = () => setSlotCount((c) => c + 1);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {items.map((it, idx) => (
+          <div
+            key={idx}
+            className="group relative rounded-2xl border bg-white overflow-hidden"
+            draggable
+            onDragStart={(e) => onDragStart(e, idx)}
+            onDragOver={onDragOver}
+            onDrop={(e) => onDrop(e, idx)}
+          >
+            <div className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-xs font-semibold">
+              <GripVertical size={14} className="text-zinc-600" /> Slot {idx + 1}
+            </div>
+            <div className="h-32 w-full bg-zinc-50 flex items-center justify-center">
+              {it ? (
+                it.type === "video" ? (
+                  <video className="h-full w-full object-cover" muted controls playsInline>
+                    <source src={it.src} type="video/mp4" />
+                  </video>
+                ) : (
+                  <img src={it.src} alt={it.title || `media_${idx + 1}`} className="h-full w-full object-cover" />
+                )
+              ) : (
+                <div className="text-zinc-500 text-sm">Vuoto</div>
+              )}
+            </div>
+            <div className="p-3 border-t space-y-2">
+              <input
+                value={it?.title || ""}
+                onChange={(e) => updateTitle(idx, e.target.value)}
+                placeholder="Titolo (opzionale)"
+                className="w-full border rounded-lg px-2 py-1 text-sm"
+              />
+              <div className="flex items-center justify-between text-xs text-zinc-600">
+                <span>Posizione: {idx + 1}</span>
+                {it ? (
+                  <button className="inline-flex items-center gap-1 text-[#D54E30]" onClick={() => clearSlot(idx)}>
+                    <Trash2 size={14} /> Rimuovi
+                  </button>
+                ) : (
+                  <span className="text-zinc-400">—</span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-center">
+        <button onClick={addEmptySlot} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border font-semibold">
+          <Plus size={16} /> Aggiungi slot
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -363,22 +491,23 @@ export default function Mangiare() {
                 </Field>
 
                 <Field label="Cucina (selezione rapida)">
-                  {/* mobile: scroll orizzontale, desktop: wrap */}
-                  <div className="flex gap-2 overflow-x-auto md:flex-wrap md:overflow-visible -mx-1 px-1">
+                  <div className="flex gap-2 overflow-x-auto md:flex-wrap md:overflow-visible -mx-1 px-1 no-scrollbar snap-x snap-mandatory">
                     {["Locale","Mediterranea","Di mare","Carne","Vegetariana","Vegana","Senza glutine","Pasticceria"].map(tag=> {
                       const active = draft.cucina.includes(tag);
                       return (
-                        <ChipButton
+                        <button
                           key={tag}
-                          active={active}
+                          type="button"
                           onClick={()=>{
                             const set = new Set(draft.cucina);
                             active ? set.delete(tag) : set.add(tag);
                             setDraft({...draft, cucina: Array.from(set)});
                           }}
+                          className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full border text-sm font-semibold snap-start
+                            ${active ? "bg-[#D54E30] text-white border-[#6B271A]" : "bg-[#FAF5E0] text-[#6B271A] border-[#E1B671]"}`}
                         >
                           {tag}
-                        </ChipButton>
+                        </button>
                       );
                     })}
                   </div>
@@ -432,22 +561,21 @@ export default function Mangiare() {
                 </div>
 
                 <Field label="Giorni di chiusura">
-                  {/* mobile: scroll orizzontale, desktop: wrap */}
-                  <div className="flex gap-2 overflow-x-auto md:flex-wrap md:overflow-visible -mx-1 px-1">
+                  <div className="flex gap-2 overflow-x-auto md:flex-wrap md:overflow-visible -mx-1 px-1 no-scrollbar snap-x snap-mandatory">
                     {["Lun","Mar","Mer","Gio","Ven","Sab","Dom"].map(g=>{
                       const active = draft.giorniChiusura.includes(g);
                       return (
-                        <ChipButton
-                          key={g}
-                          active={active}
+                        <button key={g} type="button"
                           onClick={()=>{
                             const set = new Set(draft.giorniChiusura);
                             active ? set.delete(g) : set.add(g);
                             setDraft({...draft, giorniChiusura: Array.from(set)});
                           }}
+                          className={`shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-lg border text-sm font-semibold snap-start
+                            ${active ? "bg-[#D54E30] text-white border-[#6B271A]" : "bg-[#FAF5E0] text-[#6B271A] border-[#E1B671]"}`}
                         >
                           {g}
-                        </ChipButton>
+                        </button>
                       );
                     })}
                   </div>
@@ -530,7 +658,7 @@ export default function Mangiare() {
             </Section>
           )}
 
-          {/* STEP 3 — Foto & Media (avatar + galleria + video) */}
+          {/* STEP 3 — Foto & Media (avatar + galleria + video + slots) */}
           {step === 3 && (
             <Section title="Foto & Media">
               <div className="grid sm:grid-cols-2 gap-6">
@@ -556,21 +684,17 @@ export default function Mangiare() {
                 <div>
                   <Field label="Galleria (drag & drop)">
                     <Dropzone accept="image/*" onFiles={async (files)=>{
-                      const arr=[]; for (const f of files) arr.push(await toBase64(f));
-                      setDraft({...draft, gallery:[...draft.gallery, ...arr]});
+                      const arr=[];
+                      for (const f of files) arr.push(await toBase64(f));
+                      const newGallery = [...draft.gallery, ...arr];
+                      // aggiorna bozza + mediaOrder (appende i nuovi in coda)
+                      const startIndex = draft.gallery.length;
+                      const addedKeys = arr.map((_, i) => `g-${startIndex + i}`);
+                      const nextOrder = [...(draft.mediaOrder || [])];
+                      for (const k of addedKeys) nextOrder.push(k);
+                      setDraft({...draft, gallery: newGallery, mediaOrder: nextOrder});
                     }}/>
-                    {draft.gallery?.length ? (
-                      <div className="mt-3 grid grid-cols-4 gap-2">
-                        {draft.gallery.map((src,i)=>(
-                          <div key={i} className="relative">
-                            <img src={src} className="w-full h-20 object-cover rounded-lg border"/>
-                            <button type="button" className="absolute -top-2 -right-2 bg-white border rounded-full p-1 shadow"
-                              onClick={()=>{ const g=[...draft.gallery]; g.splice(i,1); setDraft({...draft, gallery:g}); }}
-                              aria-label="rimuovi foto"><Trash2 size={14}/></button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
+                    {!draft.gallery?.length && (
                       <p className="text-xs text-gray-500 mt-2 flex items-center gap-2"><Image size={14}/> Piatti, sala, esterni: almeno 6 foto.</p>
                     )}
                   </Field>
@@ -587,44 +711,26 @@ export default function Mangiare() {
                           const url = URL.createObjectURL(f); // Object URL per preview (no localStorage)
                           videos.push({ name: f.name, type: f.type, size: f.size, url });
                         }
-                        setDraft({ ...draft, videos: [...(draft.videos || []), ...videos] });
+                        const startIndex = (draft.videos || []).length;
+                        const addedKeys = videos.map((_, i) => `v-${startIndex + i}`);
+                        const nextOrder = [...(draft.mediaOrder || []), ...addedKeys];
+                        setDraft({ ...draft, videos: [...(draft.videos || []), ...videos], mediaOrder: nextOrder });
                       }}
                     />
-                    {draft.videos?.length ? (
-                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {draft.videos.map((v, i) => (
-                          <div key={i} className="border rounded-xl p-3">
-                            <div className="text-sm font-semibold mb-2 truncate flex items-center gap-2">
-                              <VideoIcon size={16} /> {v.name}
-                            </div>
-                            <video controls className="w-full h-40 object-cover rounded-lg border bg-black">
-                              <source src={v.url} type={v.type} />
-                            </video>
-                            <div className="flex justify-between items-center mt-2 text-xs text-gray-600">
-                              <span>{(v.size / (1024 * 1024)).toFixed(1)} MB</span>
-                              <button
-                                type="button"
-                                className="text-[#D54E30] font-semibold"
-                                onClick={() => {
-                                  const arr = [...draft.videos];
-                                  const [removed] = arr.splice(i, 1);
-                                  if (removed?.url) revokeURL(removed.url);
-                                  setDraft({ ...draft, videos: arr });
-                                }}
-                              >
-                                Rimuovi
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
+                    {!draft.videos?.length && (
                       <p className="text-xs text-gray-500 mt-2 flex items-center gap-2">
                         <VideoIcon size={14}/> Carica brevi clip del locale, dei piatti o dell’atmosfera.
                       </p>
                     )}
                   </Field>
                 </div>
+              </div>
+
+              {/* Manager con slot, titoli e drag&drop */}
+              <div className="mt-6">
+                <Field label="Ordina media e imposta titolo" hint="Trascina per cambiare posizione. Gli slot vuoti restano disponibili per aggiunte future.">
+                  <MediaGrid draft={draft} setDraft={setDraft} slots={10} />
+                </Field>
               </div>
             </Section>
           )}

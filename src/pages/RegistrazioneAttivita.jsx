@@ -14,26 +14,31 @@ export default function RegistrazioneAttivita() {
     {
       key: "dormire",
       title: "Dormire",
-      to: "/registrazione-dormire",
-      img: "https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=80&w=1600&auto=format&fit=crop",
+      // >>> rotta assoluta corretta per il tuo main.jsx
+      to: "/registrazione-attivita/dormire",
+      img:
+        "https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=80&w=1600&auto=format&fit=crop",
     },
     {
       key: "mangiare",
       title: "Mangiare & Bere",
-      to: "/registrazione-mangiare",
-      img: "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?q=80&w=1600&auto=format&fit=crop",
+      to: "/registrazione-attivita/mangiare",
+      img:
+        "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?q=80&w=1600&auto=format&fit=crop",
     },
     {
       key: "artigiani",
       title: "Artigiani",
-      to: "/registrazione-artigiani",
-      img: "https://images.unsplash.com/photo-1503602642458-232111445657?q=80&w=1600&auto=format&fit=crop",
+      to: "/registrazione-attivita/artigiani",
+      img:
+        "https://images.unsplash.com/photo-1503602642458-232111445657?q=80&w=1600&auto=format&fit=crop",
     },
     {
       key: "trasporti",
       title: "Trasporti",
-      to: "/registrazione-trasporti",
-      img: "https://images.unsplash.com/photo-1465447142348-e9952c393450?q=80&w=1600&auto=format&fit=crop",
+      to: "/registrazione-attivita/trasporti",
+      img:
+        "https://images.unsplash.com/photo-1465447142348-e9952c393450?q=80&w=1600&auto=format&fit=crop",
     },
   ];
 
@@ -46,7 +51,8 @@ export default function RegistrazioneAttivita() {
             Registra la tua <span className="text-[#E1B671]">attività</span>
           </h1>
           <p className="mt-2 text-base md:text-lg text-zinc-700">
-            Scegli la categoria che ti rappresenta e inizia a raccontarti su Il Borghista.
+            Scegli la categoria che ti rappresenta e inizia a raccontarti su Il
+            Borghista.
           </p>
         </div>
       </section>
@@ -62,6 +68,7 @@ export default function RegistrazioneAttivita() {
                 key={c.key}
                 to={c.to}
                 className="group relative block min-w-[260px] snap-start overflow-hidden rounded-2xl shadow-sm ring-1 ring-zinc-100 hover:ring-[#E1B671]/40 transition-all"
+                aria-label={`Registra una struttura - categoria: ${c.title}`}
               >
                 <img
                   src={c.img}
@@ -86,6 +93,7 @@ export default function RegistrazioneAttivita() {
                 key={c.key}
                 to={c.to}
                 className="group relative block overflow-hidden rounded-2xl shadow-sm ring-1 ring-zinc-100 hover:ring-[#E1B671]/40 transition-all"
+                aria-label={`Registra una struttura - categoria: ${c.title}`}
               >
                 <img
                   src={c.img}
@@ -124,7 +132,9 @@ export default function RegistrazioneAttivita() {
                 Sei pronto a raccontare la tua attività?
               </h2>
               <p className="mt-3 inline-block bg-black/40 px-3 py-1 text-sm md:text-base text-white/90 backdrop-blur-sm rounded">
-                Inizia da <span className="font-semibold text-[#E1B671]">Dormire</span>: è attivo e super veloce.
+                Inizia da{" "}
+                <span className="font-semibold text-[#E1B671]">Dormire</span>:
+                è attivo e super veloce.
               </p>
             </div>
           </div>

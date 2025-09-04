@@ -1,13 +1,30 @@
+// src/HomepageMockup.jsx
 import { useState, useRef, useEffect } from "react";
-import { MapPin, Clock, Heart, Search, ChevronRight, ChevronLeft, Star, User, Car, Gift, Utensils, Send } from "lucide-react";
-import { Link } from "react-router-dom";
+import { MapPin, Clock, Search, Star, User, Car, Gift, Utensils } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  getCurrentUser,
+  listLatestVideos,
+  getCreator,
+  createThread,
+  searchNavigateTarget, // <-- PATCH: import funzione ricerca
+} from "./lib/store";
+import { BORGI_INDEX, BORGI_BY_SLUG } from "./data/borghi";
 
 export default function HomepageMockup() {
-  const HERO_IMAGE_URL = "https://images.unsplash.com/photo-1520974735194-6c1f1c1d0b35?q=80&w=1600&auto=format&fit=crop";
-  const FALLBACK_IMG = "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1600&auto=format&fit=crop";
-  const handleImgError = (e) => { e.currentTarget.onerror = null; e.currentTarget.src = FALLBACK_IMG; };
+  const navigate = useNavigate();
+
+  const HERO_IMAGE_URL =
+    "https://images.unsplash.com/photo-1520974735194-6c1f1c1d0b35?q=80&w=1600&auto=format&fit=crop";
+  const FALLBACK_IMG =
+    "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1600&auto=format&fit=crop";
+  const handleImgError = (e) => {
+    e.currentTarget.onerror = null;
+    e.currentTarget.src = FALLBACK_IMG;
+  };
 
   const [expanded, setExpanded] = useState(false);
+  const [query, setQuery] = useState("");
   const servicesRef = useRef(null);
 
   // Success banner dopo submit Netlify (?grazie=1#registrazione)
@@ -27,8 +44,6 @@ export default function HomepageMockup() {
   const partnersRef = useRef(null);
   const [partnersPaused, setPartnersPaused] = useState(false);
   useEffect(() => {
-    const el = partnersRef.current;
-    if (!el) return;
     const id = setInterval(() => {
       if (!partnersRef.current || partnersPaused) return;
       const node = partnersRef.current;
@@ -40,6 +55,25 @@ export default function HomepageMockup() {
     return () => clearInterval(id);
   }, [partnersPaused]);
 
+  /* ------------------- PATCH: handler ricerca ------------------- */
+  function handleSearch(e) {
+    e?.preventDefault?.();
+    const target = searchNavigateTarget(query);
+    if (target.type === "borgo") {
+      navigate(`/borghi/${target.slug}`);
+    } else if (target.type === "poi") {
+      navigate(`/borghi/${target.slug}/poi/${target.poiId}`);
+    } else {
+      navigate(`/cerca?q=${encodeURIComponent(query)}`);
+    }
+  }
+
+  function startChat(creatorId) {
+    const user = getCurrentUser();
+    const thread = createThread({ creatorId, userId: user.id });
+    navigate(`/chat/${thread.id}`);
+  }
+
   /* ------------------- UI PRIMITIVES ------------------- */
 
   function Carousel({ images = [], heightClass = "h-40", rounded = "rounded-2xl" }) {
@@ -49,18 +83,27 @@ export default function HomepageMockup() {
 
     const clamp = (n) => (n < 0 ? images.length - 1 : n >= images.length ? 0 : n);
     const go = (n) => setIdx(clamp(n));
-    const next = () => go(idx + 1);
-    const prev = () => go(idx - 1);
 
-    const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
-    const onTouchMove = (e) => { touchEndX.current = e.touches[0].clientX; };
+    const onTouchStart = (e) => {
+      touchStartX.current = e.touches[0].clientX;
+    };
+    const onTouchMove = (e) => {
+      touchEndX.current = e.touches[0].clientX;
+    };
     const onTouchEnd = () => {
       const delta = touchEndX.current - touchStartX.current;
-      if (Math.abs(delta) > 40) { delta < 0 ? next() : prev(); }
+      if (Math.abs(delta) > 40) {
+        delta < 0 ? go(idx + 1) : go(idx - 1);
+      }
     };
 
     return (
-      <div className={`relative w-full overflow-hidden ${rounded}`} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+      <div
+        className={`relative w-full overflow-hidden ${rounded}`}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
         <div
           className={`flex ${heightClass} transition-transform duration-500`}
           style={{ transform: `translateX(-${idx * 100}%)` }}
@@ -77,35 +120,17 @@ export default function HomepageMockup() {
           ))}
         </div>
 
-        {/* Frecce (mostrate da md in su) */}
-        {images.length > 1 && (
-          <>
-            <button
-              onClick={prev}
-              className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 items-center justify-center rounded-full bg-white/90 shadow ring-1 ring-black/10 hover:bg-white"
-              aria-label="Precedente"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <button
-              onClick={next}
-              className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 items-center justify-center rounded-full bg-white/90 shadow ring-1 ring-black/10 hover:bg-white"
-              aria-label="Successivo"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </>
-        )}
-
-        {/* Dots */}
+        {/* Dots (niente frecce) */}
         {images.length > 1 && (
           <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-2">
             {images.map((_, i) => (
               <button
                 key={i}
-                onClick={() => go(i)}
+                onClick={() => setIdx(i)}
                 aria-label={`Vai alla foto ${i + 1}`}
-                className={`w-2.5 h-2.5 rounded-full transition ${i === idx ? "bg-white shadow ring-1 ring-black/10" : "bg-white/60 hover:bg-white"}`}
+                className={`w-2.5 h-2.5 rounded-full transition ${
+                  i === idx ? "bg-white shadow ring-1 ring-black/10" : "bg-white/60 hover:bg-white"
+                }`}
               />
             ))}
           </div>
@@ -115,38 +140,61 @@ export default function HomepageMockup() {
   }
 
   const ServiceTile = ({ img, label, icon: Icon, count }) => (
-    <a href="#" className="group relative w-40 h-24 sm:w-44 sm:h-28 rounded-2xl overflow-hidden shadow-lg ring-1 ring-[#E1B671]/60 hover:ring-[#D54E30] transition">
-      <img loading="lazy" src={img} alt={label} className="absolute inset-0 w-full h-full object-cover duration-300 group-hover:scale-105" onError={handleImgError} />
+    <a
+      href="#"
+      className="group relative w-56 h-32 sm:w-64 sm:h-36 rounded-2xl overflow-hidden shadow-lg ring-1 ring-[#E1B671]/60 hover:ring-[#D54E30] transition"
+    >
+      <img
+        loading="lazy"
+        src={img}
+        alt={label}
+        className="absolute inset-0 w-full h-full object-cover duration-300 group-hover:scale-105"
+        onError={handleImgError}
+      />
       <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent"></div>
       <div className="absolute top-2 left-2 flex items-center gap-2">
-        {Icon ? <Icon size={18} className="text-white drop-shadow"/> : null}
-        {typeof count !== 'undefined' ? (
-          <span className="text-[11px] font-semibold text-white bg-[#D54E30]/90 rounded-full px-2 py-0.5 shadow">{count}</span>
+        {Icon ? <Icon size={20} className="text-white drop-shadow" /> : null}
+        {typeof count !== "undefined" ? (
+          <span className="text-[12px] font-semibold text-white bg-[#D54E30]/90 rounded-full px-2 py-0.5 shadow">
+            {count}
+          </span>
         ) : null}
       </div>
       <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-white">
-        <span className="font-extrabold drop-shadow">{label}</span>
-        <span className="opacity-0 group-hover:opacity-100 text-[12px] bg-white/25 backdrop-blur px-2 py-0.5 rounded-full transition">Scopri →</span>
+        <span className="text-lg font-extrabold drop-shadow">{label}</span>
+        <span className="opacity-0 group-hover:opacity-100 text-[12px] bg-white/25 backdrop-blur px-2 py-0.5 rounded-full transition">
+          Scopri →
+        </span>
       </div>
     </a>
   );
 
-  const BorgoTile = ({ img, name }) => (
-    <a href="#" className="group snap-center">
+  const BorgoTile = ({ img, name, to }) => (
+    <Link to={to} className="group snap-center">
       <div className="w-40 h-24 sm:w-48 sm:h-28 rounded-xl overflow-hidden shadow-md">
-        <img loading="lazy" src={img} alt={name} className="w-full h-full object-cover group-hover:scale-105 transition" onError={handleImgError} />
+        <img
+          loading="lazy"
+          src={img}
+          alt={name}
+          className="w-full h-full object-cover group-hover:scale-105 transition"
+          onError={handleImgError}
+        />
       </div>
       <div className="mt-2 text-sm font-semibold text-[#6B271A]">{name}</div>
-    </a>
+    </Link>
   );
 
-  /* -------- Event Cards (ora con Carousel 3 foto + pallini) -------- */
+  /* -------- Event Cards -------- */
 
   function EventBadgeRow({ type = "Sagra", dateText = "28 AGO – 5 SET 2025", extra = null }) {
     return (
       <div className="flex flex-col items-start gap-1">
-        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">{type}</span>
-        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">{dateText}</span>
+        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">
+          {type}
+        </span>
+        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">
+          {dateText}
+        </span>
         {extra}
       </div>
     );
@@ -162,8 +210,12 @@ export default function HomepageMockup() {
         <div className="p-4 text-left space-y-2">
           <EventBadgeRow />
           <h3 className="text-base font-extrabold text-[#6B271A] leading-snug">{title}</h3>
-          <div className="flex items-center text-sm text-gray-600 gap-2"><MapPin size={16} className="text-[#D54E30]" /> {place}</div>
-          <div className="flex items-center text-sm text-gray-600 gap-2"><Clock size={16} className="text-[#6B271A]" /> {time}</div>
+          <div className="flex items-center text-sm text-gray-600 gap-2">
+            <MapPin size={16} className="text-[#D54E30]" /> {place}
+          </div>
+          <div className="flex items-center text-sm text-gray-600 gap-2">
+            <Clock size={16} className="text-[#6B271A]" /> {time}
+          </div>
         </div>
       </article>
     );
@@ -171,7 +223,11 @@ export default function HomepageMockup() {
 
   const CardSagra = () => (
     <EventCardBase
-      statusChip={<span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-green-600 text-white border border-green-700 shadow-sm">In corso</span>}
+      statusChip={
+        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-green-600 text-white border border-green-700 shadow-sm">
+          In corso
+        </span>
+      }
       images={[
         "https://images.unsplash.com/photo-1551218808-94e220e084d2?q=80&w=1200&auto=format&fit=crop",
         "https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=1200&auto=format&fit=crop",
@@ -185,7 +241,11 @@ export default function HomepageMockup() {
 
   const CardSagraAnnullata = () => (
     <EventCardBase
-      statusChip={<span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#D54E30] text-white border border-[#6B271A] shadow-sm">Annullata</span>}
+      statusChip={
+        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#D54E30] text-white border border-[#6B271A] shadow-sm">
+          Annullata
+        </span>
+      }
       images={[
         "https://images.unsplash.com/photo-1478145046317-39f10e56b5e9?q=80&w=1200&auto=format&fit=crop",
         "https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=1200&auto=format&fit=crop",
@@ -214,7 +274,9 @@ export default function HomepageMockup() {
   const CardFiera = () => (
     <EventCardBase
       statusChip={
-        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#6B271A] text-white border border-[#E1B671] shadow-sm">In evidenza</span>
+        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#6B271A] text-white border border-[#E1B671] shadow-sm">
+          In evidenza
+        </span>
       }
       images={[
         "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop",
@@ -227,19 +289,42 @@ export default function HomepageMockup() {
     />
   );
 
-  /* -------- Esperienze (allineate + carousel + pallini) -------- */
+  /* -------- Esperienze -------- */
 
-  const ExperienceCard = ({ images, title, location, region, meta, priceFrom }) => (
-    <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white min-w-[280px] max-w-[280px]">
+  // FIX accavallamento: larghezza fissa solo nello scorrimento mobile; in grid → w-full
+  const ExperienceCard = ({
+    images,
+    title,
+    location,
+    region,
+    meta,
+    priceFrom,
+    fixedWidth = true, // <-- default per il carosello mobile
+  }) => (
+    <article
+      className={`overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white ${
+        fixedWidth ? "min-w-[300px] max-w-[300px]" : "w-full"
+      }`}
+    >
       <div className="relative">
         <Carousel images={images} />
-        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">da {priceFrom}</span>
+        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">
+          da {priceFrom}
+        </span>
       </div>
       <div className="p-4 text-left space-y-2">
-        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">Esperienza</span>
+        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">
+          Esperienza
+        </span>
         <h3 className="text-base font-extrabold text-[#6B271A] leading-snug">{title}</h3>
-        <div className="flex items-center text-sm text-gray-600 gap-2"><MapPin size={16} className="text-[#D54E30]" /> {location} | {region}</div>
-        {meta ? <div className="flex items-center text-sm text-gray-600 gap-2"><Clock size={16} className="text-[#6B271A]" /> {meta}</div> : null}
+        <div className="flex items-center text-sm text-gray-600 gap-2">
+          <MapPin size={16} className="text-[#D54E30]" /> {location} | {region}
+        </div>
+        {meta ? (
+          <div className="flex items-center text-sm text-gray-600 gap-2">
+            <Clock size={16} className="text-[#6B271A]" /> {meta}
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -251,11 +336,17 @@ export default function HomepageMockup() {
       </div>
       <div className="p-4 text-left space-y-2">
         <div className="flex items-start justify-between gap-2">
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">Prodotto tipico</span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">da {priceFrom}</span>
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">
+            Prodotto tipico
+          </span>
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">
+            da {priceFrom}
+          </span>
         </div>
         <h3 className="text-base font-extrabold text-[#6B271A] leading-snug">{title}</h3>
-        <div className="flex items-center text-sm text-gray-600 gap-2"><MapPin size={16} className="text-[#D54E30]" /> {origin}</div>
+        <div className="flex items-center text-sm text-gray-600 gap-2">
+          <MapPin size={16} className="text-[#D54E30]" /> {origin}
+        </div>
       </div>
     </article>
   );
@@ -268,34 +359,64 @@ export default function HomepageMockup() {
         <div className="absolute inset-0 bg-black/30" />
       </div>
       <div className="relative max-w-6xl mx-auto px-6 pt-16 pb-20 text-center text-white">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight drop-shadow-md">Trova cosa fare vicino a te</h1>
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight drop-shadow-md">
+          Trova cosa fare vicino a te
+        </h1>
         <p className="mt-3 text-base md:text-lg drop-shadow">Eventi, esperienze e borghi in tutta Italia. Cerca e parti.</p>
         <div className="mt-6 bg-white/95 backdrop-blur rounded-2xl p-3 md:p-4 inline-block w-full md:w-auto shadow-lg">
-          <form className="flex flex-col gap-3 md:flex-row md:items-center" onSubmit={(e)=>e.preventDefault()} aria-label="Ricerca">
+          <form className="flex flex-col gap-3 md:flex-row md:items-center" onSubmit={handleSearch} aria-label="Ricerca">
             <label className="flex items-center gap-2 border rounded-xl px-3 py-3 w-full md:w-96 bg-white" htmlFor="query">
               <Search size={18} className="text-[#6B271A]" />
-              <input id="query" className="w-full outline-none" placeholder="Cerca eventi, esperienze o borghi" aria-label="Cosa cerchi" />
+              <input
+                id="query"
+                className="w-full outline-none text-gray-900 placeholder:text-gray-500 caret-[#6B271A]"
+                placeholder="Cerca eventi, esperienze o borghi"
+                aria-label="Cosa cerchi"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
             </label>
-            <button className="ml-0 md:ml-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#D54E30] text-white font-semibold self-center md:self-auto" data-event="search_submit">
-              <Search size={18}/> Cerca
+            <button
+              className="ml-0 md:ml-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#D54E30] text-white font-semibold self-center md:self-auto"
+              data-event="search_submit"
+            >
+              <Search size={18} /> Cerca
             </button>
           </form>
 
-          {/* Pillole: scroll orizzontale su mobile, wrap su desktop */}
+          {/* Pillole */}
           <div className="mt-3">
             <div className="flex gap-2 overflow-x-auto no-scrollbar md:flex-wrap md:overflow-visible justify-center md:justify-center">
-              <button className="px-3 py-1.5 rounded-full bg-[#D54E30] text-white text-sm font-semibold whitespace-nowrap" data-event="shortcut_weekend">Questo weekend</button>
-              <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_nearby">Vicino a me</button>
-              <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_family">Con bambini</button>
-              <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_food">Food & Wine</button>
-              <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap" data-event="shortcut_outdoor">Outdoor</button>
+              <button
+                className="px-3 py-1.5 rounded-full bg-[#D54E30] text-white text-sm font-semibold whitespace-nowrap"
+                onClick={() => setQuery("Viggiano")}
+              >
+                Questo weekend
+              </button>
+              <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap">
+                Vicino a me
+              </button>
+              <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap">
+                Con bambini
+              </button>
+              <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap">
+                Food & Wine
+              </button>
+              <button className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap">
+                Outdoor
+              </button>
             </div>
           </div>
 
-          <div className="text-sm text-gray-700 mt-2">
-            Sei un Comune?{" "}
-            <Link to="/registrazione-comune" className="font-semibold underline text-[#6B271A]">
-              Scopri i nostri servizi
+          <div className="text-sm text-gray-700 mt-2 flex items-center gap-4 justify-center">
+            <span>
+              Sei un Comune?{" "}
+              <Link to="/registrazione-comune" className="font-semibold underline text-[#6B271A]">
+                Scopri i nostri servizi
+              </Link>
+            </span>
+            <Link to="/registrazione-creator" className="font-semibold underline text-[#6B271A]">
+              Diventa creator
             </Link>
           </div>
         </div>
@@ -304,8 +425,14 @@ export default function HomepageMockup() {
   );
 
   // === LOGHI PARTNER (placeholder) ===
-  const partners = Array.from({length: 10}).map((_,i)=>({ id: i+1, img: `https://dummyimage.com/160x64/FAF5E0/6B271A&text=Partner+${i+1}` }));
+  const partners = Array.from({ length: 10 }).map((_, i) => ({
+    id: i + 1,
+    img: `https://dummyimage.com/160x64/FAF5E0/6B271A&text=Partner+${i + 1}`,
+  }));
   const partnersLoop = [...partners, ...partners];
+
+  // === Video dei creator (homepage) ===
+  const latestVideos = listLatestVideos(6);
 
   return (
     <>
@@ -319,8 +446,13 @@ export default function HomepageMockup() {
         {/* TOP NAV */}
         <header className="bg-white/90 backdrop-blur border-b">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-            <a href="#" className="text-xl font-extrabold text-[#6B271A]">il borghista</a>
+            <Link to="/" className="text-xl font-extrabold text-[#6B271A]">
+              il borghista
+            </Link>
             <div className="flex items-center gap-3">
+              <Link to="/creator" className="text-sm font-semibold underline text-[#6B271A]">
+                Creator
+              </Link>
               <Link
                 to="/registrazione-comune"
                 className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]"
@@ -344,28 +476,124 @@ export default function HomepageMockup() {
         {/* HERO */}
         <HeroHeader />
 
-        {/* SERVIZI — mobile: orizzontale; desktop: griglia */}
+        {/* SERVIZI */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <h2 className="text-lg font-extrabold text-[#6B271A]">Servizi</h2>
-
-          {/* Mobile scroll */}
+          {/* Mobile */}
           <div className="relative mt-3 md:hidden">
             <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent rounded-l-2xl"></div>
             <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent rounded-r-2xl"></div>
-            <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pr-10" ref={servicesRef}>
-              <ServiceTile img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=900&auto=format&fit=crop" label="Esperienze" icon={Utensils} count={238} />
-              <ServiceTile img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=900&auto=format&fit=crop" label="Prodotti tipici" icon={Gift} count={120} />
-              <ServiceTile img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=900&auto=format&fit=crop" label="Noleggio auto" icon={Car} count={46} />
-              <ServiceTile img="https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=900&auto=format&fit=crop" label="Invia cartoline" icon={Send} count={80} />
+            <div className="flex gap-5 overflow-x-auto no-scrollbar snap-x snap-mandatory pr-10" ref={servicesRef}>
+              <ServiceTile
+                img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=900&auto=format&fit=crop"
+                label="Esperienze"
+                icon={Utensils}
+                count={238}
+              />
+              <ServiceTile
+                img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=900&auto=format&fit=crop"
+                label="Prodotti tipici"
+                icon={Gift}
+                count={120}
+              />
+              <ServiceTile
+                img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=900&auto=format&fit=crop"
+                label="Noleggio auto"
+                icon={Car}
+                count={46}
+              />
             </div>
           </div>
+          {/* Desktop */}
+          <div className="hidden md:grid grid-cols-3 gap-5 mt-3">
+            <ServiceTile
+              img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1200&auto=format&fit=crop"
+              label="Esperienze"
+              icon={Utensils}
+              count={238}
+            />
+            <ServiceTile
+              img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1200&auto=format&fit=crop"
+              label="Prodotti tipici"
+              icon={Gift}
+              count={120}
+            />
+            <ServiceTile
+              img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1200&auto=format&fit=crop"
+              label="Noleggio auto"
+              icon={Car}
+              count={46}
+            />
+          </div>
+        </section>
 
-          {/* Desktop grid */}
-          <div className="hidden md:grid grid-cols-4 gap-4 mt-3">
-            <ServiceTile img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=900&auto=format&fit=crop" label="Esperienze" icon={Utensils} count={238} />
-            <ServiceTile img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=900&auto=format&fit=crop" label="Prodotti tipici" icon={Gift} count={120} />
-            <ServiceTile img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=900&auto=format&fit=crop" label="Noleggio auto" icon={Car} count={46} />
-            <ServiceTile img="https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=900&auto=format&fit=crop" label="Invia cartoline" icon={Send} count={80} />
+        {/* VIDEO DEI CREATOR */}
+        <section className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-extrabold text-[#6B271A]">Video dei creator</h2>
+            <Link to="/creator" className="text-sm font-semibold underline flex items-center gap-1">
+              Vedi tutti
+            </Link>
+          </div>
+          <div className="mt-4 grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {latestVideos.map((v) => {
+              const b = BORGI_BY_SLUG[v.borgoSlug];
+              const c = getCreator(v.creatorId);
+              return (
+                <article key={v.id} className="overflow-hidden shadow-xl rounded-2xl bg-white">
+                  <div className="aspect-video">
+                    {(() => {
+                      const m = v.url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\\w-]+)/i);
+                      return m ? (
+                        <iframe
+                          className="w-full h-full"
+                          src={`https://www.youtube.com/embed/${m[1]}`}
+                          title={v.title}
+                          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture;"
+                          allowFullScreen
+                        />
+                      ) : (
+                        <a href={v.url} target="_blank" rel="noreferrer" className="block p-3 text-sm underline">
+                          Guarda video
+                        </a>
+                      );
+                    })()}
+                  </div>
+                  <div className="p-4 space-y-1">
+                    <div className="font-extrabold text-[#6B271A]">{v.title}</div>
+                    {b ? (
+                      <Link to={`/borghi/${b.slug}`} className="text-sm text-gray-600 flex items-center gap-2 hover:underline">
+                        <MapPin size={16} className="text-[#D54E30]" /> {b.name}
+                      </Link>
+                    ) : null}
+                    <div className="pt-2 flex items-center justify-between">
+                      <div className="text-sm text-gray-700">
+                        {c ? (
+                          <Link to={`/creator/${c.id}`} className="hover:underline">
+                            di {c.name}
+                          </Link>
+                        ) : (
+                          "di —"
+                        )}
+                      </div>
+                      {c ? (
+                        <button
+                          onClick={() => startChat(c.id)}
+                          className="text-sm px-3 py-1.5 rounded-lg bg-[#D54E30] text-white font-semibold"
+                        >
+                          Contatta
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+            {latestVideos.length === 0 && (
+              <div className="text-sm text-gray-600">
+                Ancora nessun video. <Link to="/registrazione-creator" className="underline">Diventa creator</Link>.
+              </div>
+            )}
           </div>
         </section>
 
@@ -373,14 +601,9 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <h2 className="text-lg font-extrabold text-[#6B271A]">Borghi da scoprire…</h2>
           <div className="mt-3 flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory">
-            <BorgoTile img="https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?q=80&w=1000&auto=format&fit=crop" name="Montemurro" />
-            <BorgoTile img="https://images.unsplash.com/photo-1543340713-8a9d77e147bd?q=80&w=1000&auto=format&fit=crop" name="Staiti" />
-            <BorgoTile img="https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=80&w=1000&auto=format&fit=crop" name="Corleto Perticara" />
-            <BorgoTile img="https://images.unsplash.com/photo-1491553895911-0055eca6402d?q=80&w=1000&auto=format&fit=crop" name="Viggiano" />
-            <BorgoTile img="https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1000&auto=format&fit=crop" name="Civita" />
-            <BorgoTile img="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1000&auto=format&fit=crop" name="Otranto" />
-            <BorgoTile img="https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1000&auto=format&fit=crop" name="Erice" />
-            <BorgoTile img="https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=1000&auto=format&fit=crop" name="Spello" />
+            {BORGI_INDEX.map((b) => (
+              <BorgoTile key={b.slug} img={b.hero} name={b.name} to={`/borghi/${b.slug}`} />
+            ))}
           </div>
         </section>
 
@@ -388,15 +611,25 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Prossimi eventi e sagre</h2>
-            <a href="#" className="text-sm font-semibold underline flex items-center gap-1">Vedi tutti <ChevronRight size={16}/></a>
+            <a href="#" className="text-sm font-semibold underline flex items-center gap-1">
+              Vedi tutti
+            </a>
           </div>
           <div className="mt-3 flex items-center justify-between">
-            {/* Filtri pillole: mobile orizzontale, desktop wrap */}
             <div className="flex gap-2 overflow-x-auto no-scrollbar md:flex-wrap md:overflow-visible text-xs">
-              <span className="px-2.5 py-1 rounded-full bg-[#FAF5E0] text-[#6B271A] font-semibold whitespace-nowrap">Quando: Questo weekend ✕</span>
-              <span className="px-2.5 py-1 rounded-full bg-[#FAF5E0] text-[#6B271A] font-semibold whitespace-nowrap">Distanza: 50 km ✕</span>
+              <span className="px-2.5 py-1 rounded-full bg-[#FAF5E0] text-[#6B271A] font-semibold whitespace-nowrap">
+                Quando: Questo weekend ✕
+              </span>
+              <span className="px-2.5 py-1 rounded-full bg-[#FAF5E0] text-[#6B271A] font-semibold whitespace-nowrap">
+                Distanza: 50 km ✕
+              </span>
             </div>
-            <button className="text-sm font-semibold underline shrink-0 ml-3" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} data-event="toggle_view">
+            <button
+              className="text-sm font-semibold underline shrink-0 ml-3"
+              onClick={() => setExpanded(!expanded)}
+              aria-expanded={expanded}
+              data-event="toggle_view"
+            >
               {expanded ? "Mostra meno" : "Guarda tutti"}
             </button>
           </div>
@@ -409,54 +642,143 @@ export default function HomepageMockup() {
               <CardSagraAnnullata />
               <CardConcerto />
               <CardFiera />
-              <CardSagra />
-              <CardConcerto />
             </div>
           ) : (
             <div className="mt-4 flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory">
-              <div className="min-w-[280px] max-w-[280px] flex-shrink-0"><CardSagra /></div>
-              <div className="min-w-[280px] max-w-[280px] flex-shrink-0"><CardSagraAnnullata /></div>
-              <div className="min-w-[280px] max-w-[280px] flex-shrink-0"><CardFiera /></div>
-              <div className="min-w-[280px] max-w-[280px] flex-shrink-0"><CardConcerto /></div>
+              <div className="min-w-[280px] max-w-[280px] flex-shrink-0">
+                <CardSagra />
+              </div>
+              <div className="min-w-[280px] max-w-[280px] flex-shrink-0">
+                <CardSagraAnnullata />
+              </div>
+              <div className="min-w-[280px] max-w-[280px] flex-shrink-0">
+                <CardFiera />
+              </div>
+              <div className="min-w-[280px] max-w-[280px] flex-shrink-0">
+                <CardConcerto />
+              </div>
             </div>
           )}
         </section>
 
-        {/* ESPERIENZE CONSIGLIATE (allineate) */}
+        {/* ESPERIENZE CONSIGLIATE */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Esperienze consigliate</h2>
-            <a href="#" className="text-sm font-semibold underline flex items-center gap-1">Vedi tutte <ChevronRight size={16}/></a>
+            <a href="#" className="text-sm font-semibold underline flex items-center gap-1">
+              Vedi tutte
+            </a>
           </div>
 
-          {/* Mobile: orizzontale; Desktop: griglia 4 */}
-          <div className="mt-4 md:hidden flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory">
+          {/* Mobile */}
+          <div className="mt-5 md:hidden flex gap-5 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory">
             {[
-              { images:["https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1468596238068-7eee4927c4a2?q=80&w=1200&auto=format&fit=crop"], title:"Trekking al tramonto", location:"Arnad (AO)", region:"Valle d'Aosta", meta:"Durata 4h · Difficoltà media", priceFrom:"€25"},
-              { images:["https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1493558103817-58b2924bce98?q=80&w=1200&auto=format&fit=crop"], title:"Giro in barca alle calette", location:"Otranto (LE)", region:"Puglia", meta:"Durata 2h · Attrezzatura inclusa", priceFrom:"€35"},
-              { images:["https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1523986371872-9d3ba2e2f642?q=80&w=1200&auto=format&fit=crop"], title:"Cooking class lucana", location:"Matera (MT)", region:"Basilicata", meta:"Durata 3h · Piccoli gruppi", priceFrom:"€59"},
-              { images:["https://images.unsplash.com/photo-1473625247510-8ceb1760943f?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1520975922323-2155a3b6f2b6?q=80&w=1200&auto=format&fit=crop"], title:"E-bike tra i vigneti", location:"Neive (CN)", region:"Piemonte", meta:"Durata 2h", priceFrom:"€29"},
-              { images:["https://images.unsplash.com/photo-1529429612778-cff757df97dd?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1472396961693-142e6e269027?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop"], title:"Passeggiata fotografica", location:"Erice (TP)", region:"Sicilia", meta:"Durata 3h", priceFrom:"€22"},
-              { images:["https://images.unsplash.com/photo-1470770903676-69b98201ea1c?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1460353581641-37baddab0fa2?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1473186505569-9c61870c11f9?q=80&w=1200&auto=format&fit=crop"], title:"Kayak al tramonto", location:"Santa Teresa (SS)", region:"Sardegna", meta:"Durata 2h", priceFrom:"€40"},
-              { images:["https://images.unsplash.com/photo-1453747063559-36695c8771bd?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop"], title:"Tour guidato del borgo", location:"Spello (PG)", region:"Umbria", meta:"Durata 1.5h", priceFrom:"€12"},
-              { images:["https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1520975922323-2155a3b6f2b6?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop"], title:"Parapendio panoramico", location:"Monte Baldo (VR)", region:"Veneto", meta:"Durata 30' in volo", priceFrom:"€89"}
-            ].map((e,i)=> (
-              <ExperienceCard key={i} {...e} />
+              {
+                images: [
+                  "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1468596238068-7eee4927c4a2?q=80&w=1200&auto=format&fit=crop",
+                ],
+                title: "Trekking al tramonto",
+                location: "Arnad (AO)",
+                region: "Valle d'Aosta",
+                meta: "Durata 4h · Difficoltà media",
+                priceFrom: "€25",
+              },
+              {
+                images: [
+                  "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1493558103817-58b2924bce98?q=80&w=1200&auto=format&fit=crop",
+                ],
+                title: "Giro in barca alle calette",
+                location: "Otranto (LE)",
+                region: "Puglia",
+                meta: "Durata 2h · Attrezzatura inclusa",
+                priceFrom: "€35",
+              },
+              {
+                images: [
+                  "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1523986371872-9d3ba2e2f642?q=80&w=1200&auto=format&fit=crop",
+                ],
+                title: "Cooking class lucana",
+                location: "Matera (MT)",
+                region: "Basilicata",
+                meta: "Durata 3h · Piccoli gruppi",
+                priceFrom: "€59",
+              },
+              {
+                images: [
+                  "https://images.unsplash.com/photo-1473625247510-8ceb1760943f?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1520975922323-2155a3b6f2b6?q=80&w=1200&auto=format&fit=crop",
+                ],
+                title: "E-bike tra i vigneti",
+                location: "Neive (CN)",
+                region: "Piemonte",
+                meta: "Durata 2h",
+                priceFrom: "€29",
+              },
+            ].map((e, i) => (
+              <ExperienceCard key={i} fixedWidth {...e} />
             ))}
           </div>
 
-          <div className="mt-4 hidden md:grid grid-cols-4 gap-4">
+          {/* Desktop */}
+          <div className="mt-5 hidden md:grid grid-cols-4 gap-5">
             {[
-              { images:["https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1468596238068-7eee4927c4a2?q=80&w=1200&auto=format&fit=crop"], title:"Trekking al tramonto", location:"Arnad (AO)", region:"Valle d'Aosta", meta:"Durata 4h · Difficoltà media", priceFrom:"€25"},
-              { images:["https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1493558103817-58b2924bce98?q=80&w=1200&auto=format&fit=crop"], title:"Giro in barca alle calette", location:"Otranto (LE)", region:"Puglia", meta:"Durata 2h · Attrezzatura inclusa", priceFrom:"€35"},
-              { images:["https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1523986371872-9d3ba2e2f642?q=80&w=1200&auto=format&fit=crop"], title:"Cooking class lucana", location:"Matera (MT)", region:"Basilicata", meta:"Durata 3h · Piccoli gruppi", priceFrom:"€59"},
-              { images:["https://images.unsplash.com/photo-1473625247510-8ceb1760943f?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1520975922323-2155a3b6f2b6?q=80&w=1200&auto=format&fit=crop"], title:"E-bike tra i vigneti", location:"Neive (CN)", region:"Piemonte", meta:"Durata 2h", priceFrom:"€29"},
-              { images:["https://images.unsplash.com/photo-1529429612778-cff757df97dd?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1472396961693-142e6e269027?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop"], title:"Passeggiata fotografica", location:"Erice (TP)", region:"Sicilia", meta:"Durata 3h", priceFrom:"€22"},
-              { images:["https://images.unsplash.com/photo-1470770903676-69b98201ea1c?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1460353581641-37baddab0fa2?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1473186505569-9c61870c11f9?q=80&w=1200&auto=format&fit=crop"], title:"Kayak al tramonto", location:"Santa Teresa (SS)", region:"Sardegna", meta:"Durata 2h", priceFrom:"€40"},
-              { images:["https://images.unsplash.com/photo-1453747063559-36695c8771bd?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop"], title:"Tour guidato del borgo", location:"Spello (PG)", region:"Umbria", meta:"Durata 1.5h", priceFrom:"€12"},
-              { images:["https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1520975922323-2155a3b6f2b6?q=80&w=1200&auto=format&fit=crop","https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop"], title:"Parapendio panoramico", location:"Monte Baldo (VR)", region:"Veneto", meta:"Durata 30' in volo", priceFrom:"€89"}
-            ].map((e,i)=> (
-              <ExperienceCard key={i} {...e} />
+              {
+                images: [
+                  "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1468596238068-7eee4927c4a2?q=80&w=1200&auto=format&fit=crop",
+                ],
+                title: "Trekking al tramonto",
+                location: "Arnad (AO)",
+                region: "Valle d'Aosta",
+                meta: "Durata 4h · Difficoltà media",
+                priceFrom: "€25",
+              },
+              {
+                images: [
+                  "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1493558103817-58b2924bce98?q=80&w=1200&auto=format&fit=crop",
+                ],
+                title: "Giro in barca alle calette",
+                location: "Otranto (LE)",
+                region: "Puglia",
+                meta: "Durata 2h · Attrezzatura inclusa",
+                priceFrom: "€35",
+              },
+              {
+                images: [
+                  "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1523986371872-9d3ba2e2f642?q=80&w=1200&auto=format&fit=crop",
+                ],
+                title: "Cooking class lucana",
+                location: "Matera (MT)",
+                region: "Basilicata",
+                meta: "Durata 3h · Piccoli gruppi",
+                priceFrom: "€59",
+              },
+              {
+                images: [
+                  "https://images.unsplash.com/photo-1473625247510-8ceb1760943f?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1200&auto=format&fit=crop",
+                  "https://images.unsplash.com/photo-1520975922323-2155a3b6f2b6?q=80&w=1200&auto=format&fit=crop",
+                ],
+                title: "E-bike tra i vigneti",
+                location: "Neive (CN)",
+                region: "Piemonte",
+                meta: "Durata 2h",
+                priceFrom: "€29",
+              },
+            ].map((e, i) => (
+              <ExperienceCard key={i} fixedWidth={false} {...e} />
             ))}
           </div>
         </section>
@@ -465,25 +787,49 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Prodotti tipici</h2>
-            <a href="#" className="text-sm font-semibold underline flex items-center gap-1">Vedi tutti <ChevronRight size={16}/></a>
+            <a href="#" className="text-sm font-semibold underline flex items-center gap-1">
+              Vedi tutti
+            </a>
           </div>
-          <div className="mt-4 flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory">
+          <div className="mt-4 flex gap-5 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory">
             {[
-              {img:"https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=1200&auto=format&fit=crop", title:"Formaggio di malga", origin:"Asiago (VI) | Veneto", priceFrom:"€7"},
-              {img:"https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1200&auto=format&fit=crop", title:"Salumi tipici", origin:"Norcia (PG) | Umbria", priceFrom:"€9"},
-              {img:"https://images.unsplash.com/photo-1514515411904-65fa19574d07?q=80&w=1200&auto=format&fit=crop", title:"Olio EVO del Garda", origin:"Garda (VR) | Veneto", priceFrom:"€6"},
-              {img:"https://images.unsplash.com/photo-1543352634-8730a9c79dc5?q=80&w=1200&auto=format&fit=crop", title:"Vino Montepulciano", origin:"Montepulciano (SI) | Toscana", priceFrom:"€12"},
-              {img:"https://images.unsplash.com/photo-1511690656952-34342bb7c2f2?q=80&w=1200&auto=format&fit=crop", title:"Pasta artigianale", origin:"Gragnano (NA) | Campania", priceFrom:"€3"},
-              {img:"https://images.unsplash.com/photo-1467003909585-2f8a72700288?q=80&w=1200&auto=format&fit=crop", title:"Miele millefiori", origin:"Zafferana (CT) | Sicilia", priceFrom:"€5"},
-              {img:"https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop", title:"Confetture del borgo", origin:"Civita (CS) | Calabria", priceFrom:"€4"},
-              {img:"https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop", title:"Box degustazione", origin:"Italia", priceFrom:"€19"}
-            ].map((p,i)=> (
+              {
+                img: "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=1200&auto=format&fit=crop",
+                title: "Formaggio di malga",
+                origin: "Asiago (VI) | Veneto",
+                priceFrom: "€7",
+              },
+              {
+                img: "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1200&auto=format&fit=crop",
+                title: "Salumi tipici",
+                origin: "Norcia (PG) | Umbria",
+                priceFrom: "€9",
+              },
+              {
+                img: "https://images.unsplash.com/photo-1514515411904-65fa19574d07?q=80&w=1200&auto=format&fit=crop",
+                title: "Olio EVO del Garda",
+                origin: "Garda (VR) | Veneto",
+                priceFrom: "€6",
+              },
+              {
+                img: "https://images.unsplash.com/photo-1543352634-8730a9c79dc5?q=80&w=1200&auto=format&fit=crop",
+                title: "Vino Montepulciano",
+                origin: "Montepulciano (SI) | Toscana",
+                priceFrom: "€12",
+              },
+              {
+                img: "https://images.unsplash.com/photo-1511690656952-34342bb7c2f2?q=80&w=1200&auto=format&fit=crop",
+                title: "Pasta artigianale",
+                origin: "Gragnano (NA) | Campania",
+                priceFrom: "€3",
+              },
+            ].map((p, i) => (
               <ProductCard key={i} {...p} />
             ))}
           </div>
         </section>
 
-        {/* I NOSTRI PARTNER (auto-scroll) */}
+        {/* I NOSTRI PARTNER */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">I nostri partner</h2>
@@ -494,18 +840,20 @@ export default function HomepageMockup() {
 
             <div
               ref={partnersRef}
-              onMouseEnter={()=>setPartnersPaused(true)}
-              onMouseLeave={()=>setPartnersPaused(false)}
+              onMouseEnter={() => setPartnersPaused(true)}
+              onMouseLeave={() => setPartnersPaused(false)}
               className="flex gap-4 overflow-x-auto no-scrollbar items-center py-2"
             >
-              {partnersLoop.map((p, idx) => (
-                <div key={`${p.id}-${idx}`} className="shrink-0">
+              {[...Array(20)].map((_, idx) => (
+                <div key={idx} className="shrink-0">
                   <div className="h-16 w-40 rounded-2xl bg-white border flex items-center justify-center shadow-sm">
                     <img
-                      src={p.img}
-                      alt={`Logo partner ${p.id}`}
+                      src={`https://dummyimage.com/160x64/FAF5E0/6B271A&text=Partner+${(idx % 10) + 1}`}
+                      alt={`Logo partner ${(idx % 10) + 1}`}
                       className="max-h-12 object-contain"
-                      onError={(e)=>{ e.currentTarget.src = `https://dummyimage.com/160x64/ffffff/999&text=Partner+${p.id}`; }}
+                      onError={(e) => {
+                        e.currentTarget.src = `https://dummyimage.com/160x64/ffffff/999&text=Partner+${(idx % 10) + 1}`;
+                      }}
                     />
                   </div>
                 </div>
@@ -524,9 +872,11 @@ export default function HomepageMockup() {
                 <div className="text-gray-700 text-sm">Iscriviti: inviamo solo segnalazioni utili</div>
               </div>
             </div>
-            <form className="flex w-full md:w-auto gap-2" onSubmit={(e)=>e.preventDefault()}>
-              <input className="flex-1 md:w-80 border rounded-xl px-3 py-2" placeholder="La tua email" aria-label="Email"/>
-              <button className="px-4 py-2 rounded-xl bg-[#D54E30] text-white font-semibold" data-event="newsletter_subscribe">Iscrivimi</button>
+            <form className="flex w-full md:w-auto gap-2" onSubmit={(e) => e.preventDefault()}>
+              <input className="flex-1 md:w-80 border rounded-xl px-3 py-2" placeholder="La tua email" aria-label="Email" />
+              <button className="px-4 py-2 rounded-xl bg-[#D54E30] text-white font-semibold" data-event="newsletter_subscribe">
+                Iscrivimi
+              </button>
             </form>
           </div>
         </section>
@@ -536,9 +886,15 @@ export default function HomepageMockup() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 text-sm text-gray-600 flex flex-col md:flex-row gap-2 md:items-center md:justify-between">
             <div>© {new Date().getFullYear()} Il Borghista — Tutti i diritti riservati</div>
             <div className="flex gap-4">
-              <a href="#" className="hover:underline">Privacy</a>
-              <a href="#" className="hover:underline">Cookie</a>
-              <a href="#" className="hover:underline">Contatti</a>
+              <a href="#" className="hover:underline">
+                Privacy
+              </a>
+              <a href="#" className="hover:underline">
+                Cookie
+              </a>
+              <Link to="/creator" className="hover:underline">
+                Creator
+              </Link>
             </div>
           </div>
         </footer>

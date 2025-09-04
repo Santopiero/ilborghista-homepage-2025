@@ -1,7 +1,7 @@
 // src/pages/Registrazione.jsx
 import React from "react";
 import { Link } from "react-router-dom";
-import { Building2, Store, Users } from "lucide-react";
+import { Building2, Store, Users, Video } from "lucide-react";
 
 export default function Registrazione() {
   return (
@@ -22,14 +22,17 @@ export default function Registrazione() {
       {/* Intro */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         <p className="text-gray-700 text-base md:text-lg">
-          Scegli il profilo con cui vuoi registrarti su <span className="font-semibold text-[#6B271A]">Il Borghista</span>.
-          Potrai promuovere il tuo borgo, la tua attività oppure scoprire e salvare esperienze come utente.
+          Scegli il profilo con cui vuoi registrarti su{" "}
+          <span className="font-semibold text-[#6B271A]">Il Borghista</span>.
+          Puoi promuovere il tuo borgo, far crescere la tua attività,
+          pubblicare contenuti come <span className="font-semibold">Creator</span>,
+          oppure salvare esperienze come utente.
         </p>
       </section>
 
-      {/* Tre card */}
+      {/* Quattro card */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-12">
-        <div className="grid gap-8 md:grid-cols-3">
+        <div className="grid gap-8 md:grid-cols-4">
           {/* BORGO */}
           <article className="rounded-3xl overflow-hidden shadow-xl bg-white ring-1 ring-[#E1B671]/60">
             <div className="h-56 w-full overflow-hidden">
@@ -80,6 +83,33 @@ export default function Registrazione() {
                 className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#D54E30] text-white font-semibold hover:bg-[#c2452b]"
               >
                 Registra la tua attività
+              </Link>
+            </div>
+          </article>
+
+          {/* CREATOR (NUOVO) */}
+          <article className="rounded-3xl overflow-hidden shadow-xl bg-white ring-1 ring-[#E1B671]/60">
+            <div className="h-56 w-full overflow-hidden">
+              <img
+                src="https://images.unsplash.com/photo-1518779578993-ec3579fee39f?q=80&w=1400&auto=format&fit=crop"
+                alt="Creator che realizza un video"
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            </div>
+            <div className="p-6">
+              <div className="flex items-center gap-2 text-[#6B271A] font-extrabold text-lg">
+                <Video size={20} />
+                CREATOR
+              </div>
+              <p className="mt-2 text-gray-700">
+                Pubblica video e contenuti dei borghi, guadagna visibilità e punti sulla piattaforma.
+              </p>
+              <Link
+                to="/registrazione-creator"
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#D54E30] text-white font-semibold hover:bg-[#c2452b]"
+              >
+                Diventa creator
               </Link>
             </div>
           </article>

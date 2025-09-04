@@ -68,13 +68,11 @@ const Mangiare = lazy(() => import("./pages/attivita/Mangiare"));
 const Artigiani = lazy(() => import("./pages/attivita/Artigiani"));
 const Trasporti = lazy(() => import("./pages/attivita/Trasporti"));
 
-// Creator - elenco, profilo pubblico, pannello personale, upload, auth e onboarding
+// Creator - elenco, profilo pubblico, auth e onboarding
 const CreatorIndex = lazy(() => import("./pages/creator/CreatorIndex"));
 const CreatorProfile = lazy(() => import("./pages/creator/CreatorProfile"));
-const CreatorMe = lazy(() => import("./pages/creator/CreatorMe"));
-const UploadVideo = lazy(() => import("./pages/creator/UploadVideo"));
 const CreatorAuth = lazy(() => import("./pages/creator/Auth"));
-const CreatorOnboarding = lazy(() => import("./pages/creator/Onboarding"));
+const CreatorOnboarding = lazy(() => import("./pages/creator/Onboarding")); // usato anche per /creator/me
 
 // Chat (thread 1:1 creator-azienda)
 const Thread = lazy(() => import("./pages/chat/Thread"));
@@ -170,25 +168,13 @@ export default function App() {
             }
           />
 
-          {/* Redirect cortesia */}
-          <Route
-            path="/dormire"
-            element={<Navigate to="/registrazione-attivita/dormire" replace />}
-          />
-          <Route
-            path="/mangiare"
-            element={<Navigate to="/registrazione-attivita/mangiare" replace />}
-          />
-          <Route
-            path="/artigiani"
-            element={<Navigate to="/registrazione-attivita/artigiani" replace />}
-          />
-          <Route
-            path="/trasporti"
-            element={<Navigate to="/registrazione-attivita/trasporti" replace />}
-          />
+          {/* Redirect cortesia categorie */}
+          <Route path="/dormire" element={<Navigate to="/registrazione-attivita/dormire" replace />} />
+          <Route path="/mangiare" element={<Navigate to="/registrazione-attivita/mangiare" replace />} />
+          <Route path="/artigiani" element={<Navigate to="/registrazione-attivita/artigiani" replace />} />
+          <Route path="/trasporti" element={<Navigate to="/registrazione-attivita/trasporti" replace />} />
 
-          {/* Creator: login/registrazione + onboarding */}
+          {/* Creator: login/registrazione */}
           <Route
             path="/registrazione-creator"
             element={
@@ -197,8 +183,14 @@ export default function App() {
               </RouteErrorBoundary>
             }
           />
+
+          {/* Creator: Onboarding + alias area personale */}
           <Route
             path="/creator/onboarding"
+            element={<Navigate to="/creator/me" replace />}
+          />
+          <Route
+            path="/creator/me"
             element={
               <RouteErrorBoundary>
                 <CreatorOnboarding />
@@ -206,7 +198,7 @@ export default function App() {
             }
           />
 
-          {/* Creator: pubblico e area personale */}
+          {/* Creator: pubblico */}
           <Route
             path="/creator"
             element={
@@ -223,22 +215,9 @@ export default function App() {
               </RouteErrorBoundary>
             }
           />
-          <Route
-            path="/creator/me"
-            element={
-              <RouteErrorBoundary>
-                <CreatorMe />
-              </RouteErrorBoundary>
-            }
-          />
-          <Route
-            path="/creator/upload"
-            element={
-              <RouteErrorBoundary>
-                <UploadVideo />
-              </RouteErrorBoundary>
-            }
-          />
+
+          {/* Legacy route upload → porta allo step 2 dell’onboarding */}
+          <Route path="/creator/upload" element={<Navigate to="/creator/me?step=2" replace />} />
 
           {/* Chat */}
           <Route

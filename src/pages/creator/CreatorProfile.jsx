@@ -1,4 +1,4 @@
-// src/pages/CreatorProfile.jsx
+// src/pages/creator/CreatorProfile.jsx
 import React, { useMemo, useState, useEffect } from "react";
 import {
   addVideo,
@@ -8,29 +8,18 @@ import {
   listVideosByCreator,
   saveVideoFile,
   getVideoObjectURL,
-} from "../lib/store"; // <-- corretto per src/pages/* (salire di 1 livello)
+} from "../../lib/store";
 import { Link } from "react-router-dom";
-import {
-  Upload,
-  CheckCircle2,
-  Film,
-  MapPin,
-  Landmark,
-  Store,
-  X,
-} from "lucide-react";
+import { Upload, CheckCircle2, MapPin, Landmark, Store, X } from "lucide-react";
 
-/* --- Player che gestisce sia YouTube che file caricati --- */
-/* FIX: niente hook condizionali. Gli hook vanno sempre chiamati. */
+/* --- Player --- */
 function VideoUnit({ v }) {
   const [url, setUrl] = useState(null);
 
   useEffect(() => {
     let alive = true;
     let tmp = null;
-
     (async () => {
-      // Reset URL quando non serve
       if (!(v?.uploadType === "file" && v?.localMediaId)) {
         setUrl(null);
         return;
@@ -45,14 +34,12 @@ function VideoUnit({ v }) {
         if (alive) setUrl(null);
       }
     })();
-
     return () => {
       alive = false;
       if (tmp) URL.revokeObjectURL(tmp);
     };
   }, [v?.uploadType, v?.localMediaId]);
 
-  // EMBED
   if (v?.uploadType === "embed" && v?.youtubeUrl) {
     try {
       const u = new URL(v.youtubeUrl);
@@ -76,7 +63,6 @@ function VideoUnit({ v }) {
     }
   }
 
-  // FILE
   if (v?.uploadType === "file" && v?.localMediaId) {
     if (!url) return <div className="aspect-video w-full rounded-xl bg-gray-100" />;
     return <video src={url} className="w-full rounded-xl" controls />;
@@ -92,16 +78,14 @@ export default function CreatorProfile() {
   const [poiId, setPoiId] = useState("");
   const [title, setTitle] = useState("");
 
-  // Modal uploader
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState("embed"); // "embed" | "file"
+  const [mode, setMode] = useState("embed");
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState(null);
 
-  // Portfolio
   const [myVideos, setMyVideos] = useState([]);
   useEffect(() => {
     if (me?.id) setMyVideos(listVideosByCreator(me.id));
@@ -125,9 +109,7 @@ export default function CreatorProfile() {
     return (
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
         <p className="text-gray-700">Devi accedere per usare l’area Creator.</p>
-        <Link to="/" className="text-[#6B271A] underline">
-          Torna alla Home
-        </Link>
+        <Link to="/" className="text-[#6B271A] underline">Torna alla Home</Link>
       </main>
     );
   }
@@ -143,27 +125,16 @@ export default function CreatorProfile() {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!borgoSlug) {
-      alert("Seleziona il borgo.");
-      return;
-    }
+    if (!borgoSlug) { alert("Seleziona il borgo."); return; }
 
     try {
       setSaving(true);
       let localMediaId = null;
 
       if (mode === "embed") {
-        if (!youtubeUrl) {
-          alert("Inserisci il link YouTube.");
-          setSaving(false);
-          return;
-        }
+        if (!youtubeUrl) { alert("Inserisci il link YouTube."); setSaving(false); return; }
       } else {
-        if (!file) {
-          alert("Seleziona un file video.");
-          setSaving(false);
-          return;
-        }
+        if (!file) { alert("Seleziona un file video."); setSaving(false); return; }
         localMediaId = await saveVideoFile(file);
       }
 
@@ -172,14 +143,11 @@ export default function CreatorProfile() {
         youtubeUrl: mode === "embed" ? youtubeUrl : null,
         localMediaId: mode === "file" ? localMediaId : null,
         borgoSlug,
-        poiId: poiId || null, // se presente → comparirà anche sulla scheda attività
+        poiId: poiId || null,
         creatorId: me.id,
       });
 
-      setOk(
-        "Video pubblicato! È visibile nella Home del borgo e, se hai indicato un’attività, anche sulla sua scheda."
-      );
-      // aggiorna lista portfolio
+      setOk("Video pubblicato! È visibile nella Home del borgo e, se hai indicato un’attività, anche sulla sua scheda.");
       setMyVideos((prev) => [v, ...prev]);
       setOpen(false);
       resetForm();
@@ -193,31 +161,23 @@ export default function CreatorProfile() {
 
   return (
     <main className="min-h-screen bg-white">
-      {/* Header */}
       <header className="border-b bg-[#FAF5E0]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex items-center justify-between">
-          <Link to="/" className="text-[#6B271A] font-semibold hover:underline">
-            ← Torna alla Home
-          </Link>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-[#6B271A]">
-            La mia area Creator
-          </h1>
-          {/* nessun “contatta per un progetto” qui */}
+          <Link to="/" className="text-[#6B271A] font-semibold hover:underline">← Torna alla Home</Link>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-[#6B271A]">La mia area Creator</h1>
           <div className="w-28" />
         </div>
       </header>
 
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-        {/* CTA Carica Video */}
         <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-bold text-[#6B271A]">Portfolio video</h2>
             <p className="text-sm text-gray-700">
-              Pubblica un nuovo contenuto e collegalo al borgo (e, se vuoi, a
-              una specifica attività).
+              Pubblica un nuovo contenuto e collegalo al borgo (e, se vuoi, a una specifica attività).
             </p>
           </div>
-        <button
+          <button
             onClick={() => setOpen(true)}
             className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#D54E30] text-white font-semibold shadow hover:opacity-95"
           >
@@ -231,15 +191,10 @@ export default function CreatorProfile() {
           </div>
         )}
 
-        {/* Elenco dei miei video */}
         <div className="mt-8">
           {myVideos.length === 0 ? (
             <div className="text-sm text-gray-600">
-              Nessun video caricato.{" "}
-              <button onClick={() => setOpen(true)} className="underline">
-                Carica ora
-              </button>
-              .
+              Nessun video caricato. <button onClick={() => setOpen(true)} className="underline">Carica ora</button>.
             </div>
           ) : (
             <div className="grid md:grid-cols-2 gap-6">
@@ -247,18 +202,10 @@ export default function CreatorProfile() {
                 <article key={v.id} className="border rounded-2xl p-4 bg-white">
                   <VideoUnit v={v} />
                   <div className="mt-2">
-                    <div className="font-semibold text-[#6B271A]">
-                      {v.title}
-                    </div>
+                    <div className="font-semibold text-[#6B271A]">{v.title}</div>
                     <div className="text-xs text-gray-600">
                       Borgo: <span className="font-medium">{v.borgoSlug}</span>
-                      {v.poiId ? (
-                        <>
-                          {" "}
-                          · Attività:{" "}
-                          <span className="font-medium">{v.poiId}</span>
-                        </>
-                      ) : null}
+                      {v.poiId ? <> · Attività: <span className="font-medium">{v.poiId}</span></> : null}
                     </div>
                   </div>
                 </article>
@@ -268,31 +215,20 @@ export default function CreatorProfile() {
         </div>
       </section>
 
-      {/* MODAL: uploader */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => !saving && setOpen(false)}
-          />
+          <div className="absolute inset-0 bg-black/40" onClick={() => !saving && setOpen(false)} />
           <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-bold text-[#6B271A]">Carica un video</h3>
-              <button
-                className="p-2 rounded-lg hover:bg-gray-100"
-                onClick={() => !saving && setOpen(false)}
-                aria-label="Chiudi"
-              >
+              <button className="p-2 rounded-lg hover:bg-gray-100" onClick={() => !saving && setOpen(false)} aria-label="Chiudi">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={onSubmit} className="p-4 space-y-6">
-              {/* Titolo */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Titolo
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Titolo</label>
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -301,7 +237,6 @@ export default function CreatorProfile() {
                 />
               </div>
 
-              {/* Borgo / Attività */}
               <div className="grid sm:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -311,30 +246,22 @@ export default function CreatorProfile() {
                     <Landmark className="w-4 h-4 text-gray-600" />
                     <select
                       value={borgoSlug}
-                      onChange={(e) => {
-                        setBorgoSlug(e.target.value);
-                        setPoiId("");
-                      }}
+                      onChange={(e) => { setBorgoSlug(e.target.value); setPoiId(""); }}
                       className="w-full border rounded-lg px-3 py-2"
                       required
                     >
                       {borghi.map((b) => (
-                        <option key={b.slug} value={b.slug}>
-                          {b.name}
-                        </option>
+                        <option key={b.slug} value={b.slug}>{b.name}</option>
                       ))}
                     </select>
                   </div>
                   <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                    <MapPin className="w-3 h-3" /> Il video apparirà nella Home
-                    del borgo.
+                    <MapPin className="w-3 h-3" /> Il video apparirà nella Home del borgo.
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Attività (opzionale)
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Attività (opzionale)</label>
                   <div className="flex items-center gap-2">
                     <Store className="w-4 h-4 text-gray-600" />
                     <select
@@ -344,35 +271,24 @@ export default function CreatorProfile() {
                     >
                       <option value="">— Nessuna —</option>
                       {poiOptions.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.type})
-                        </option>
+                        <option key={p.id} value={p.id}>{p.name} ({p.type})</option>
                       ))}
                     </select>
                   </div>
                 </div>
               </div>
 
-              {/* Toggle modalità */}
               <div className="flex items-center gap-2 text-sm">
                 <button
                   type="button"
-                  className={`px-3 py-1.5 rounded-lg border ${
-                    mode === "embed"
-                      ? "bg-[#FAF5E0] border-[#E1B671] text-[#6B271A]"
-                      : "bg-white"
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg border ${mode === "embed" ? "bg-[#FAF5E0] border-[#E1B671] text-[#6B271A]" : "bg-white"}`}
                   onClick={() => setMode("embed")}
                 >
                   Da link (YouTube)
                 </button>
                 <button
                   type="button"
-                  className={`px-3 py-1.5 rounded-lg border ${
-                    mode === "file"
-                      ? "bg-[#FAF5E0] border-[#E1B671] text-[#6B271A]"
-                      : "bg-white"
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg border ${mode === "file" ? "bg-[#FAF5E0] border-[#E1B671] text-[#6B271A]" : "bg-white"}`}
                   onClick={() => setMode("file")}
                 >
                   Da file (upload)
@@ -423,10 +339,7 @@ export default function CreatorProfile() {
                 <button
                   type="button"
                   disabled={saving}
-                  onClick={() => {
-                    setOpen(false);
-                    resetForm();
-                  }}
+                  onClick={() => { setOpen(false); resetForm(); }}
                   className="ml-2 px-4 py-2 rounded-lg border"
                 >
                   Annulla

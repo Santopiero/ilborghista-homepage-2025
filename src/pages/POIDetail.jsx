@@ -1,8 +1,9 @@
 // src/pages/PoiDetail.jsx
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { findPoiById, getVideosByPoi } from "../lib/store";
+import { findPoiById, getVideosByPoi, getVideoObjectURL } from "../lib/store";
 import { Film } from "lucide-react";
+
 
 function YouTubeEmbed({ url }) {
   try {

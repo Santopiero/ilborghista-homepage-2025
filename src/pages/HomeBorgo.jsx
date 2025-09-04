@@ -1,11 +1,12 @@
 // src/pages/HomeBorgo.jsx
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   findBorgoBySlug,
   listPoiByBorgo,
   getVideosByBorgo,
   getVideosByPoi,
+  getVideoObjectURL, // per i video caricati come file (IndexedDB)
 } from "../lib/store";
 import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
 import {
@@ -20,7 +21,12 @@ import {
   Share2,
   Heart,
   Star,
+  Bus,
+  Hammer,
+  ShoppingBag,
+  List as ListIcon,
 } from "lucide-react";
+
 
 /* ---------- helpers ---------- */
 function YouTubeEmbed({ url = "" }) {
@@ -54,6 +60,10 @@ const isSleep = (p) =>
   /(hotel|b&b|b\s*&\s*b|bed|albergo|affittacamere|casa|agriturismo|residence)/i.test(
     p.type || p.name || ""
   );
+const isArtigiano = (p) =>
+  /(artigian|laborator|bottega|ceramic|liutaio|tessil|falegn|orafo)/i.test(
+    p.type || p.name || ""
+  );
 
 /* ---------- page ---------- */
 export default function HomeBorgo() {
@@ -67,12 +77,13 @@ export default function HomeBorgo() {
   const allPoi = useMemo(() => listPoiByBorgo(slug), [slug]);
   const eatDrink = useMemo(() => allPoi.filter(isFoodDrink), [allPoi]);
   const sleep = useMemo(() => allPoi.filter(isSleep), [allPoi]);
+  const artigiani = useMemo(() => allPoi.filter(isArtigiano), [allPoi]);
   const thingsToDo = useMemo(
-    () => allPoi.filter((p) => !isFoodDrink(p) && !isSleep(p)),
+    () => allPoi.filter((p) => !isFoodDrink(p) && !isSleep(p) && !isArtigiano(p)),
     [allPoi]
   );
 
-  // Video
+  // Video dei creator (Home Borgo)
   const videos = useMemo(() => getVideosByBorgo(slug), [slug]);
 
   if (!borgo && !meta) {
@@ -94,14 +105,13 @@ export default function HomeBorgo() {
   }`;
   const descr =
     meta?.description ||
-    "Scopri il borgo: cosa fare, dove mangiare e bere, eventi, itinerari, prodotti tipici"; 
-
+    "Scopri il borgo: cosa fare, dove mangiare e bere, dormire, eventi, itinerari, artigiani e prodotti tipici.";
   const nearby = BORGI_INDEX.filter((b) => b.slug !== slug).slice(0, 4);
 
-  const Pill = ({ to, icon: Icon, label }) => (
+  const Pill = ({ to, icon: Icon, label, bg = "bg-[#FAF5E0]" }) => (
     <a
       href={to}
-      className="inline-flex items-center gap-2 px-3 py-2 rounded-full bg-[#FAF5E0] border border-[#E1B671] text-[#6B271A] text-sm font-semibold hover:bg-white"
+      className={`inline-flex items-center gap-2 px-3 py-2 rounded-full ${bg} border border-[#E1B671] text-[#6B271A] text-sm font-semibold hover:bg-white`}
     >
       <Icon className="w-4 h-4" />
       {label}
@@ -158,7 +168,7 @@ export default function HomeBorgo() {
     );
   };
 
-  /* ---- MOCK: Eventi/Itinerari (sostituibili con dati reali) ---- */
+  /* ---- MOCK: Eventi / Itinerari / Prodotti tipici (sostituibili con feed reali) ---- */
   const eventi = [
     {
       title: "Festa delle tradizioni",
@@ -192,6 +202,21 @@ export default function HomeBorgo() {
       title: "Tra chiese e arte",
       img: "https://images.unsplash.com/photo-1523986371872-9d3ba2e2f642?q=80&w=1200&auto=format&fit=crop",
       meta: "4 km • 2h",
+    },
+  ];
+
+  const prodottiTipici = [
+    {
+      title: "Formaggio di malga",
+      img: "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=1200&auto=format&fit=crop",
+    },
+    {
+      title: "Salumi tipici",
+      img: "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1200&auto=format&fit=crop",
+    },
+    {
+      title: "Olio EVO locale",
+      img: "https://images.unsplash.com/photo-1514515411904-65fa19574d07?q=80&w=1200&auto=format&fit=crop",
     },
   ];
 
@@ -238,15 +263,17 @@ export default function HomeBorgo() {
         </div>
       </section>
 
-      {/* PILLE SEZIONI */}
+      {/* PILLE SEZIONI (esattamente come richiesto) */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-4">
-        <div className="flex flex-wrap gap-2">
-          <Pill to="#cosa-fare" icon={Mountain} label="Cosa fare" />
-          <Pill to="#mangiare-bere" icon={Utensils} label="Mangiare & Bere" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <Pill to="#cosa-fare" icon={ListIcon} label="Cosa fare" />
+          <Pill to="#mangiare-bere" icon={Utensils} label="Mangiare e Bere" />
+          <Pill to="#eventi" icon={CalendarDays} label="Eventi e Sagre" />
+          <Pill to="#artigiani" icon={Hammer} label="Artigiani" />
+          <Pill to="#trasporti" icon={Bus} label="Trasporti" />
+          <Pill to="#itinerari" icon={Route} label="Esperienze e Itinerari" />
           <Pill to="#dormire" icon={BedDouble} label="Dormire" />
-          <Pill to="#eventi" icon={CalendarDays} label="Eventi & Sagre" />
-          <Pill to="#itinerari" icon={Route} label="Itinerari" />
-          <Pill to="#come-arrivare" icon={Train} label="Trasporti" />
+          <Pill to="#prodotti-tipici" icon={ShoppingBag} label="Prodotti tipici" />
         </div>
       </section>
 
@@ -273,53 +300,71 @@ export default function HomeBorgo() {
                   </li>
                 ) : null}
                 <li>
-                  <span className="font-semibold">Popolazione:</span> —
-                </li>
-                <li>
-                  <span className="font-semibold">Altitudine:</span> —
-                </li>
-                <li>
                   <span className="font-semibold">Hashtag:</span> #{slug}
                 </li>
               </ul>
-              <div className="mt-3 text-xs text-gray-600">
-                *Dati indicativi, in aggiornamento.
-              </div>
             </div>
           </aside>
         </div>
       </section>
 
-      {/* EVENTI & SAGRE */}
+      {/* CREATOR DEL BORGO (in alto) */}
+      <section id="creator" className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        <h2 className="text-xl font-extrabold text-[#6B271A] flex items-center gap-2">
+          <Film className="w-5 h-5" /> Creator del borgo
+        </h2>
+
+        {videos.length > 0 ? (
+          <div className="grid md:grid-cols-2 gap-8 mt-4">
+            {videos.map((v) => (
+              <article key={v.id} className="border rounded-2xl p-4 bg-white">
+                <YouTubeEmbed url={v.youtubeUrl || v.url} />
+                <h3 className="mt-3 font-semibold">{v.title}</h3>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-3 flex items-center justify-between gap-4 rounded-2xl border p-4 bg-white">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-[#6B271A]/10">
+                <Film className="w-5 h-5 text-[#6B271A]" />
+              </span>
+              <div>
+                <div className="font-semibold text-[#6B271A]">
+                  Nessun video pubblicato… ancora 😉
+                </div>
+                <div className="text-sm text-gray-600">
+                  Sei un creator? Racconta {borgo?.name || meta?.name} con i tuoi video.
+                </div>
+              </div>
+            </div>
+            <Link
+              to="/registrazione-creator"
+              className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#D54E30] text-white font-semibold"
+            >
+              Diventa Creator del Borgo
+            </Link>
+          </div>
+        )}
+      </section>
+
+      {/* EVENTI & SAGRE (scende sotto i creator) */}
       <section id="eventi" className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-extrabold text-[#6B271A]">
-            Eventi & Sagre
-          </h2>
-          <Link to="#" className="text-sm font-semibold underline">
-            Vedi tutti
-          </Link>
+          <h2 className="text-xl font-extrabold text-[#6B271A]">Eventi & Sagre</h2>
+          <Link to="#" className="text-sm font-semibold underline">Vedi tutti</Link>
         </div>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
           {eventi.map((ev, i) => (
-            <article
-              key={i}
-              className="rounded-2xl overflow-hidden border bg-white hover:shadow-lg transition"
-            >
+            <article key={i} className="rounded-2xl overflow-hidden border bg-white hover:shadow-lg transition">
               <div className="relative">
-                <img
-                  src={ev.img}
-                  alt={ev.title}
-                  className="h-36 w-full object-cover"
-                />
+                <img src={ev.img} alt={ev.title} className="h-36 w-full object-cover" />
                 <span className="absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#6B271A] text-white border border-[#E1B671]">
                   {ev.when}
                 </span>
               </div>
               <div className="p-3">
-                <h3 className="font-semibold text-[#6B271A] line-clamp-2">
-                  {ev.title}
-                </h3>
+                <h3 className="font-semibold text-[#6B271A] line-clamp-2">{ev.title}</h3>
                 <div className="mt-1 text-xs text-gray-600 flex items-center gap-1">
                   <Star className="w-3 h-3 text-[#D54E30]" />
                   Consigliato
@@ -335,15 +380,11 @@ export default function HomeBorgo() {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-extrabold text-[#6B271A]">Cosa fare</h2>
           {thingsToDo.length > 6 && (
-            <Link to="#" className="text-sm font-semibold underline">
-              Vedi tutte
-            </Link>
+            <Link to="#" className="text-sm font-semibold underline">Vedi tutte</Link>
           )}
         </div>
         {thingsToDo.length === 0 ? (
-          <p className="text-gray-600 mt-2">
-            Stiamo raccogliendo le migliori attività ed esperienze.
-          </p>
+          <p className="text-gray-600 mt-2">Stiamo raccogliendo le migliori attività ed esperienze.</p>
         ) : (
           <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
             {thingsToDo.slice(0, 6).map((p) => (
@@ -356,22 +397,35 @@ export default function HomeBorgo() {
       {/* DOVE MANGIARE & BERE */}
       <section id="mangiare-bere" className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-extrabold text-[#6B271A]">
-            Dove mangiare & bere
-          </h2>
+          <h2 className="text-xl font-extrabold text-[#6B271A]">Mangiare e Bere</h2>
           {eatDrink.length > 6 && (
-            <Link to="#" className="text-sm font-semibold underline">
-              Vedi tutti
-            </Link>
+            <Link to="#" className="text-sm font-semibold underline">Vedi tutti</Link>
           )}
         </div>
         {eatDrink.length === 0 ? (
-          <p className="text-gray-600 mt-2">
-            Aggiungeremo presto ristoranti, trattorie, bar e locali.
-          </p>
+          <p className="text-gray-600 mt-2">Aggiungeremo presto ristoranti, trattorie, bar e locali.</p>
         ) : (
           <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
             {eatDrink.slice(0, 6).map((p) => (
+              <CardPOI key={p.id} p={p} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* ARTIGIANI */}
+      <section id="artigiani" className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-extrabold text-[#6B271A]">Artigiani</h2>
+          {artigiani.length > 6 && (
+            <Link to="#" className="text-sm font-semibold underline">Vedi tutti</Link>
+          )}
+        </div>
+        {artigiani.length === 0 ? (
+          <p className="text-gray-600 mt-2">Stiamo selezionando le migliori botteghe e laboratori del borgo.</p>
+        ) : (
+          <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+            {artigiani.slice(0, 6).map((p) => (
               <CardPOI key={p.id} p={p} />
             ))}
           </ul>
@@ -383,15 +437,11 @@ export default function HomeBorgo() {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-extrabold text-[#6B271A]">Dormire</h2>
           {sleep.length > 6 && (
-            <Link to="#" className="text-sm font-semibold underline">
-              Vedi tutte
-            </Link>
+            <Link to="#" className="text-sm font-semibold underline">Vedi tutte</Link>
           )}
         </div>
         {sleep.length === 0 ? (
-          <p className="text-gray-600 mt-2">
-            Stiamo selezionando le migliori strutture dove soggiornare.
-          </p>
+          <p className="text-gray-600 mt-2">Stiamo selezionando le migliori strutture dove soggiornare.</p>
         ) : (
           <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
             {sleep.slice(0, 6).map((p) => (
@@ -401,22 +451,15 @@ export default function HomeBorgo() {
         )}
       </section>
 
-      {/* ITINERARI CONSIGLIATI */}
+      {/* ESPERIENZE E ITINERARI */}
       <section id="itinerari" className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-extrabold text-[#6B271A]">
-            Itinerari consigliati
-          </h2>
-          <Link to="#" className="text-sm font-semibold underline">
-            Vedi tutti
-          </Link>
+          <h2 className="text-xl font-extrabold text-[#6B271A]">Esperienze e Itinerari</h2>
+          <Link to="#" className="text-sm font-semibold underline">Vedi tutti</Link>
         </div>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
           {itinerari.map((it, i) => (
-            <article
-              key={i}
-              className="rounded-2xl overflow-hidden border bg-white hover:shadow-lg transition"
-            >
+            <article key={i} className="rounded-2xl overflow-hidden border bg-white hover:shadow-lg transition">
               <img src={it.img} alt={it.title} className="h-36 w-full object-cover" />
               <div className="p-3">
                 <h3 className="font-semibold text-[#6B271A]">{it.title}</h3>
@@ -427,42 +470,22 @@ export default function HomeBorgo() {
         </div>
       </section>
 
-      {/* VIDEO DEI CREATOR */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-        <h2 className="text-xl font-extrabold text-[#6B271A] flex items-center gap-2">
-          <Film className="w-5 h-5" /> Video dei creator
-        </h2>
-        {videos.length === 0 ? (
-          <p className="text-gray-600 mt-2">
-            Ancora nessun video pubblicato per {borgo?.name || meta?.name}.
-          </p>
-        ) : (
-          <div className="grid md:grid-cols-2 gap-8 mt-4">
-            {videos.map((v) => (
-              <article key={v.id} className="border rounded-2xl p-4 bg-white">
-                <YouTubeEmbed url={v.youtubeUrl || v.url} />
-                <h3 className="mt-3 font-semibold">{v.title}</h3>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* IN PRIMO PIANO */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+      {/* PRODOTTI TIPICI */}
+      <section id="prodotti-tipici" className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-extrabold text-[#6B271A]">In primo piano</h2>
-          {allPoi.length > 6 && (
-            <Link to="#" className="text-sm font-semibold underline">
-              Vedi tutti
-            </Link>
-          )}
+          <h2 className="text-xl font-extrabold text-[#6B271A]">Prodotti tipici</h2>
+          <Link to="#" className="text-sm font-semibold underline">Vedi tutti</Link>
         </div>
-        <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-          {allPoi.slice(0, 6).map((p) => (
-            <CardPOI key={p.id} p={p} />
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+          {prodottiTipici.map((p, i) => (
+            <article key={i} className="rounded-2xl overflow-hidden border bg-white hover:shadow-lg transition">
+              <img src={p.img} alt={p.title} className="h-36 w-full object-cover" />
+              <div className="p-3">
+                <h3 className="font-semibold text-[#6B271A]">{p.title}</h3>
+              </div>
+            </article>
           ))}
-        </ul>
+        </div>
       </section>
 
       {/* BORGHI VICINI */}
@@ -494,6 +517,18 @@ export default function HomeBorgo() {
               </div>
             </Link>
           ))}
+        </div>
+      </section>
+
+      {/* TRASPORTI (ancora mock, ma sezione pronta) */}
+      <section id="trasporti" className="max-w-6xl mx-auto px-4 sm:px-6 pb-12">
+        <div className="rounded-2xl border p-4 bg-[#FAF5E0]">
+          <h3 className="text-sm font-bold text-[#6B271A] flex items-center gap-2">
+            <Train className="w-4 h-4" /> Come arrivare
+          </h3>
+          <p className="text-sm text-gray-700 mt-2">
+            Aggiorneremo presto con collegamenti e orari utili per raggiungere {borgo?.name || meta?.name}.
+          </p>
         </div>
       </section>
     </main>

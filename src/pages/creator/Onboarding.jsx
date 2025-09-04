@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   getCurrentUser,
   getMyCreatorProfile,
-  updateCreator,         // { id, ... }
+  updateCreator,
   listBorghi,
   listPoiByBorgo,
   listVideosByCreator,
@@ -14,41 +14,54 @@ import {
 } from "../../lib/store";
 import { Upload, CheckCircle2, MapPin, Landmark, Store } from "lucide-react";
 
-/* Mini player: YouTube o file caricato */
+/* ---------- Utils ---------- */
+function getYouTubeId(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v") || "";
+    if (u.hostname.includes("youtu.be")) return u.pathname.slice(1);
+  } catch {}
+  return "";
+}
+
+/* Embed YouTube sicuro */
+function YouTubeEmbed({ url, title }) {
+  const id = getYouTubeId(url);
+  if (!id) return null;
+  return (
+    <div className="aspect-video w-full">
+      <iframe
+        className="w-full h-full rounded-xl"
+        src={`https://www.youtube.com/embed/${id}`}
+        title={title || "Anteprima YouTube"}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+      />
+    </div>
+  );
+}
+
+/* Player locale per file caricati */
+function LocalVideo({ localMediaId }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    let tmp = null;
+    (async () => {
+      const obj = await getVideoObjectURL(localMediaId);
+      if (alive) { tmp = obj; setUrl(obj); }
+    })();
+    return () => { alive = false; if (tmp) URL.revokeObjectURL(tmp); };
+  }, [localMediaId]);
+
+  if (!url) return <div className="aspect-video w-full rounded-xl bg-gray-100" />;
+  return <video src={url} className="w-full rounded-xl" controls preload="metadata" />;
+}
+
+/* Mini player: rileva tipo dal contenuto (no hook condizionali) */
 function VideoUnit({ v }) {
-  if (v?.uploadType === "embed" && v?.youtubeUrl) {
-    try {
-      const u = new URL(v.youtubeUrl);
-      let id = "";
-      if (u.hostname.includes("youtube.com")) id = u.searchParams.get("v") || "";
-      else if (u.hostname.includes("youtu.be")) id = u.pathname.slice(1);
-      if (!id) return null;
-      return (
-        <div className="aspect-video w-full">
-          <iframe
-            className="w-full h-full rounded-xl"
-            src={`https://www.youtube.com/embed/${id}`}
-            title={v.title}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-          />
-        </div>
-      );
-    } catch { return null; }
-  }
-  if (v?.uploadType === "file" && v?.localMediaId) {
-    const [url, setUrl] = useState(null);
-    useEffect(() => {
-      let alive = true, tmp = null;
-      (async () => {
-        const obj = await getVideoObjectURL(v.localMediaId);
-        if (alive) { tmp = obj; setUrl(obj); }
-      })();
-      return () => { alive = false; if (tmp) URL.revokeObjectURL(tmp); };
-    }, [v.localMediaId]);
-    if (!url) return <div className="aspect-video w-full rounded-xl bg-gray-100" />;
-    return <video src={url} className="w-full rounded-xl" controls />;
-  }
+  if (v?.youtubeUrl) return <YouTubeEmbed url={v.youtubeUrl} title={v.title} />;
+  if (v?.localMediaId) return <LocalVideo localMediaId={v.localMediaId} />;
   return null;
 }
 
@@ -64,9 +77,9 @@ export default function Onboarding() {
   if (!me) return null;
 
   // ---------------- Stepper ----------------
-  const [step, setStep] = useState(1); // 1=Profilo, 2=Upload, 3=Portfolio
+  const [step, setStep] = useState(1); // 1=Profilo, 2=Upload, 3=Portfolio, 4=Gamification
 
-  // ---------------- Step 1: Profilo ----------------
+  // ---------------- Profilo ----------------
   const ALL_TAGS = [
     "Food","Outdoor","Storia/Arte","Family","Eventi/Sagre",
     "Hotel/B&B","Nightlife","Drone","Short-form","Long-form",
@@ -109,7 +122,7 @@ export default function Onboarding() {
     if (next) setStep(2);
   }
 
-  // ---------------- Step 2: Upload video ----------------
+  // ---------------- Upload video ----------------
   const borghi = useMemo(() => listBorghi(), []);
   const [modeUpload, setModeUpload] = useState("embed"); // "embed" | "file"
   const [borgoSlug, setBorgoSlug] = useState(borghi[0]?.slug || "");
@@ -119,6 +132,7 @@ export default function Onboarding() {
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [okMsg, setOkMsg] = useState("");
 
   const poiOptions = useMemo(
@@ -143,13 +157,14 @@ export default function Onboarding() {
     setYoutubeUrl("");
     setFile(null);
     setOkMsg("");
+    setProgress(0);
     setSaving(false);
   }
 
   async function submitUpload(e) {
     e.preventDefault();
 
-    // fallback: leggo anche dal form (se lo stato non fosse sincronizzato)
+    // fallback: leggo anche dal form nel DOM
     const fd = new FormData(e.currentTarget);
     const borgoFromForm = (fd.get("borgoSlug") || "").toString().trim();
     const poiFromForm   = (fd.get("poiId") || "").toString().trim();
@@ -160,8 +175,17 @@ export default function Onboarding() {
 
     try {
       setSaving(true);
-      let localMediaId = null;
 
+      // progress soft: avanza al 90% durante il salvataggio file
+      let intervalId = null;
+      if (modeUpload === "file") {
+        setProgress(5);
+        intervalId = setInterval(() => {
+          setProgress(p => (p < 90 ? p + Math.max(1, Math.floor(Math.random()*5)) : p));
+        }, 200);
+      }
+
+      let localMediaId = null;
       if (modeUpload === "embed") {
         if (!youtubeUrl) { alert("Inserisci il link YouTube."); setSaving(false); return; }
       } else {
@@ -178,19 +202,20 @@ export default function Onboarding() {
         creatorId: me.id,
       });
 
+      if (intervalId) clearInterval(intervalId);
+      setProgress(100);
+
       setMyVideos(prev => [v, ...prev]);
       setOkMsg("Video pubblicato! È visibile nella Home del borgo e, se hai indicato un’attività, anche sulla sua scheda.");
-      resetUpload();
-      setStep(3);
+      setTimeout(() => { resetUpload(); setStep(3); }, 350);
     } catch (err) {
       console.error(err);
       alert(err?.message || "Errore durante il caricamento.");
-    } finally {
       setSaving(false);
     }
   }
 
-  // ---------------- Step 3: Portfolio ----------------
+  // ---------------- Portfolio ----------------
   const [myVideos, setMyVideos] = useState(() =>
     me ? listVideosByCreator(me.id) : []
   );
@@ -204,13 +229,14 @@ export default function Onboarding() {
         <Link to="/creator" className="underline">← Torna all’elenco creator</Link>
       </div>
 
-      {/* Stepper semplice */}
+      {/* Stepper */}
       <nav className="flex items-center gap-2 text-sm">
-        <button onClick={() => setStep(1)} className={`px-3 py-1.5 rounded-lg border ${step===1 ? "bg-[#FAF5E0] border-[#E1B671]" : "bg-white"}`}>1. Profilo</button>
-        <span>›</span>
-        <button onClick={() => setStep(2)} className={`px-3 py-1.5 rounded-lg border ${step===2 ? "bg-[#FAF5E0] border-[#E1B671]" : "bg-white"}`}>2. Carica video</button>
-        <span>›</span>
-        <button onClick={() => setStep(3)} className={`px-3 py-1.5 rounded-lg border ${step===3 ? "bg-[#FAF5E0] border-[#E1B671]" : "bg-white"}`}>3. Portfolio</button>
+        {['Profilo','Carica video','Portfolio','Gamification'].map((lbl, idx) => (
+          <React.Fragment key={idx}>
+            <button onClick={() => setStep(idx+1)} className={`px-3 py-1.5 rounded-lg border ${step===idx+1 ? "bg-[#FAF5E0] border-[#E1B671]" : "bg-white"}`}>{idx+1}. {lbl}</button>
+            {idx<3 && <span>›</span>}
+          </React.Fragment>
+        ))}
       </nav>
 
       {/* STEP 1 – PROFILO */}
@@ -220,31 +246,49 @@ export default function Onboarding() {
             <div className="md:w-1/3">
               <img
                 src={form.avatar}
-                alt={form.name}
+                alt={form.name || "Avatar"}
                 className="w-full h-44 object-cover rounded-xl"
-                onError={(e) => { e.currentTarget.src = "https://dummyimage.com/600x400/ddd/555&text=Creator"; }}
+                onError={(e) => { e.currentTarget.src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS2Sy4iYug7a7qTf9wrCac4Fo4zbFI1Cdn8QA&s"; }}
               />
+              <p className="text-[11px] text-gray-500 mt-2">Suggerimento: usa un primo piano nitido (min 400×400px).</p>
             </div>
             <div className="flex-1 space-y-3">
               <div>
                 <div className="text-sm font-semibold mb-1">Nome</div>
-                <input className="w-full border rounded-lg px-3 py-2" value={form.name}
-                  onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}/>
+                <input
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder="Es. Maria Rossi (obbligatorio)"
+                  value={form.name}
+                  onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+                />
               </div>
               <div>
                 <div className="text-sm font-semibold mb-1">Regione</div>
-                <input className="w-full border rounded-lg px-3 py-2" value={form.region}
-                  onChange={(e) => setForm(f => ({ ...f, region: e.target.value }))}/>
+                <input
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder="Es. Basilicata"
+                  value={form.region}
+                  onChange={(e) => setForm(f => ({ ...f, region: e.target.value }))}
+                />
               </div>
               <div>
                 <div className="text-sm font-semibold mb-1">Bio</div>
-                <textarea rows={3} className="w-full border rounded-lg px-3 py-2" value={form.bio}
-                  onChange={(e) => setForm(f => ({ ...f, bio: e.target.value }))}/>
+                <textarea
+                  rows={3}
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder='Es. "Creo mini‑guide dei borghi con consigli su cosa vedere e dove mangiare".'
+                  value={form.bio}
+                  onChange={(e) => setForm(f => ({ ...f, bio: e.target.value }))}
+                />
               </div>
               <div>
                 <div className="text-sm font-semibold mb-1">Avatar (URL)</div>
-                <input className="w-full border rounded-lg px-3 py-2" value={form.avatar}
-                  onChange={(e) => setForm(f => ({ ...f, avatar: e.target.value }))}/>
+                <input
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder="https://…"
+                  value={form.avatar}
+                  onChange={(e) => setForm(f => ({ ...f, avatar: e.target.value }))}
+                />
               </div>
 
               <div>
@@ -271,7 +315,7 @@ export default function Onboarding() {
       {/* STEP 2 – CARICA VIDEO */}
       {step === 2 && (
         <section className="rounded-2xl border bg-white p-4 space-y-6">
-          <h2 className="text-lg font-extrabold text-[#6B271A]">Carica il tuo primo video</h2>
+          <h2 className="text-lg font-extrabold text-[#6B271A]">Carica il tuo video</h2>
 
           {okMsg && (
             <div className="rounded-xl border bg-green-50 text-green-800 px-4 py-3 text-sm flex items-center gap-2">
@@ -282,7 +326,12 @@ export default function Onboarding() {
           <form onSubmit={submitUpload} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Titolo</label>
-              <input value={titleVideo} onChange={(e) => setTitleVideo(e.target.value)} placeholder="Es. Panoramica del borgo" className="w-full border rounded-lg px-3 py-2" />
+              <input
+                value={titleVideo}
+                onChange={(e) => setTitleVideo(e.target.value)}
+                placeholder="Es. Panoramica del borgo al tramonto"
+                className="w-full border rounded-lg px-3 py-2"
+              />
             </div>
 
             <div className="grid sm:grid-cols-2 gap-6">
@@ -331,15 +380,52 @@ export default function Onboarding() {
             </div>
 
             {modeUpload === "embed" ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Link YouTube <span className="text-red-600">*</span></label>
-                <input value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." className="w-full border rounded-lg px-3 py-2" required />
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Link YouTube <span className="text-red-600">*</span></label>
+                  <input
+                    value={youtubeUrl}
+                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className="w-full border rounded-lg px-3 py-2"
+                    required
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">Incolla l’URL completo del video.</p>
+                </div>
+                {/* Anteprima YouTube in fase di upload */}
+                {getYouTubeId(youtubeUrl) && (
+                  <div className="mt-2">
+                    <YouTubeEmbed url={youtubeUrl} title={titleVideo || "Anteprima YouTube"} />
+                  </div>
+                )}
               </div>
             ) : (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Seleziona file video <span className="text-red-600">*</span></label>
-                <input type="file" accept="video/*" onChange={(e) => setFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
-                {filePreview && <div className="mt-3"><video src={filePreview} className="w-full rounded-lg" controls /></div>}
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm"
+                />
+                <p className="text-[11px] text-gray-500 mt-1">Formati consigliati: MP4/H.264. Max consigliato 500MB.</p>
+
+                {/* Anteprima immediata del file scelto */}
+                {filePreview && (
+                  <div className="mt-3">
+                    <video src={filePreview} className="w-full rounded-lg" controls />
+                  </div>
+                )}
+
+                {/* Barra di caricamento quando si salva */}
+                {saving && (
+                  <div className="mt-3">
+                    <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-2 bg-[#6B271A]" style={{ width: `${progress}%` }} />
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">Caricamento in corso… ({progress}%)</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -382,6 +468,14 @@ export default function Onboarding() {
               </div>
             )}
           </div>
+        </section>
+      )}
+
+      {/* STEP 4 – GAMIFICATION (placeholder) */}
+      {step === 4 && (
+        <section className="rounded-2xl border bg-white p-4">
+          <h2 className="text-lg font-extrabold text-[#6B271A]">Gamification</h2>
+          <p className="text-sm text-gray-600">Guadagna badge e contatti, scala i livelli e raggiungi <strong>Top Creator</strong> per riscattare un’esperienza da <strong>200€</strong>.</p>
         </section>
       )}
     </main>

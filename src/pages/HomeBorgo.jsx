@@ -9,10 +9,6 @@ import {
   LogIn, UserPlus, Users, MessageCircle, Mail, CheckCircle2, AlertCircle
 } from "lucide-react";
 
-/* ========= CONFIG ========= */
-// Logo salvato in public/ilborghista-logo.png
-const LOGO_SRC = ((import.meta?.env?.BASE_URL || "/").replace(/\/+$/, "/")) + "ilborghista-logo.png";
-
 /* ========= Helpers ========= */
 function getYouTubeId(url = "") {
   try {
@@ -22,12 +18,10 @@ function getYouTubeId(url = "") {
   } catch {}
   return "";
 }
-function getYouTubeThumb(url = "") {
-  const id = getYouTubeId(url);
-  return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : "";
-}
+const getYouTubeThumb = (url = "") =>
+  getYouTubeId(url) ? `https://i.ytimg.com/vi/${getYouTubeId(url)}/hqdefault.jpg` : "";
 
-/* ========= TopBar fissa: logo + ricerca + hamburger ========= */
+/* ========= TopBar fissa: brand testuale + ricerca + hamburger ========= */
 function TopBar({ slug }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -45,9 +39,14 @@ function TopBar({ slug }) {
     <>
       <header className="fixed inset-x-0 top-0 z-50 border-b bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
-          <Link to="/" aria-label="Vai alla home di Il Borghista" className="inline-flex items-center gap-2">
-            <img src={LOGO_SRC} alt="Il Borghista" className="h-7 w-auto object-contain md:h-8" />
-            <span className="hidden text-base font-extrabold text-[#6B271A] sm:inline">Il Borghista</span>
+          <Link
+            to="/"
+            aria-label="Vai alla home di Il Borghista"
+            className="inline-flex items-center"
+          >
+            <span className="text-lg font-extrabold tracking-tight text-[#6B271A]">
+              Il Borghista
+            </span>
           </Link>
 
           {/* Ricerca desktop */}
@@ -256,7 +255,7 @@ function HeroGallery({ title, gallery = [], fallback }) {
         )}
       </div>
 
-      {/* Titolo + azioni minime */}
+      {/* Titolo + azioni */}
       <div className="absolute inset-x-0 bottom-4">
         <div className="mx-auto flex max-w-6xl items-end justify-between gap-3 px-4 sm:px-6">
           <h1 className="text-3xl font-extrabold text-white drop-shadow md:text-4xl">{title}</h1>
@@ -405,7 +404,7 @@ function NewsletterCTA({ slug }) {
 
     setLoading(true); setStatus(null); setMsg("");
     try {
-      // TODO: sostituisci con il tuo endpoint reale (Mailchimp/Sendinblue/Custom)
+      // Sostituisci con il tuo endpoint reale (Mailchimp/Sendinblue/Custom)
       const res = await fetch("/api/newsletter/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -532,7 +531,7 @@ export default function HomeBorgo() {
         {/* HERO */}
         <HeroGallery title={title} gallery={gallery} fallback={gallery?.[0]?.src} />
 
-        {/* PILLOLE (Link a route vere) */}
+        {/* PILLOLE */}
         <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Pill to={`/borghi/${slug}/eventi`}          icon={CalendarDays} label="Eventi e Sagre" analytics="eventi" />
@@ -566,29 +565,18 @@ export default function HomeBorgo() {
           {videos?.length ? (
             <HScrollWithArrows className="mt-3">
               {videos.map((v) => {
-                const thumb = v.thumbnail || getYouTubeThumb(v.youtubeUrl || v.url);
+                const th = v.thumbnail || getYouTubeThumb(v.youtubeUrl || v.url);
                 return (
-                  <article
-                    key={v.id}
-                    className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white"
-                    role="listitem"
-                  >
+                  <article key={v.id} className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white" role="listitem">
                     <a href={v.youtubeUrl || v.url} target="_blank" rel="noreferrer" className="block">
                       <div className="relative h-44 w-full bg-neutral-100">
-                        {thumb ? (
-                          <img src={thumb} alt={v.title} className="h-44 w-full object-cover" loading="lazy" decoding="async" />
-                        ) : (
-                          <div className="flex h-44 items-center justify-center text-neutral-400">
-                            <PlayCircle className="h-10 w-10" />
-                          </div>
-                        )}
+                        {th ? <img src={th} alt={v.title} className="h-44 w-full object-cover" loading="lazy" decoding="async" /> :
+                          <div className="flex h-44 items-center justify-center text-neutral-400"><PlayCircle className="h-10 w-10"/></div>}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
                       </div>
                       <div className="p-3">
                         <h3 className="line-clamp-2 font-semibold text-[#1A1818]">{v.title || "Video"}</h3>
-                        {v.description ? (
-                          <p className="mt-1 line-clamp-2 text-sm text-neutral-600">{v.description}</p>
-                        ) : null}
+                        {v.description && <p className="mt-1 line-clamp-2 text-sm text-neutral-600">{v.description}</p>}
                       </div>
                     </a>
                   </article>
@@ -603,113 +591,58 @@ export default function HomeBorgo() {
                 </span>
                 <div>
                   <div className="font-semibold text-[#6B271A]">Nessun video pubblicato… ancora 😉</div>
-                  <div className="text-sm text-gray-600">
-                    Sei un creator? Racconta {meta?.name || borgo?.name || "il borgo"} con i tuoi video.
-                  </div>
+                  <div className="text-sm text-gray-600">Sei un creator? Racconta {meta?.name || borgo?.name || "il borgo"} con i tuoi video.</div>
                 </div>
-                <Link
-                  to="/registrazione-creator"
-                  className="ml-auto inline-flex items-center gap-2 rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white"
-                >
-                  Diventa Creator del Borgo
-                </Link>
+                <Link to="/registrazione-creator" className="ml-auto inline-flex items-center gap-2 rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white">Diventa Creator del Borgo</Link>
               </div>
             </div>
           )}
         </section>
 
         {/* EVENTI */}
-        <SectionCarousel
-          id="eventi"
-          title="Eventi e Sagre"
-          items={eventi}
-          render={(ev, i) => (
-            <article
-              key={i}
-              className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white"
-              role="listitem"
-            >
+        <SectionCarousel id="eventi" title="Eventi e Sagre" items={eventi}
+          render={(ev,i)=>(
+            <article key={i} className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white" role="listitem">
               <div className="relative">
                 <img src={ev.img} alt={ev.title} className="h-40 w-full object-cover" loading="lazy" decoding="async" />
-                <span className="absolute left-2 top-2 rounded-full border border-[#E1B671] bg-[#6B271A] px-2 py-0.5 text-[11px] font-bold text-white">
-                  {ev.when}
-                </span>
+                <span className="absolute left-2 top-2 rounded-full border border-[#E1B671] bg-[#6B271A] px-2 py-0.5 text-[11px] font-bold text-white">{ev.when}</span>
               </div>
-              <div className="p-3">
-                <h3 className="line-clamp-2 font-semibold text-[#6B271A]">{ev.title}</h3>
-              </div>
+              <div className="p-3"><h3 className="line-clamp-2 font-semibold text-[#6B271A]">{ev.title}</h3></div>
             </article>
           )}
         />
 
         {/* ESPERIENZE */}
-        <SectionCarousel
-          id="esperienze"
-          title="Esperienze"
-          items={esperienze}
-          render={(it, i) => (
-            <article
-              key={i}
-              className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white"
-              role="listitem"
-            >
+        <SectionCarousel id="esperienze" title="Esperienze" items={esperienze}
+          render={(it,i)=>(
+            <article key={i} className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white" role="listitem">
               <img src={it.img} alt={it.title} className="h-40 w-full object-cover" loading="lazy" decoding="async" />
-              <div className="p-3">
-                <h3 className="font-semibold text-[#6B271A]">{it.title}</h3>
-                <div className="mt-1 text-xs text-neutral-600">{it.meta}</div>
-              </div>
+              <div className="p-3"><h3 className="font-semibold text-[#6B271A]">{it.title}</h3><div className="mt-1 text-xs text-neutral-600">{it.meta}</div></div>
             </article>
           )}
         />
 
         {/* PRODOTTI TIPICI */}
-        <SectionCarousel
-          id="prodotti-tipici"
-          title="Prodotti Tipici"
-          items={prodottiTipici}
-          render={(p, i) => (
-            <article
-              key={i}
-              className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white"
-              role="listitem"
-            >
+        <SectionCarousel id="prodotti-tipici" title="Prodotti Tipici" items={prodottiTipici}
+          render={(p,i)=>(
+            <article key={i} className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white" role="listitem">
               <img src={p.img} alt={p.title} className="h-40 w-full object-cover" loading="lazy" decoding="async" />
-              <div className="p-3">
-                <h3 className="font-semibold text-[#6B271A]">{p.title}</h3>
-              </div>
+              <div className="p-3"><h3 className="font-semibold text-[#6B271A]">{p.title}</h3></div>
             </article>
           )}
         />
 
         {/* BORGHI VICINI */}
-        <SectionCarousel
-          id="borghi-vicini"
-          title="Borghi Vicini"
-          items={nearby.length >= 4 ? nearby : [...nearby, ...nearby].slice(0, 4)}
-          render={(b) => (
-            <Link
-              key={b.slug}
-              to={`/borghi/${b.slug}`}
-              className="snap-center shrink-0 w-[70%] xs:w-[60%] sm:w-[45%] md:w-[32%] lg:w-[23%] overflow-hidden rounded-2xl border bg-white hover:shadow"
-              role="listitem"
-            >
-              <div className="h-28 w-full">
-                <img
-                  src={b.hero}
-                  alt={b.name}
-                  className="h-28 w-full object-cover"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </div>
-              <div className="p-3">
-                <div className="font-semibold text-[#6B271A]">{b.name}</div>
-              </div>
+        <SectionCarousel id="borghi-vicini" title="Borghi Vicini" items={nearby}
+          render={(b)=>(
+            <Link key={b.slug} to={`/borghi/${b.slug}`} className="snap-center shrink-0 w-[70%] xs:w-[60%] sm:w-[45%] md:w-[32%] lg:w-[23%] overflow-hidden rounded-2xl border bg-white hover:shadow" role="listitem">
+              <div className="h-28 w-full"><img src={b.hero} alt={b.name} className="h-28 w-full object-cover" loading="lazy" decoding="async" /></div>
+              <div className="p-3"><div className="font-semibold text-[#6B271A]">{b.name}</div></div>
             </Link>
           )}
         />
 
-        {/* NEWSLETTER in fondo */}
+        {/* NEWSLETTER */}
         <NewsletterCTA slug={slug} />
       </main>
     </>

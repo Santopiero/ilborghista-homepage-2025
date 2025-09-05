@@ -4,32 +4,16 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { findBorgoBySlug, getVideosByBorgo } from "../lib/store";
 import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
 import {
-  ChevronLeft,
-  ChevronRight,
-  Share2,
-  Heart,
-  Film,
-  CalendarDays,
-  Route,
-  ShoppingBag,
-  List as ListIcon,
-  PlayCircle,
-  Utensils,
-  BedDouble,
-  Hammer,
-  Info,
-  Search,
-  Menu,
-  X,
-  LogIn,
-  UserPlus,
-  Users,
-  MessageCircle,
+  ChevronLeft, ChevronRight, Share2, Heart, Film, CalendarDays, Route, ShoppingBag,
+  List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Info, Search, Menu, X,
+  LogIn, UserPlus, Users, MessageCircle, Mail, CheckCircle2, AlertCircle
 } from "lucide-react";
 
-/* =========================
-   Helpers
-   ========================= */
+/* ========= CONFIG ========= */
+// Logo salvato in public/ilborghista-logo.png
+const LOGO_SRC = ((import.meta?.env?.BASE_URL || "/").replace(/\/+$/, "/")) + "ilborghista-logo.png";
+
+/* ========= Helpers ========= */
 function getYouTubeId(url = "") {
   try {
     const u = new URL(url);
@@ -43,9 +27,7 @@ function getYouTubeThumb(url = "") {
   return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : "";
 }
 
-/* =========================
-   TopBar fissa con logo + ricerca + hamburger
-   ========================= */
+/* ========= TopBar fissa: logo + ricerca + hamburger ========= */
 function TopBar({ slug }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -63,35 +45,26 @@ function TopBar({ slug }) {
     <>
       <header className="fixed inset-x-0 top-0 z-50 border-b bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
-          {/* Logo */}
           <Link to="/" aria-label="Vai alla home di Il Borghista" className="inline-flex items-center gap-2">
-            {/* Usa il tuo asset logo; fallback a testo */}
-            <img
-              src="/logo-ilborghista.svg"
-              alt="Il Borghista"
-              className="h-7 w-auto"
-              onError={(e) => {
-                e.currentTarget.style.display = "none";
-              }}
-            />
+            <img src={LOGO_SRC} alt="Il Borghista" className="h-7 w-auto object-contain md:h-8" />
             <span className="hidden text-base font-extrabold text-[#6B271A] sm:inline">Il Borghista</span>
           </Link>
 
-          {/* Search inline (desktop) */}
-          <form onSubmit={onSubmit} className="relative hidden md:block w-[46%]">
+          {/* Ricerca desktop */}
+          <form onSubmit={onSubmit} className="relative hidden w-[46%] md:block">
             <input
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Cerca luoghi, eventi, esperienze…"
-              className="w-full rounded-full border px-4 py-2 pl-9 text-sm outline-none ring-0 focus:border-[#6B271A]"
+              className="w-full rounded-full border px-4 py-2 pl-9 text-sm outline-none focus:border-[#6B271A]"
             />
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
           </form>
 
-          {/* Azioni a destra */}
+          {/* Azioni destra */}
           <div className="flex items-center gap-2">
-            {/* Search toggle (mobile) */}
+            {/* Ricerca mobile */}
             <button
               aria-label="Apri la ricerca"
               onClick={() => setSearchOpen((v) => !v)}
@@ -111,7 +84,7 @@ function TopBar({ slug }) {
           </div>
         </div>
 
-        {/* Barra di ricerca mobile (a scomparsa) */}
+        {/* Barra ricerca mobile */}
         {searchOpen && (
           <div className="border-t bg-white md:hidden">
             <form onSubmit={onSubmit} className="mx-auto max-w-6xl px-4 py-2 sm:px-6">
@@ -135,10 +108,7 @@ function TopBar({ slug }) {
       {menuOpen && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/30" onClick={() => setMenuOpen(false)} />
-          <nav
-            className="absolute right-0 top-0 h-full w-80 max-w-[85%] bg-white shadow-xl"
-            aria-label="Menu principale"
-          >
+          <nav className="absolute right-0 top-0 h-full w-80 max-w-[85%] bg-white shadow-xl" aria-label="Menu principale">
             <div className="flex items-center justify-between border-b p-4">
               <span className="text-base font-bold text-[#6B271A]">Menu</span>
               <button
@@ -150,63 +120,13 @@ function TopBar({ slug }) {
               </button>
             </div>
             <ul className="p-2">
-              <li>
-                <Link
-                  to="/login"
-                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
-                  onClick={() => setMenuOpen(false)}
-                  data-analytics="menu:login"
-                >
-                  <LogIn className="h-4 w-4" /> Accedi
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/registrazione"
-                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
-                  onClick={() => setMenuOpen(false)}
-                  data-analytics="menu:registrati"
-                >
-                  <UserPlus className="h-4 w-4" /> Registrati
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/creator"
-                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
-                  onClick={() => setMenuOpen(false)}
-                  data-analytics="menu:creator"
-                >
-                  <Users className="h-4 w-4" /> I nostri creator
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to={`/borghi/${slug}/info-utili`}
-                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
-                  onClick={() => setMenuOpen(false)}
-                  data-analytics="menu:info-utili"
-                >
-                  <Info className="h-4 w-4" /> Info utili
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/contatti"
-                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
-                  onClick={() => setMenuOpen(false)}
-                  data-analytics="menu:contatti"
-                >
-                  <MessageCircle className="h-4 w-4" /> Contattaci
-                </Link>
-              </li>
+              <li><Link to="/login" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><LogIn className="h-4 w-4" /> Accedi</Link></li>
+              <li><Link to="/registrazione" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><UserPlus className="h-4 w-4" /> Registrati</Link></li>
+              <li><Link to="/creator" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><Users className="h-4 w-4" /> I nostri creator</Link></li>
+              <li><Link to={`/borghi/${slug}/info-utili`} className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><Info className="h-4 w-4" /> Info utili</Link></li>
+              <li><Link to="/contatti" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><MessageCircle className="h-4 w-4" /> Contattaci</Link></li>
               <li className="mt-2 border-t pt-2">
-                <Link
-                  to="/registrazione-creator"
-                  className="flex items-center justify-center rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white"
-                  onClick={() => setMenuOpen(false)}
-                  data-analytics="menu:diventa-creator"
-                >
+                <Link to="/registrazione-creator" className="flex items-center justify-center rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white" onClick={() => setMenuOpen(false)}>
                   Diventa Creator del Borgo
                 </Link>
               </li>
@@ -218,9 +138,7 @@ function TopBar({ slug }) {
   );
 }
 
-/* =========================
-   HScroll + arrows (mobile swipe, desktop arrows)
-   ========================= */
+/* ========= HScroll + arrows ========= */
 function HScrollWithArrows({ children, className = "" }) {
   const ref = useRef(null);
   const scrollBy = (dir) => {
@@ -259,9 +177,7 @@ function HScrollWithArrows({ children, className = "" }) {
   );
 }
 
-/* =========================
-   Hero Gallery (frecce, swipe, contatore, nome foto) + preload ±1
-   ========================= */
+/* ========= Hero Gallery ========= */
 function HeroGallery({ title, gallery = [], fallback }) {
   const [i, setI] = useState(0);
   const n = gallery?.length || 0;
@@ -305,20 +221,16 @@ function HeroGallery({ title, gallery = [], fallback }) {
           className="h-full w-full object-cover"
           loading="eager"
           decoding="async"
-          onError={(e) => {
-            e.currentTarget.src =
-              "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1600&auto=format&fit=crop";
-          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
 
-        {/* Nome foto in alto a sinistra */}
+        {/* Nome foto (alto sx) */}
         {current?.name && (
           <div className="absolute left-3 top-3 z-10 rounded-md bg-black/55 px-2 py-1 text-xs text-white">
             {current.name}
           </div>
         )}
-        {/* Contatore in alto a destra */}
+        {/* Contatore (alto dx) */}
         <div className="absolute right-3 top-3 z-10 rounded-md bg-black/55 px-2 py-1 text-xs text-white">
           {n ? `${i + 1} / ${n}` : "1 / 1"}
         </div>
@@ -362,9 +274,7 @@ function HeroGallery({ title, gallery = [], fallback }) {
   );
 }
 
-/* =========================
-   Pillole (link a rotte vere, no ancore)
-   ========================= */
+/* ========= Pillola (Link a rotte reali) ========= */
 const Pill = ({ to, icon: Icon, label, analytics }) => (
   <Link
     to={to}
@@ -377,15 +287,12 @@ const Pill = ({ to, icon: Icon, label, analytics }) => (
   </Link>
 );
 
-/* =========================
-   Descrizione (fade + toggle persistente per borgo)
-   ========================= */
+/* ========= Descrizione (fade + toggle persistente) ========= */
 function DescriptionBlock({ text, slug }) {
   const KEY = `descr-expanded:${slug}`;
   const [expanded, setExpanded] = useState(() => {
     try { return sessionStorage.getItem(KEY) === "1"; } catch { return false; }
   });
-
   useEffect(() => {
     try { sessionStorage.setItem(KEY, expanded ? "1" : "0"); } catch {}
   }, [expanded]);
@@ -408,16 +315,19 @@ function DescriptionBlock({ text, slug }) {
   );
 }
 
-/* =========================
-   "In breve" ripristinato (testo + mini-slideshow)
-   ========================= */
+/* ========= In Breve (testo + mini-slideshow) ========= */
 function SmallGallery({ items = [] }) {
   const ref = useRef(null);
   const scrollBy = (dx) => ref.current && ref.current.scrollBy({ left: dx, behavior: "smooth" });
   if (!items.length) return null;
+
   return (
     <div className="relative">
-      <div ref={ref} className="scrollbar-none mt-2 flex gap-2 overflow-x-auto snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
+      <div
+        ref={ref}
+        className="scrollbar-none mt-2 flex gap-2 overflow-x-auto snap-x snap-mandatory"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
         {items.map((it, idx) => (
           <figure key={idx} className="snap-start shrink-0 w-40">
             <img
@@ -432,18 +342,10 @@ function SmallGallery({ items = [] }) {
         ))}
       </div>
       <div className="mt-2 hidden justify-end gap-2 md:flex">
-        <button
-          onClick={() => scrollBy(-300)}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5"
-          aria-label="precedente"
-        >
+        <button onClick={() => scrollBy(-300)} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5" aria-label="precedente">
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <button
-          onClick={() => scrollBy(300)}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5"
-          aria-label="successivo"
-        >
+        <button onClick={() => scrollBy(300)} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5" aria-label="successivo">
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
@@ -454,62 +356,130 @@ function InBreve({ meta, borgo, slug }) {
   const regione = borgo?.regione || meta?.regione || meta?.region;
   const provincia = borgo?.provincia || meta?.provincia || meta?.province;
   const short = meta?.shortInfo || null;
-  const hashtag = `#${slug}`;
 
   return (
-    <section className="mx-auto max-w-6xl px-4 sm:px-6 py-4">
+    <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
       <div className="rounded-2xl border bg-[#FAF5E0] p-4">
         <h3 className="text-sm font-bold text-[#6B271A]">In breve</h3>
         <ul className="mt-2 space-y-1 text-sm text-gray-700">
           {short?.text ? <li className="leading-relaxed">{short.text}</li> : null}
-          {regione ? (
-            <li>
-              <span className="font-semibold">Regione:</span> {regione}
-            </li>
-          ) : null}
-          {provincia ? (
-            <li>
-              <span className="font-semibold">Provincia:</span> {provincia}
-            </li>
-          ) : null}
-          <li>
-            <span className="font-semibold">Hashtag:</span> {hashtag}
-          </li>
+          {regione ? <li><span className="font-semibold">Regione:</span> {regione}</li> : null}
+          {provincia ? <li><span className="font-semibold">Provincia:</span> {provincia}</li> : null}
+          <li><span className="font-semibold">Hashtag:</span> #{slug}</li>
         </ul>
         {Array.isArray(short?.gallery) && short.gallery.length ? (
-          <div className="mt-3">
-            <SmallGallery items={short.gallery} />
-          </div>
+          <div className="mt-3"><SmallGallery items={short.gallery} /></div>
         ) : null}
       </div>
     </section>
   );
 }
 
-/* =========================
-   Sezione generica con carosello
-   ========================= */
+/* ========= Sezione generica con carosello ========= */
 function SectionCarousel({ id, title, items = [], render, extraLink = null }) {
   return (
     <section id={id} className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-extrabold text-[#6B271A]">{title}</h2>
-        {extraLink ? (
-          <Link to={extraLink} className="text-sm font-semibold underline">
-            Vedi tutti
-          </Link>
-        ) : null}
+        {extraLink ? <Link to={extraLink} className="text-sm font-semibold underline">Vedi tutti</Link> : null}
       </div>
-      <HScrollWithArrows className="mt-3">
-        {items.map((it, idx) => render(it, idx))}
-      </HScrollWithArrows>
+      <HScrollWithArrows className="mt-3">{items.map((it, idx) => render(it, idx))}</HScrollWithArrows>
     </section>
   );
 }
 
-/* =========================
-   Pagina
-   ========================= */
+/* ========= Newsletter CTA (in fondo) ========= */
+function NewsletterCTA({ slug }) {
+  const [email, setEmail] = useState("");
+  const [privacy, setPrivacy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState(null); // "ok" | "error"
+  const [msg, setMsg] = useState("");
+
+  const isValid = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v || "").trim());
+
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    if (!isValid(email)) { setStatus("error"); setMsg("Inserisci un'email valida."); return; }
+    if (!privacy) { setStatus("error"); setMsg("Devi accettare l'informativa privacy."); return; }
+
+    setLoading(true); setStatus(null); setMsg("");
+    try {
+      // TODO: sostituisci con il tuo endpoint reale (Mailchimp/Sendinblue/Custom)
+      const res = await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, borgo: slug, source: "home-borgo" }),
+      });
+      if (!res.ok) throw new Error("subscribe failed");
+      setStatus("ok");
+      setMsg("Iscrizione completata! Controlla la posta per confermare.");
+      setEmail(""); setPrivacy(false);
+    } catch {
+      setStatus("error"); setMsg("Si è verificato un problema. Riprova tra poco.");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <div className="rounded-2xl border bg-white p-4 sm:p-5">
+        <div className="flex items-start gap-3">
+          <span className="hidden sm:inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#6B271A]/10">
+            <Mail className="h-5 w-5 text-[#6B271A]" />
+          </span>
+          <div className="w-full">
+            <h3 className="text-lg font-extrabold text-[#6B271A]">Rimani aggiornato sui borghi</h3>
+            <p className="mt-0.5 text-sm text-neutral-600">Eventi, esperienze e novità de Il Borghista. Niente spam, promesso.</p>
+
+            <form onSubmit={onSubmit} className="mt-3 grid gap-2 sm:flex sm:items-center">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="La tua email"
+                aria-label="Email per iscriverti alla newsletter"
+                className="w-full rounded-xl border px-3 py-2 text-sm outline-none focus:border-[#6B271A] sm:max-w-md"
+                required
+                inputMode="email"
+                autoComplete="email"
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-[#6B271A] px-4 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-60"
+              >
+                {loading ? "Iscrizione..." : "Iscrivimi"}
+              </button>
+            </form>
+
+            <label className="mt-2 inline-flex items-start gap-2 text-xs text-neutral-600">
+              <input type="checkbox" checked={privacy} onChange={(e) => setPrivacy(e.target.checked)} className="mt-0.5" required />
+              <span>
+                Accetto l’<Link to="/privacy" className="underline">informativa privacy</Link> e i{" "}
+                <Link to="/termini" className="underline">termini di servizio</Link>.
+              </span>
+            </label>
+
+            {status === "ok" && (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-700">
+                <CheckCircle2 className="h-4 w-4" />
+                <span className="text-sm">{msg}</span>
+              </div>
+            )}
+            {status === "error" && (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-rose-700">
+                <AlertCircle className="h-4 w-4" />
+                <span className="text-sm">{msg}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ========= Pagina ========= */
 export default function HomeBorgo() {
   const { slug } = useParams();
 
@@ -526,21 +496,11 @@ export default function HomeBorgo() {
   }
 
   const title = meta?.displayName || borgo?.name || meta?.name || slug;
-  const descr =
-    meta?.description ||
-    "Scopri il borgo: eventi e sagre, esperienze da vivere, prodotti tipici e i borghi vicini.";
+  const descr = meta?.description || "Scopri il borgo: eventi e sagre, esperienze da vivere, prodotti tipici e i borghi vicini.";
 
-  const gallery =
-    Array.isArray(meta?.gallery) && meta.gallery.length
-      ? meta.gallery
-      : [
-          {
-            src:
-              meta?.hero ||
-              "https://images.unsplash.com/photo-1543340713-8f6b9f4507f8?q=80&w=1600&auto=format&fit=crop",
-            name: meta?.name || borgo?.name || "Borgo",
-          },
-        ];
+  const gallery = Array.isArray(meta?.gallery) && meta.gallery.length
+    ? meta.gallery
+    : [{ src: meta?.hero || "https://images.unsplash.com/photo-1543340713-8f6b9f4507f8?q=80&w=1600&auto=format&fit=crop", name: meta?.name || borgo?.name || "Borgo" }];
 
   const videos = useMemo(() => getVideosByBorgo(slug), [slug]);
 
@@ -567,14 +527,12 @@ export default function HomeBorgo() {
 
   return (
     <>
-      {/* Fascia fissa */}
       <TopBar slug={slug} />
-
       <main className="min-h-screen bg-white pt-14">
         {/* HERO */}
         <HeroGallery title={title} gallery={gallery} fallback={gallery?.[0]?.src} />
 
-        {/* PILLOLE (link a route vere) */}
+        {/* PILLOLE (Link a route vere) */}
         <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Pill to={`/borghi/${slug}/eventi`}          icon={CalendarDays} label="Eventi e Sagre" analytics="eventi" />
@@ -588,10 +546,8 @@ export default function HomeBorgo() {
           </div>
         </section>
 
-        {/* DESCRIZIONE */}
+        {/* DESCRIZIONE + IN BREVE */}
         <DescriptionBlock text={descr} slug={slug} />
-
-        {/* IN BREVE (ripristinato) */}
         <InBreve meta={meta} borgo={borgo} slug={slug} />
 
         {/* VIDEO CREATOR */}
@@ -662,7 +618,7 @@ export default function HomeBorgo() {
           )}
         </section>
 
-        {/* 1) EVENTI E SAGRE */}
+        {/* EVENTI */}
         <SectionCarousel
           id="eventi"
           title="Eventi e Sagre"
@@ -686,7 +642,7 @@ export default function HomeBorgo() {
           )}
         />
 
-        {/* 2) ESPERIENZE */}
+        {/* ESPERIENZE */}
         <SectionCarousel
           id="esperienze"
           title="Esperienze"
@@ -706,7 +662,7 @@ export default function HomeBorgo() {
           )}
         />
 
-        {/* 3) PRODOTTI TIPICI */}
+        {/* PRODOTTI TIPICI */}
         <SectionCarousel
           id="prodotti-tipici"
           title="Prodotti Tipici"
@@ -725,7 +681,7 @@ export default function HomeBorgo() {
           )}
         />
 
-        {/* 4) BORGHI VICINI */}
+        {/* BORGHI VICINI */}
         <SectionCarousel
           id="borghi-vicini"
           title="Borghi Vicini"
@@ -744,10 +700,6 @@ export default function HomeBorgo() {
                   className="h-28 w-full object-cover"
                   loading="lazy"
                   decoding="async"
-                  onError={(e) => {
-                    e.currentTarget.src =
-                      "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop";
-                  }}
                 />
               </div>
               <div className="p-3">
@@ -756,6 +708,9 @@ export default function HomeBorgo() {
             </Link>
           )}
         />
+
+        {/* NEWSLETTER in fondo */}
+        <NewsletterCTA slug={slug} />
       </main>
     </>
   );

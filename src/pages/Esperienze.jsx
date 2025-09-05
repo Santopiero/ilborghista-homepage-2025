@@ -1,29 +1,26 @@
 // src/pages/Esperienze.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { BORGI_BY_SLUG } from "../data/borghi";
 import { findBorgoBySlug, listPoiByBorgo, getVideosByPoi } from "../lib/store";
 import {
   Search, Menu, X, CalendarDays, Route, ShoppingBag, Hammer, Utensils, BedDouble,
-  List as ListIcon, Info, MapPin, Star, SlidersHorizontal, ChevronDown, Bus, Film
+  List as ListIcon, MapPin, Star, ChevronDown, Bus, Film, Home
 } from "lucide-react";
 
-/* ---------- utils ---------- */
+/* ---------- helpers ---------- */
 const isFoodDrink = (p) =>
   /(ristor|tratt|osteria|pizzer|bar|caff|café|enotec|pub|agritur)/i.test(p.type || p.name || "");
 const isSleep = (p) =>
   /(hotel|b&b|b\s*&\s*b|bed|albergo|affittacamere|casa|agriturismo|residence)/i.test(p.type || p.name || "");
 const isArtigiano = (p) =>
   /(artigian|laborator|bottega|ceramic|liutaio|tessil|falegn|orafo)/i.test(p.type || p.name || "");
-
-// euristiche per "itinerario" (dati dei Comuni)
 const isItinerary = (p) =>
   /(itinerar|percorso|cammino|trekking|passeggiat|sentier)/i.test(
     `${p.type || ""} ${p.category || ""} ${p.name || ""} ${Array.isArray(p.tags) ? p.tags.join(" ") : ""}`
   );
-
 const isBookableExperience = (p) =>
-  !!(p.affiliateUrl || p.url || p.partner || p.source || p.priceFrom); // esperienze acquistabili
+  !!(p.affiliateUrl || p.url || p.partner || p.source || p.priceFrom);
 
 const partnerLabel = (p) => (p.partner || p.source || "").toString().trim();
 const priceFrom = (p) =>
@@ -45,7 +42,6 @@ const fmtPrice = (n) => {
     return `€ ${Math.round(n)}`;
   }
 };
-
 function withUtm(url, partner) {
   if (!url) return null;
   const u = new URL(url, window.location.origin);
@@ -55,18 +51,16 @@ function withUtm(url, partner) {
   return u.toString();
 }
 
-/* ---------- TopBar: brand + search sempre visibile + hamburger ---------- */
+/* ---------- TopBar ---------- */
 function TopBar({ slug }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [q, setQ] = useState("");
-
   const submit = (e) => {
     e.preventDefault();
     const to = q ? `/cerca?q=${encodeURIComponent(q)}&borgo=${encodeURIComponent(slug)}` : `/cerca`;
     navigate(to);
   };
-
   return (
     <>
       <header className="fixed inset-x-0 top-0 z-50 border-b bg-white/90 backdrop-blur">
@@ -74,8 +68,6 @@ function TopBar({ slug }) {
           <Link to="/" aria-label="Vai alla home di Il Borghista" className="shrink-0">
             <span className="text-lg font-extrabold tracking-tight text-[#6B271A]">Il Borghista</span>
           </Link>
-
-          {/* search sempre visibile (anche mobile) */}
           <form onSubmit={submit} className="relative mx-2 flex-1">
             <input
               type="search"
@@ -86,29 +78,18 @@ function TopBar({ slug }) {
             />
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
           </form>
-
-          <button
-            aria-label="Apri il menu"
-            onClick={() => setMenuOpen(true)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white"
-          >
+          <button aria-label="Apri il menu" onClick={() => setMenuOpen(true)} className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white">
             <Menu className="h-5 w-5" />
           </button>
         </div>
       </header>
-
-      {/* Drawer menu */}
       {menuOpen && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/30" onClick={() => setMenuOpen(false)} />
           <nav className="absolute right-0 top-0 h-full w-80 max-w-[85%] bg-white shadow-xl" aria-label="Menu principale">
             <div className="flex items-center justify-between border-b p-4">
               <span className="text-base font-bold text-[#6B271A]">Menu</span>
-              <button
-                aria-label="Chiudi menu"
-                onClick={() => setMenuOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border"
-              >
+              <button aria-label="Chiudi menu" onClick={() => setMenuOpen(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -126,19 +107,85 @@ function TopBar({ slug }) {
   );
 }
 
-/* ---------- Pillola ---------- */
-const Pill = ({ to, icon: Icon, label }) => (
-  <Link
-    to={to}
-    className="snap-start inline-flex h-11 shrink-0 items-center gap-2 rounded-full border border-[#E1B671] bg-[#FAF5E0] px-3 text-sm font-semibold text-[#6B271A] hover:bg-white"
-    aria-label={`Vai a ${label}`}
-  >
-    <Icon className="h-4 w-4" />
-    {label}
-  </Link>
-);
+/* ---------- “Palline” nav ---------- */
+function Dot({ to, label, icon: Icon, bg = "#e5e7eb", color = "#fff" }) {
+  return (
+    <Link
+      to={to}
+      aria-label={label}
+      title={label}
+      className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5 shrink-0"
+      style={{ backgroundColor: bg, color }}
+    >
+      <Icon className="h-5 w-5" />
+    </Link>
+  );
+}
+const Divider = () => <span className="mx-2 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
 
-/* ---------- Card esperienza ---------- */
+/* ---------- Chip helpers (filtri compatti orizzontali) ---------- */
+function SelectChip({ label, value, onChange, options }) {
+  return (
+    <label className="relative inline-flex shrink-0 items-center">
+      <span className="sr-only">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-9 appearance-none rounded-full border bg-white pl-3 pr-8 text-sm font-medium text-[#6B271A] shadow-sm focus:border-[#6B271A]"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none -ml-6 h-4 w-4 text-neutral-500" />
+    </label>
+  );
+}
+function DropdownChip({ label, value, onChange, items }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onEsc = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onEsc);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onEsc); };
+  }, []);
+  const current = items.find((i) => i.value === value)?.label || label;
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        className="inline-flex h-9 items-center rounded-full border bg-white px-3 text-sm font-semibold text-[#6B271A] shadow-sm"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        {current}
+        <ChevronDown className="ml-1 h-4 w-4 text-neutral-500" />
+      </button>
+      {open && (
+        <ul role="listbox" className="absolute left-0 z-50 mt-1 w-48 overflow-hidden rounded-xl border bg-white p-1 shadow-lg">
+          {items.map((i) => (
+            <li key={i.value}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={i.value === value}
+                onClick={() => { onChange(i.value); setOpen(false); }}
+                className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${i.value === value ? "bg-[#FAF5E0] text-[#6B271A]" : "hover:bg-neutral-50"}`}
+              >
+                {i.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Card ---------- */
 function ExperienceCard({ slug, p }) {
   const partner = partnerLabel(p);
   const price = priceFrom(p);
@@ -150,26 +197,23 @@ function ExperienceCard({ slug, p }) {
       <a href={href} target="_blank" rel="noreferrer" aria-label={`Controlla disponibilità: ${p.name}`} className="block">
         <div className="relative aspect-[16/9] w-full bg-neutral-100">
           <img
-            src={
-              p.cover ||
-              "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1200&auto=format&fit=crop"
-            }
+            src={p.cover || "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1200&auto=format&fit=crop"}
             alt={p.alt || `Esperienza: ${p.name} ${partner ? `- partner ${partner}` : ""}`}
             className="h-full w-full object-cover"
             loading="lazy"
             decoding="async"
           />
-          {/* badge partner (sx) */}
+          {/* partner sx */}
           <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-[#6B271A] shadow ring-1 ring-black/5">
             {partner || "Partner"}
           </span>
-          {/* badge prezzo (dx) */}
+          {/* prezzo dx SOLO in foto */}
           {price != null && (
             <span className="absolute right-2 top-2 rounded-full border border-[#E1B671] bg-[#D54E30] px-2 py-0.5 text-[11px] font-bold text-white shadow">
               da {fmtPrice(price).replace(/\s?EUR?/, "").trim()}
             </span>
           )}
-          {/* badge video */}
+          {/* video */}
           {hasVideo && (
             <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
               <Film className="h-3.5 w-3.5" /> video
@@ -188,7 +232,6 @@ function ExperienceCard({ slug, p }) {
                 {cityLabel(p)}
               </span>
             )}
-            {price != null && <span>da {fmtPrice(price)}</span>}
             {ratingVal(p) && (
               <span className="inline-flex items-center gap-1">
                 <Star className="h-3.5 w-3.5 text-[#E6B800]" />
@@ -214,7 +257,7 @@ function ExperienceCard({ slug, p }) {
   );
 }
 
-/* ---- 4 esperienze mock di fallback (solo se i dati reali sono pochi) ---- */
+/* ---- Seed di 4 esperienze (fallback) ---- */
 const MOCK_ITEMS = [
   {
     id: "mock-exp-1",
@@ -276,21 +319,19 @@ export default function Esperienze() {
   const meta = BORGI_BY_SLUG?.[slug] || null;
   const title = meta?.displayName || borgo?.name || meta?.name || slug;
 
-  // Tutti i POI del borgo e filtro base: no food/sleep/artigiani
   const allPoi = useMemo(() => listPoiByBorgo(slug), [slug]);
   const poiClean = useMemo(
     () => allPoi.filter((p) => !isFoodDrink(p) && !isSleep(p) && !isArtigiano(p)),
     [allPoi]
   );
 
-  /* ===== Filtri ===== */
+  /* FILTRI */
   const [contentType, setContentType] = useState("all");  // all | esperienze | itinerari
   const [priceBand, setPriceBand] = useState("all");      // all | lt50 | 50-100 | 100-250 | gt250
   const [partner, setPartner] = useState("all");          // all | getyourguide | viator | musement | freedome
   const [duration, setDuration] = useState("all");        // all | le2 | 2-4 | day
   const [order, setOrder] = useState("auto");             // auto | priceAsc | priceDesc | az | rating
 
-  // Base array in funzione del tipo (esperienze vs itinerari)
   const base = useMemo(() => {
     let arr = poiClean;
     if (contentType === "esperienze") arr = arr.filter(isBookableExperience);
@@ -298,7 +339,6 @@ export default function Esperienze() {
     return arr;
   }, [poiClean, contentType]);
 
-  // Aggiungo mock se mancano esperienze visibili (solo quando NON si filtrano gli itinerari)
   const baseWithSeeds = useMemo(() => {
     if (contentType === "itinerari") return base;
     const needSeeds = base.length < 4;
@@ -320,9 +360,7 @@ export default function Esperienze() {
     });
 
     // partner
-    if (partner !== "all") {
-      arr = arr.filter((p) => partnerLabel(p).toLowerCase().includes(partner));
-    }
+    if (partner !== "all") arr = arr.filter((p) => partnerLabel(p).toLowerCase().includes(partner));
 
     // durata
     if (duration !== "all") {
@@ -337,16 +375,11 @@ export default function Esperienze() {
       arr = arr.filter((p) => dTest(durLabel(p)));
     }
 
-    // ordinamento
-    if (order === "priceAsc") {
-      arr.sort((a, b) => (priceFrom(a) || Infinity) - (priceFrom(b) || Infinity));
-    } else if (order === "priceDesc") {
-      arr.sort((a, b) => (priceFrom(b) || -1) - (priceFrom(a) || -1));
-    } else if (order === "az") {
-      arr.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-    } else if (order === "rating") {
-      arr.sort((a, b) => (ratingVal(b) || 0) - (ratingVal(a) || 0));
-    }
+    // ordine
+    if (order === "priceAsc") arr.sort((a, b) => (priceFrom(a) || Infinity) - (priceFrom(b) || Infinity));
+    else if (order === "priceDesc") arr.sort((a, b) => (priceFrom(b) || -1) - (priceFrom(a) || -1));
+    else if (order === "az") arr.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    else if (order === "rating") arr.sort((a, b) => (ratingVal(b) || 0) - (ratingVal(a) || 0));
 
     return arr;
   }, [baseWithSeeds, priceBand, partner, duration, order]);
@@ -354,157 +387,146 @@ export default function Esperienze() {
   const resultsCount = filtered.length;
 
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    (meta?.name || borgo?.name || slug) +
-      " " +
-      ((borgo?.provincia || meta?.provincia || "") + " " + (borgo?.regione || meta?.regione || "")).trim()
+    (meta?.name || borgo?.name || slug) + " " + ((borgo?.provincia || meta?.provincia || "") + " " + (borgo?.regione || meta?.regione || "")).trim()
   )}`;
+
+  /* palette delle palline (come nello screenshot) */
+  const colors = {
+    home:        { bg: "#222222", color: "#ffffff" },
+    cosafare:    { bg: "#2E7D32", color: "#ffffff" },    // verde
+    mangiare:    { bg: "#C81E3C", color: "#ffffff" },    // rosso
+    eventi:      { bg: "#F4B000", color: "#ffffff" },    // giallo
+    artigiani:   { bg: "#9A5B2D", color: "#ffffff" },    // marrone
+    trasporti:   { bg: "#1649D7", color: "#ffffff" },    // blu
+    esperienze:  { bg: "#21C195", color: "#ffffff" },    // verde acqua
+    dormire:     { bg: "#EC6A9E", color: "#ffffff" },    // rosa
+    prodotti:    { bg: "#4B2E12", color: "#ffffff" },    // marrone scuro
+  };
 
   return (
     <>
       <TopBar slug={slug} />
+
       <main className="min-h-screen bg-white pt-14">
-        {/* Pillole: orizzontali su mobile, griglia su desktop */}
-        <section className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
-          {/* mobile scroll */}
-          <div className="flex gap-2 overflow-x-auto pb-2 sm:hidden" style={{ WebkitOverflowScrolling: "touch" }}>
-            <Pill to={`/borghi/${slug}/eventi`}          icon={CalendarDays} label="Eventi e Sagre" />
-            <Pill to={`/borghi/${slug}/esperienze-itinerari`} icon={Route}      label="Esperienze e Itinerari" />
-            <Pill to={`/borghi/${slug}/prodotti-tipici`} icon={ShoppingBag}    label="Prodotti Tipici" />
-            <Pill to={`/borghi/${slug}/artigiani`}       icon={Hammer}         label="Artigiani" />
-            <Pill to={`/borghi/${slug}/mangiare-bere`}   icon={Utensils}       label="Dove Mangiare" />
-            <Pill to={`/borghi/${slug}/dormire`}         icon={BedDouble}      label="Dove Dormire" />
-            <Pill to={`/borghi/${slug}/cosa-fare`}       icon={ListIcon}       label="Cosa Fare" />
-            <Pill to={`/borghi/${slug}/trasporti`}       icon={Bus}            label="Trasporti" />
-          </div>
-          {/* desktop grid */}
-          <div className="hidden grid-cols-4 gap-2 sm:grid">
-            <Pill to={`/borghi/${slug}/eventi`}          icon={CalendarDays} label="Eventi e Sagre" />
-            <Pill to={`/borghi/${slug}/esperienze-itinerari`} icon={Route}   label="Esperienze e Itinerari" />
-            <Pill to={`/borghi/${slug}/prodotti-tipici`} icon={ShoppingBag}  label="Prodotti Tipici" />
-            <Pill to={`/borghi/${slug}/artigiani`}       icon={Hammer}       label="Artigiani" />
-            <Pill to={`/borghi/${slug}/mangiare-bere`}   icon={Utensils}     label="Dove Mangiare" />
-            <Pill to={`/borghi/${slug}/dormire`}         icon={BedDouble}    label="Dove Dormire" />
-            <Pill to={`/borghi/${slug}/cosa-fare`}       icon={ListIcon}     label="Cosa Fare" />
-            <Pill to={`/borghi/${slug}/trasporti`}       icon={Bus}          label="Trasporti" />
+        {/* PALLINE (mobile scroll, desktop con separatori) */}
+        <section className="mx-auto max-w-6xl px-4 py-2 sm:px-6">
+          <div className="flex items-center gap-1 overflow-x-auto pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
+            <Dot to={`/borghi/${slug}`} icon={Home} label="Home borgo" {...colors.home} />
+            <Divider />
+            <Dot to={`/borghi/${slug}/cosa-fare`} icon={ListIcon} label="Cosa fare" {...colors.cosafare} />
+            <Divider />
+            <Dot to={`/borghi/${slug}/mangiare-bere`} icon={Utensils} label="Mangiare" {...colors.mangiare} />
+            <Divider />
+            <Dot to={`/borghi/${slug}/eventi`} icon={CalendarDays} label="Eventi e Sagre" {...colors.eventi} />
+            <Divider />
+            <Dot to={`/borghi/${slug}/artigiani`} icon={Hammer} label="Artigiani" {...colors.artigiani} />
+            <Divider />
+            <Dot to={`/borghi/${slug}/trasporti`} icon={Bus} label="Trasporti" {...colors.trasporti} />
+            <Divider />
+            <Dot to={`/borghi/${slug}/esperienze`} icon={Route} label="Esperienze" {...colors.esperienze} />
+            <Divider />
+            <Dot to={`/borghi/${slug}/dormire`} icon={BedDouble} label="Dormire" {...colors.dormire} />
+            <Divider />
+            <Dot to={`/borghi/${slug}/prodotti-tipici`} icon={ShoppingBag} label="Prodotti tipici" {...colors.prodotti} />
           </div>
         </section>
 
-        {/* Header + filtri sticky */}
+        {/* Header compatto */}
         <section className="border-t bg-[#FAF5E0]">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-            <div>
-              <h1 className="text-xl font-extrabold text-[#6B271A]">
-                {contentType === "itinerari" ? "Itinerari" : "Esperienze"} a {title}
-              </h1>
-              <p className="text-sm text-neutral-700">Passeggiate, musei, natura, itinerari e altro ancora.</p>
-            </div>
-            <a
-              href={mapsUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="hidden rounded-full border bg-white px-3 py-2 text-sm font-semibold text-[#6B271A] shadow-sm hover:bg-neutral-50 md:inline-flex"
-            >
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2 sm:px-6">
+            <h1 className="text-base sm:text-lg font-extrabold text-[#6B271A]">
+              {contentType === "itinerari" ? "Itinerari" : "Esperienze"} a {title}
+            </h1>
+            <a href={mapsUrl} target="_blank" rel="noreferrer" className="hidden rounded-full border bg-white px-3 py-1.5 text-sm font-semibold text-[#6B271A] shadow-sm hover:bg-neutral-50 md:inline-flex">
               Apri mappa
             </a>
           </div>
 
+          {/* FILTRI orizzontali compatti */}
           <div className="sticky top-14 z-40 border-t border-[#E9DEC7] bg-[#FAF5E0]">
-            <div className="mx-auto grid max-w-6xl grid-cols-2 gap-2 px-4 py-2 sm:grid-cols-6 sm:px-6">
-              {/* Tipo (nuovo filtro) */}
-              <div className="relative">
-                <label className="mb-1 block text-xs font-semibold text-[#6B271A]">Tipo</label>
-                <select
-                  value={contentType}
-                  onChange={(e) => setContentType(e.target.value)}
-                  className="w-full appearance-none rounded-full border bg-white px-3 py-1.5 pr-8 text-sm text-[#6B271A] focus:border-[#6B271A]"
-                >
-                  <option value="all">Tutti</option>
-                  <option value="esperienze">Esperienze (acquistabili)</option>
-                  <option value="itinerari">Itinerari (Comune)</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-[30px] h-4 w-4 text-neutral-500" />
-              </div>
-
-              {/* Conteggio risultati */}
-              <div className="col-span-1 flex items-end">
-                <div className="rounded-full border bg-white px-3 py-1.5 text-sm font-semibold text-[#6B271A]">
-                  {resultsCount} {resultsCount === 1 ? "risultato" : "risultati"}
+            <div className="mx-auto max-w-6xl px-4 sm:px-6">
+              <div className="flex items-center gap-2 overflow-x-auto py-2" style={{ WebkitOverflowScrolling: "touch" }}>
+                {/* Tipo */}
+                <div className="inline-flex h-9 shrink-0 items-center rounded-full border bg-white p-0.5 shadow-sm">
+                  {[
+                    { v: "all", l: "Tutti" },
+                    { v: "esperienze", l: "Esperienze" },
+                    { v: "itinerari", l: "Itinerari" },
+                  ].map(({ v, l }) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setContentType(v)}
+                      className={`px-3 text-sm font-semibold rounded-full ${contentType === v ? "bg-[#FAF5E0] text-[#6B271A]" : "text-[#6B271A]/80 hover:bg-neutral-50"}`}
+                      aria-pressed={contentType === v}
+                    >
+                      {l}
+                    </button>
+                  ))}
                 </div>
-              </div>
 
-              {/* Prezzo */}
-              <div className="relative">
-                <label className="mb-1 block text-xs font-semibold text-[#6B271A]">Prezzo</label>
-                <select
-                  value={priceBand}
-                  onChange={(e) => setPriceBand(e.target.value)}
-                  className="w-full appearance-none rounded-full border bg-white px-8 py-1.5 pr-8 text-sm text-[#6B271A] focus:border-[#6B271A]"
-                >
-                  <option value="all">Tutti</option>
-                  <option value="lt50">&lt; 50 €</option>
-                  <option value="50-100">50–100 €</option>
-                  <option value="100-250">100–250 €</option>
-                  <option value="gt250">&gt; 250 €</option>
-                </select>
-                <SlidersHorizontal className="pointer-events-none absolute left-2 top-[30px] h-4 w-4 text-neutral-500" />
-                <ChevronDown className="pointer-events-none absolute right-2 top-[30px] h-4 w-4 text-neutral-500" />
-              </div>
-
-              {/* Partner */}
-              <div className="relative">
-                <label className="mb-1 block text-xs font-semibold text-[#6B271A]">Partner</label>
-                <select
+                {/* Partner dropdown chip */}
+                <DropdownChip
+                  label="Partner"
                   value={partner}
-                  onChange={(e) => setPartner(e.target.value)}
-                  className="w-full appearance-none rounded-full border bg-white px-3 py-1.5 pr-8 text-sm text-[#6B271A] focus:border-[#6B271A]"
-                >
-                  <option value="all">Tutti</option>
-                  <option value="getyourguide">GetYourGuide</option>
-                  <option value="viator">Viator</option>
-                  <option value="musement">Musement</option>
-                  <option value="freedome">Freedome</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-[30px] h-4 w-4 text-neutral-500" />
-              </div>
+                  onChange={setPartner}
+                  items={[
+                    { value: "all", label: "Tutti i partner" },
+                    { value: "getyourguide", label: "GetYourGuide" },
+                    { value: "viator", label: "Viator" },
+                    { value: "musement", label: "Musement" },
+                    { value: "freedome", label: "Freedome" },
+                  ]}
+                />
 
-              {/* Durata */}
-              <div className="relative">
-                <label className="mb-1 block text-xs font-semibold text-[#6B271A]">Durata</label>
-                <select
+                {/* Select chip: Prezzo, Durata, Ordina */}
+                <SelectChip
+                  label="Prezzo"
+                  value={priceBand}
+                  onChange={setPriceBand}
+                  options={[
+                    { value: "all", label: "Prezzo: tutti" },
+                    { value: "lt50", label: "< 50 €" },
+                    { value: "50-100", label: "50–100 €" },
+                    { value: "100-250", label: "100–250 €" },
+                    { value: "gt250", label: "> 250 €" },
+                  ]}
+                />
+                <SelectChip
+                  label="Durata"
                   value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  className="w-full appearance-none rounded-full border bg-white px-3 py-1.5 pr-8 text-sm text-[#6B271A] focus:border-[#6B271A]"
-                >
-                  <option value="all">Tutte</option>
-                  <option value="le2">fino a 2 ore</option>
-                  <option value="2-4">2–4 ore</option>
-                  <option value="day">mezza/1 giornata</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-[30px] h-4 w-4 text-neutral-500" />
-              </div>
-
-              {/* Ordina */}
-              <div className="relative">
-                <label className="mb-1 block text-xs font-semibold text-[#6B271A]">Ordina per</label>
-                <select
+                  onChange={setDuration}
+                  options={[
+                    { value: "all", label: "Durata: tutte" },
+                    { value: "le2", label: "≤ 2 ore" },
+                    { value: "2-4", label: "2–4 ore" },
+                    { value: "day", label: "mezza/1 giornata" },
+                  ]}
+                />
+                <SelectChip
+                  label="Ordina per"
                   value={order}
-                  onChange={(e) => setOrder(e.target.value)}
-                  className="w-full appearance-none rounded-full border bg-white px-3 py-1.5 pr-8 text-sm text-[#6B271A] focus:border-[#6B271A]"
-                >
-                  <option value="auto">Automatico</option>
-                  <option value="priceAsc">Prezzo crescente</option>
-                  <option value="priceDesc">Prezzo decrescente</option>
-                  <option value="az">A → Z</option>
-                  <option value="rating">Valutazione</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-[30px] h-4 w-4 text-neutral-500" />
+                  onChange={setOrder}
+                  options={[
+                    { value: "auto", label: "Ordina: automatico" },
+                    { value: "priceAsc", label: "Prezzo ↑" },
+                    { value: "priceDesc", label: "Prezzo ↓" },
+                    { value: "az", label: "A → Z" },
+                    { value: "rating", label: "Valutazione" },
+                  ]}
+                />
               </div>
             </div>
           </div>
         </section>
 
-        {/* Risultati */}
-        <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        {/* Conteggio risultati minimal sopra la griglia */}
+        <div className="mx-auto max-w-6xl px-4 pt-4 text-sm text-neutral-600 sm:px-6">
+          {resultsCount} {resultsCount === 1 ? "risultato" : "risultati"}
+        </div>
+
+        {/* Griglia risultati */}
+        <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
           {filtered.length === 0 ? (
             <div className="rounded-2xl border bg-white p-6 text-center text-neutral-700">
               Nessun risultato con i filtri selezionati.
@@ -518,21 +540,13 @@ export default function Esperienze() {
           )}
         </section>
 
-        {/* Link rapidi */}
+        {/* Footer link rapidi */}
         <section className="mx-auto max-w-6xl px-4 pb-10 sm:px-6">
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              to={`/borghi/${slug}`}
-              className="rounded-full border px-3 py-2 text-sm font-semibold text-[#6B271A] hover:bg-neutral-50"
-            >
+            <Link to={`/borghi/${slug}`} className="rounded-full border px-3 py-2 text-sm font-semibold text-[#6B271A] hover:bg-neutral-50">
               ← Torna alla pagina del borgo
             </Link>
-            <a
-              href={mapsUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-full border px-3 py-2 text-sm font-semibold text-[#6B271A] hover:bg-neutral-50"
-            >
+            <a href={mapsUrl} target="_blank" rel="noreferrer" className="rounded-full border px-3 py-2 text-sm font-semibold text-[#6B271A] hover:bg-neutral-50">
               Apri su Google Maps
             </a>
           </div>

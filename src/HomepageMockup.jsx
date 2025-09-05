@@ -7,7 +7,7 @@ import {
   listLatestVideos,
   getCreator,
   createThread,
-  searchNavigateTarget, // <-- import esistente
+  searchNavigateTarget, // import esistente
 } from "./lib/store";
 import { BORGI_INDEX, BORGI_BY_SLUG } from "./data/borghi";
 
@@ -23,8 +23,7 @@ export default function HomepageMockup() {
     e.currentTarget.src = FALLBACK_IMG;
   };
 
-  const [expanded, setExpanded] = useState(false); // eventi
-  const [creatorsExpanded, setCreatorsExpanded] = useState(false); // <-- creators
+  const [expanded, setExpanded] = useState(false); // eventi (resta, ma togliamo toggle UI)
   const [query, setQuery] = useState("");
   const servicesRef = useRef(null);
 
@@ -139,34 +138,41 @@ export default function HomepageMockup() {
     );
   }
 
-  const ServiceTile = ({ img, label, icon: Icon, count }) => (
-    <a
-      href="#"
-      className="group relative w-56 h-32 sm:w-64 sm:h-36 rounded-2xl overflow-hidden shadow-lg ring-1 ring-[#E1B671]/60 hover:ring-[#D54E30] transition"
+  const ServiceTile = ({ img, label, icon: Icon, count, href = "#" }) => (
+    <Link
+      to={href}
+      className="group relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition ring-1 ring-[#E1B671]/70 bg-white"
+      style={{ contain: "content" }}
     >
-      <img
-        loading="lazy"
-        src={img}
-        alt={label}
-        className="absolute inset-0 w-full h-full object-cover duration-300 group-hover:scale-105"
-        onError={handleImgError}
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/20 to-transparent"></div>
-      <div className="absolute top-2 left-2 flex items-center gap-2">
-        {Icon ? <Icon size={20} className="text-white drop-shadow" /> : null}
-        {typeof count !== "undefined" ? (
-          <span className="text-[12px] font-semibold text-white bg-[#D54E30]/90 rounded-full px-2 py-0.5 shadow">
-            {count}
-          </span>
-        ) : null}
+      <div className="absolute inset-0">
+        <img
+          loading="lazy"
+          src={img}
+          alt={label}
+          className="w-full h-full object-cover duration-300 group-hover:scale-105"
+          onError={handleImgError}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
       </div>
-      <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-white">
-        <span className="text-lg font-extrabold drop-shadow">{label}</span>
-        <span className="opacity-0 group-hover:opacity-100 text-[12px] bg-white/25 backdrop-blur px-2 py-0.5 rounded-full transition">
+      <div className="relative p-5 sm:p-6 h-full flex flex-col justify-end">
+        <div className="flex items-center gap-2">
+          {Icon ? (
+            <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white/15 backdrop-blur">
+              <Icon size={22} className="text-white drop-shadow" />
+            </span>
+          ) : null}
+          {typeof count !== "undefined" ? (
+            <span className="text-[12px] font-semibold text-white bg-[#D54E30]/90 rounded-full px-2 py-0.5 shadow">
+              {count}
+            </span>
+          ) : null}
+        </div>
+        <h3 className="mt-2 text-2xl sm:text-3xl font-extrabold text-white drop-shadow">{label}</h3>
+        <span className="mt-1 inline-block text-[12px] text-white/90 bg-white/15 backdrop-blur px-2 py-0.5 rounded-full w-max opacity-0 group-hover:opacity-100 transition">
           Scopri →
         </span>
       </div>
-    </a>
+    </Link>
   );
 
   const BorgoTile = ({ img, name, to }) => (
@@ -184,7 +190,7 @@ export default function HomepageMockup() {
     </Link>
   );
 
-  /* -------- Event Cards -------- */
+  /* -------- Event Cards (demo) -------- */
 
   function EventBadgeRow({ type = "Sagra", dateText = "28 AGO – 5 SET 2025", extra = null }) {
     return (
@@ -266,7 +272,7 @@ export default function HomepageMockup() {
         "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop",
       ]}
       title="Apulia Suona 2025"
-        place="Barletta (BT) | Puglia"
+      place="Barletta (BT) | Puglia"
       time="Ore 21:00"
     />
   );
@@ -428,20 +434,14 @@ export default function HomepageMockup() {
     id: i + 1,
     img: `https://dummyimage.com/160x64/FAF5E0/6B271A&text=Partner+${i + 1}`,
   }));
-  const partnersLoop = [...partners, ...partners];
 
   // === Video dei creator (homepage) ===
-  const latestVideos = listLatestVideos(24); // prendiamo più elementi, mostriamo 4 e poi espandiamo
+  const latestVideos = listLatestVideos(24);
 
-  // --- Video Creator: carosello mobile (frecce) ---
-  const creatorsRef = useRef(null);
-  const scrollCreators = (dir = 1) => {
-    const el = creatorsRef.current;
-    if (!el) return;
-    const firstCard = el.querySelector("[data-creator-card]");
-    const gap = 16; // tailwind gap-4
-    const step = (firstCard?.offsetWidth || 300) + gap;
-    el.scrollBy({ left: dir * step, behavior: "smooth" });
+  // --- Helpers carosello generico (per servizi/creator/prodotti ecc.) ---
+  const scrollByStep = (containerEl, stepPx = 320, dir = 1) => {
+    if (!containerEl) return;
+    containerEl.scrollBy({ left: dir * stepPx, behavior: "smooth" });
   };
 
   return (
@@ -486,98 +486,106 @@ export default function HomepageMockup() {
         {/* HERO */}
         <HeroHeader />
 
-        {/* SERVIZI */}
+        {/* SERVIZI — in evidenza / Mobile: 1.5 card visibili */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
-          <h2 className="text-lg font-extrabold text-[#6B271A]">Servizi</h2>
-          {/* Mobile */}
-          <div className="relative mt-3 md:hidden">
-            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent rounded-l-2xl"></div>
-            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent rounded-r-2xl"></div>
-            <div className="flex gap-5 overflow-x-auto no-scrollbar snap-x snap-mandatory pr-10" ref={servicesRef}>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-extrabold text-[#6B271A]">Servizi</h2>
+          </div>
+
+          {/* Mobile: carosello 1.5 card */}
+          <div className="mt-4 relative md:hidden">
+            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent rounded-l-2xl" />
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent rounded-r-2xl" />
+
+            <div
+              ref={servicesRef}
+              className="flex gap-5 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+              <div className="min-w-[66%]">
+                <ServiceTile
+                  img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1400&auto=format&fit=crop"
+                  label="Esperienze"
+                  icon={Utensils}
+                  count={238}
+                  href="#"
+                />
+              </div>
+              <div className="min-w-[66%]">
+                <ServiceTile
+                  img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1400&auto=format&fit=crop"
+                  label="Prodotti tipici"
+                  icon={Gift}
+                  count={120}
+                  href="#"
+                />
+              </div>
+              <div className="min-w-[66%]">
+                <ServiceTile
+                  img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1400&auto=format&fit=crop"
+                  label="Noleggio auto"
+                  icon={Car}
+                  count={46}
+                  href="#"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop: 3 card grandi */}
+          <div className="mt-5 hidden md:grid grid-cols-3 gap-6">
+            <div className="h-56">
               <ServiceTile
-                img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=900&auto=format&fit=crop"
+                img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1600&auto=format&fit=crop"
                 label="Esperienze"
                 icon={Utensils}
                 count={238}
+                href="#"
               />
+            </div>
+            <div className="h-56">
               <ServiceTile
-                img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=900&auto=format&fit=crop"
+                img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1600&auto=format&fit=crop"
                 label="Prodotti tipici"
                 icon={Gift}
                 count={120}
+                href="#"
               />
+            </div>
+            <div className="h-56">
               <ServiceTile
-                img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=900&auto=format&fit=crop"
+                img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1600&auto=format&fit=crop"
                 label="Noleggio auto"
                 icon={Car}
                 count={46}
+                href="#"
               />
             </div>
           </div>
-          {/* Desktop */}
-          <div className="hidden md:grid grid-cols-3 gap-5 mt-3">
-            <ServiceTile
-              img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1200&auto=format&fit=crop"
-              label="Esperienze"
-              icon={Utensils}
-              count={238}
-            />
-            <ServiceTile
-              img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1200&auto=format&fit=crop"
-              label="Prodotti tipici"
-              icon={Gift}
-              count={120}
-            />
-            <ServiceTile
-              img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1200&auto=format&fit=crop"
-              label="Noleggio auto"
-              icon={Car}
-              count={46}
-            />
-          </div>
         </section>
 
-        {/* VIDEO DEI CREATOR — mobile carosello / desktop 4 + espansione */}
+        {/* VIDEO DEI CREATOR — Mobile: carosello / Desktop: max 4. Header: solo Vedi tutti */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Video dei creator</h2>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setCreatorsExpanded((v) => !v)}
-                className="text-sm font-semibold underline"
-                aria-expanded={creatorsExpanded}
-              >
-                {creatorsExpanded ? "Mostra meno" : "Guarda tutto"}
-              </button>
-              <Link
-                to="/creator"
-                className="text-sm font-semibold underline"
-                aria-label="Vedi tutti i creator"
-              >
-                Vedi tutti
-              </Link>
-            </div>
+            <Link to="/creator" className="text-sm font-semibold underline" aria-label="Vedi tutti i creator">
+              Vedi tutti
+            </Link>
           </div>
 
-          {/* Mobile: carosello orizzontale con frecce + swipe attivo */}
-          <div className="mt-4 relative md:hidden">
-            <div
-              ref={creatorsRef}
-              className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4"
-              style={{ WebkitOverflowScrolling: "touch" }}
-              aria-label="Carosello video dei creator"
-            >
+          {/* Mobile: carosello con swipe (come altre sezioni) */}
+          <div className="mt-4 md:hidden">
+            <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4" style={{ WebkitOverflowScrolling: "touch" }}>
               {latestVideos.map((v) => {
                 const c = getCreator(v.creatorId);
                 const name = v.creatorName || c?.name || "Creator";
                 const level = v.level || c?.level || "—";
                 const idTo = v.creatorId || v.id;
+                const borgo = BORGI_BY_SLUG[v.borgoSlug];
 
                 return (
                   <article
                     key={v.id}
-                    data-creator-card
                     className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition min-w-[300px] max-w-[300px] flex-shrink-0 snap-start"
                   >
                     <div className="aspect-[16/9] overflow-hidden">
@@ -596,13 +604,19 @@ export default function HomepageMockup() {
                           {level}
                         </span>
                       </div>
-                      <div className="mt-3">
+                      {borgo ? (
+                        <div className="mt-1 flex items-center gap-2 text-sm text-gray-700">
+                          <MapPin size={16} className="text-[#D54E30]" /> {borgo.name}
+                        </div>
+                      ) : null}
+                      <div className="mt-3 flex items-center justify-end">
                         <Link
                           to={`/chat?to=${encodeURIComponent(idTo)}`}
                           aria-label={`Contatta ${name}`}
-                          className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-[#D54E30] text-white text-sm font-semibold"
+                          className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#D54E30] text-white"
+                          title="Contatta"
                         >
-                          Contatta
+                          <User size={18} />
                         </Link>
                       </div>
                     </div>
@@ -615,43 +629,19 @@ export default function HomepageMockup() {
                 </div>
               )}
             </div>
-
-            {/* Frecce sovrapposte (tap ≥ 44px) */}
-            <button
-              type="button"
-              onClick={() => scrollCreators(-1)}
-              aria-label="Scorri indietro"
-              className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-11 h-11 grid place-items-center rounded-full bg-white/90 border shadow"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollCreators(1)}
-              aria-label="Scorri avanti"
-              className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-11 h-11 grid place-items-center rounded-full bg-white/90 border shadow"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
           </div>
 
-          {/* Desktop: griglia 4 colonne. Se non espanso → mostra solo 4; se espanso → tutti */}
+          {/* Desktop: griglia 4 (massimo 4 visibili) */}
           <div className="mt-4 hidden md:grid grid-cols-4 gap-5">
-            {(creatorsExpanded ? latestVideos : latestVideos.slice(0, 4)).map((v) => {
+            {latestVideos.slice(0, 4).map((v) => {
               const c = getCreator(v.creatorId);
               const name = v.creatorName || c?.name || "Creator";
               const level = v.level || c?.level || "—";
               const idTo = v.creatorId || v.id;
+              const borgo = BORGI_BY_SLUG[v.borgoSlug];
 
               return (
-                <article
-                  key={v.id}
-                  className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition w-full"
-                >
+                <article key={v.id} className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition w-full">
                   <div className="aspect-[16/9] overflow-hidden">
                     <img
                       src={v.thumbnail || v.cover || FALLBACK_IMG}
@@ -668,13 +658,19 @@ export default function HomepageMockup() {
                         {level}
                       </span>
                     </div>
-                    <div className="mt-3">
+                    {borgo ? (
+                      <div className="mt-1 flex items-center gap-2 text-sm text-gray-700">
+                        <MapPin size={16} className="text-[#D54E30]" /> {borgo.name}
+                      </div>
+                    ) : null}
+                    <div className="mt-3 flex items-center justify-end">
                       <Link
                         to={`/chat?to=${encodeURIComponent(idTo)}`}
                         aria-label={`Contatta ${name}`}
-                        className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-[#D54E30] text-white text-sm font-semibold"
+                        className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#D54E30] text-white"
+                        title="Contatta"
                       >
-                        Contatta
+                        <User size={18} />
                       </Link>
                     </div>
                   </div>
@@ -686,79 +682,49 @@ export default function HomepageMockup() {
 
         {/* BORGHIDASCOPRIRE */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
-          <h2 className="text-lg font-extrabold text-[#6B271A]">Borghi da scoprire…</h2>
-          <div className="mt-3 flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-extrabold text-[#6B271A]">Borghi da scoprire…</h2>
+            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
+          </div>
+          <div className="mt-3 flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
             {BORGI_INDEX.map((b) => (
               <BorgoTile key={b.slug} img={b.hero} name={b.name} to={`/borghi/${b.slug}`} />
             ))}
           </div>
         </section>
 
-        {/* PROSSIMI EVENTI & SAGRE */}
+        {/* PROSSIMI EVENTI & SAGRE (header solo Vedi tutti) */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Prossimi eventi e sagre</h2>
-            <a href="#" className="text-sm font-semibold underline flex items-center gap-1">
-              Vedi tutti
-            </a>
-          </div>
-          <div className="mt-3 flex items-center justify-between">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar md:flex-wrap md:overflow-visible text-xs">
-              <span className="px-2.5 py-1 rounded-full bg-[#FAF5E0] text-[#6B271A] font-semibold whitespace-nowrap">
-                Quando: Questo weekend ✕
-              </span>
-              <span className="px-2.5 py-1 rounded-full bg-[#FAF5E0] text-[#6B271A] font-semibold whitespace-nowrap">
-                Distanza: 50 km ✕
-              </span>
-            </div>
-            <button
-              className="text-sm font-semibold underline shrink-0 ml-3"
-              onClick={() => setExpanded(!expanded)}
-              aria-expanded={expanded}
-              data-event="toggle_view"
-            >
-              {expanded ? "Mostra meno" : "Guarda tutti"}
-            </button>
+            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
           </div>
 
-          {expanded ? (
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              <CardSagra />
-              <CardConcerto />
-              <CardFiera />
-              <CardSagraAnnullata />
-              <CardConcerto />
-              <CardFiera />
-            </div>
-          ) : (
-            <div className="mt-4 flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory">
-              <div className="min-w-[280px] max-w-[280px] flex-shrink-0">
-                <CardSagra />
-              </div>
-              <div className="min-w-[280px] max-w-[280px] flex-shrink-0">
-                <CardSagraAnnullata />
-              </div>
-              <div className="min-w-[280px] max-w-[280px] flex-shrink-0">
-                <CardFiera />
-              </div>
-              <div className="min-w-[280px] max-w-[280px] flex-shrink-0">
-                <CardConcerto />
-              </div>
-            </div>
-          )}
+          {/* Mobile: carosello */}
+          <div className="mt-4 flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory md:hidden" style={{ WebkitOverflowScrolling: "touch" }}>
+            <div className="min-w-[280px] max-w-[280px] flex-shrink-0 snap-start"><CardSagra /></div>
+            <div className="min-w-[280px] max-w-[280px] flex-shrink-0 snap-start"><CardSagraAnnullata /></div>
+            <div className="min-w-[280px] max-w-[280px] flex-shrink-0 snap-start"><CardFiera /></div>
+            <div className="min-w-[280px] max-w-[280px] flex-shrink-0 snap-start"><CardConcerto /></div>
+          </div>
+
+          {/* Desktop: griglia */ }
+          <div className="mt-4 hidden md:grid grid-cols-3 gap-4">
+            <CardSagra />
+            <CardConcerto />
+            <CardFiera />
+          </div>
         </section>
 
-        {/* ESPERIENZE CONSIGLIATE */}
+        {/* ESPERIENZE CONSIGLIATE (header solo Vedi tutti) */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Esperienze consigliate</h2>
-            <a href="#" className="text-sm font-semibold underline flex items-center gap-1">
-              Vedi tutte
-            </a>
+            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
           </div>
 
           {/* Mobile */}
-          <div className="mt-5 md:hidden flex gap-5 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory">
+          <div className="mt-5 md:hidden flex gap-5 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
             {[
               {
                 images: [
@@ -874,11 +840,9 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Prodotti tipici</h2>
-            <a href="#" className="text-sm font-semibold underline flex items-center gap-1">
-              Vedi tutti
-            </a>
+            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
           </div>
-          <div className="mt-4 flex gap-5 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory">
+          <div className="mt-4 flex gap-5 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
             {[
               {
                 img: "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=1200&auto=format&fit=crop",
@@ -920,6 +884,7 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">I nostri partner</h2>
+            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
           </div>
           <div className="relative mt-3">
             <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent rounded-l-2xl"></div>
@@ -930,6 +895,7 @@ export default function HomepageMockup() {
               onMouseEnter={() => setPartnersPaused(true)}
               onMouseLeave={() => setPartnersPaused(false)}
               className="flex gap-4 overflow-x-auto no-scrollbar items-center py-2"
+              style={{ WebkitOverflowScrolling: "touch" }}
             >
               {[...Array(20)].map((_, idx) => (
                 <div key={idx} className="shrink-0">

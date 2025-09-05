@@ -82,6 +82,29 @@ const SearchResults = lazy(() => import("./pages/SearchResults"));
 const POIDetail = lazy(() => import("./pages/POIDetail"));
 const HomeBorgo = lazy(() => import("./pages/HomeBorgo"));
 
+// Nuove pagine figlio borgo
+const Esperienze = lazy(() => import("./pages/Esperienze")); // <-- appena creata
+
+/* =======================
+   Placeholder semplici per le altre pillole
+   (rotte funzionanti subito, pagine reali dopo)
+   ======================= */
+function SectionPlaceholder({ title, note }) {
+  return (
+    <main style={{ padding: "24px" }}>
+      <h1 style={{ margin: 0, color: "#6B271A" }}>{title}</h1>
+      <p style={{ marginTop: 8, color: "#374151" }}>
+        {note || "Sezione in preparazione. Questa rotta è attiva per i test di navigazione."}
+      </p>
+      <div style={{ marginTop: 16 }}>
+        <a href="/" style={{ color: "#6B271A", textDecoration: "underline" }}>
+          ← Torna alla Home
+        </a>
+      </div>
+    </main>
+  );
+}
+
 /* =======================
    Router
    ======================= */
@@ -185,10 +208,7 @@ export default function App() {
           />
 
           {/* Creator: Onboarding + alias area personale */}
-          <Route
-            path="/creator/onboarding"
-            element={<Navigate to="/creator/me" replace />}
-          />
+          <Route path="/creator/onboarding" element={<Navigate to="/creator/me" replace />} />
           <Route
             path="/creator/me"
             element={
@@ -238,6 +258,16 @@ export default function App() {
               </RouteErrorBoundary>
             }
           />
+
+          {/* Dettaglio POI – nuova rotta corretta e legacy */}
+          <Route
+            path="/borghi/:slug/poi/:id"
+            element={
+              <RouteErrorBoundary>
+                <POIDetail />
+              </RouteErrorBoundary>
+            }
+          />
           <Route
             path="/poi/:slug"
             element={
@@ -246,11 +276,89 @@ export default function App() {
               </RouteErrorBoundary>
             }
           />
+
+          {/* Home Borgo */}
           <Route
             path="/borghi/:slug"
             element={
               <RouteErrorBoundary>
                 <HomeBorgo />
+              </RouteErrorBoundary>
+            }
+          />
+
+          {/* Figlie del borgo (pillole) */}
+          <Route
+            path="/borghi/:slug/esperienze"
+            element={
+              <RouteErrorBoundary>
+                <Esperienze />
+              </RouteErrorBoundary>
+            }
+          />
+
+          {/* Placeholder per le altre pillole (attivi da subito) */}
+          <Route
+            path="/borghi/:slug/eventi"
+            element={
+              <RouteErrorBoundary>
+                <SectionPlaceholder title="Eventi e Sagre" />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/borghi/:slug/prodotti-tipici"
+            element={
+              <RouteErrorBoundary>
+                <SectionPlaceholder title="Prodotti Tipici" />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/borghi/:slug/artigiani"
+            element={
+              <RouteErrorBoundary>
+                <SectionPlaceholder title="Artigiani" />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/borghi/:slug/mangiare-bere"
+            element={
+              <RouteErrorBoundary>
+                <SectionPlaceholder title="Dove Mangiare" />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/borghi/:slug/dormire"
+            element={
+              <RouteErrorBoundary>
+                <SectionPlaceholder title="Dove Dormire" />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/borghi/:slug/cosa-fare"
+            element={
+              <RouteErrorBoundary>
+                <SectionPlaceholder title="Cosa Fare" />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/borghi/:slug/info-utili"
+            element={
+              <RouteErrorBoundary>
+                <SectionPlaceholder title="Info Utili" />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/borghi/:slug/video"
+            element={
+              <RouteErrorBoundary>
+                <SectionPlaceholder title="Video del borgo" />
               </RouteErrorBoundary>
             }
           />

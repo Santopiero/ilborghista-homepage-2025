@@ -7,7 +7,7 @@ import {
   listLatestVideos,
   getCreator,
   createThread,
-  searchNavigateTarget, // <-- PATCH: import funzione ricerca
+  searchNavigateTarget, // <-- import esistente
 } from "./lib/store";
 import { BORGI_INDEX, BORGI_BY_SLUG } from "./data/borghi";
 
@@ -23,7 +23,8 @@ export default function HomepageMockup() {
     e.currentTarget.src = FALLBACK_IMG;
   };
 
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(false); // eventi
+  const [creatorsExpanded, setCreatorsExpanded] = useState(false); // <-- creators
   const [query, setQuery] = useState("");
   const servicesRef = useRef(null);
 
@@ -55,7 +56,7 @@ export default function HomepageMockup() {
     return () => clearInterval(id);
   }, [partnersPaused]);
 
-  /* ------------------- PATCH: handler ricerca ------------------- */
+  /* ------------------- Ricerca ------------------- */
   function handleSearch(e) {
     e?.preventDefault?.();
     const target = searchNavigateTarget(query);
@@ -120,7 +121,6 @@ export default function HomepageMockup() {
           ))}
         </div>
 
-        {/* Dots (niente frecce) */}
         {images.length > 1 && (
           <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-2">
             {images.map((_, i) => (
@@ -266,7 +266,7 @@ export default function HomepageMockup() {
         "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop",
       ]}
       title="Apulia Suona 2025"
-      place="Barletta (BT) | Puglia"
+        place="Barletta (BT) | Puglia"
       time="Ore 21:00"
     />
   );
@@ -291,7 +291,6 @@ export default function HomepageMockup() {
 
   /* -------- Esperienze -------- */
 
-  // FIX accavallamento: larghezza fissa solo nello scorrimento mobile; in grid → w-full
   const ExperienceCard = ({
     images,
     title,
@@ -299,7 +298,7 @@ export default function HomepageMockup() {
     region,
     meta,
     priceFrom,
-    fixedWidth = true, // <-- default per il carosello mobile
+    fixedWidth = true, // mobile: card fissa per carosello
   }) => (
     <article
       className={`overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white ${
@@ -432,7 +431,18 @@ export default function HomepageMockup() {
   const partnersLoop = [...partners, ...partners];
 
   // === Video dei creator (homepage) ===
-  const latestVideos = listLatestVideos(6);
+  const latestVideos = listLatestVideos(24); // prendiamo più elementi, mostriamo 4 e poi espandiamo
+
+  // --- Video Creator: carosello mobile (frecce) ---
+  const creatorsRef = useRef(null);
+  const scrollCreators = (dir = 1) => {
+    const el = creatorsRef.current;
+    if (!el) return;
+    const firstCard = el.querySelector("[data-creator-card]");
+    const gap = 16; // tailwind gap-4
+    const step = (firstCard?.offsetWidth || 300) + gap;
+    el.scrollBy({ left: dir * step, behavior: "smooth" });
+  };
 
   return (
     <>
@@ -527,73 +537,150 @@ export default function HomepageMockup() {
           </div>
         </section>
 
-        {/* VIDEO DEI CREATOR */}
+        {/* VIDEO DEI CREATOR — mobile carosello / desktop 4 + espansione */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Video dei creator</h2>
-            <Link to="/creator" className="text-sm font-semibold underline flex items-center gap-1">
-              Vedi tutti
-            </Link>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setCreatorsExpanded((v) => !v)}
+                className="text-sm font-semibold underline"
+                aria-expanded={creatorsExpanded}
+              >
+                {creatorsExpanded ? "Mostra meno" : "Guarda tutto"}
+              </button>
+              <Link
+                to="/creator"
+                className="text-sm font-semibold underline"
+                aria-label="Vedi tutti i creator"
+              >
+                Vedi tutti
+              </Link>
+            </div>
           </div>
-          <div className="mt-4 grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {latestVideos.map((v) => {
-              const b = BORGI_BY_SLUG[v.borgoSlug];
-              const c = getCreator(v.creatorId);
-              return (
-                <article key={v.id} className="overflow-hidden shadow-xl rounded-2xl bg-white">
-                  <div className="aspect-video">
-                    {(() => {
-                      const m = v.url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\\w-]+)/i);
-                      return m ? (
-                        <iframe
-                          className="w-full h-full"
-                          src={`https://www.youtube.com/embed/${m[1]}`}
-                          title={v.title}
-                          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture;"
-                          allowFullScreen
-                        />
-                      ) : (
-                        <a href={v.url} target="_blank" rel="noreferrer" className="block p-3 text-sm underline">
-                          Guarda video
-                        </a>
-                      );
-                    })()}
-                  </div>
-                  <div className="p-4 space-y-1">
-                    <div className="font-extrabold text-[#6B271A]">{v.title}</div>
-                    {b ? (
-                      <Link to={`/borghi/${b.slug}`} className="text-sm text-gray-600 flex items-center gap-2 hover:underline">
-                        <MapPin size={16} className="text-[#D54E30]" /> {b.name}
-                      </Link>
-                    ) : null}
-                    <div className="pt-2 flex items-center justify-between">
-                      <div className="text-sm text-gray-700">
-                        {c ? (
-                          <Link to={`/creator/${c.id}`} className="hover:underline">
-                            di {c.name}
-                          </Link>
-                        ) : (
-                          "di —"
-                        )}
+
+          {/* Mobile: carosello orizzontale con frecce + swipe attivo */}
+          <div className="mt-4 relative md:hidden">
+            <div
+              ref={creatorsRef}
+              className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4"
+              style={{ WebkitOverflowScrolling: "touch" }}
+              aria-label="Carosello video dei creator"
+            >
+              {latestVideos.map((v) => {
+                const c = getCreator(v.creatorId);
+                const name = v.creatorName || c?.name || "Creator";
+                const level = v.level || c?.level || "—";
+                const idTo = v.creatorId || v.id;
+
+                return (
+                  <article
+                    key={v.id}
+                    data-creator-card
+                    className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition min-w-[300px] max-w-[300px] flex-shrink-0 snap-start"
+                  >
+                    <div className="aspect-[16/9] overflow-hidden">
+                      <img
+                        src={v.thumbnail || v.cover || FALLBACK_IMG}
+                        alt={`Video di ${name}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={handleImgError}
+                      />
+                    </div>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-base font-extrabold text-[#6B271A] truncate">{name}</h3>
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] shrink-0">
+                          {level}
+                        </span>
                       </div>
-                      {c ? (
-                        <button
-                          onClick={() => startChat(c.id)}
-                          className="text-sm px-3 py-1.5 rounded-lg bg-[#D54E30] text-white font-semibold"
+                      <div className="mt-3">
+                        <Link
+                          to={`/chat?to=${encodeURIComponent(idTo)}`}
+                          aria-label={`Contatta ${name}`}
+                          className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-[#D54E30] text-white text-sm font-semibold"
                         >
                           Contatta
-                        </button>
-                      ) : null}
+                        </Link>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+              {latestVideos.length === 0 && (
+                <div className="text-sm text-gray-600">
+                  Ancora nessun video. <Link to="/registrazione-creator" className="underline">Diventa creator</Link>.
+                </div>
+              )}
+            </div>
+
+            {/* Frecce sovrapposte (tap ≥ 44px) */}
+            <button
+              type="button"
+              onClick={() => scrollCreators(-1)}
+              aria-label="Scorri indietro"
+              className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-11 h-11 grid place-items-center rounded-full bg-white/90 border shadow"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollCreators(1)}
+              aria-label="Scorri avanti"
+              className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-11 h-11 grid place-items-center rounded-full bg-white/90 border shadow"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+
+          {/* Desktop: griglia 4 colonne. Se non espanso → mostra solo 4; se espanso → tutti */}
+          <div className="mt-4 hidden md:grid grid-cols-4 gap-5">
+            {(creatorsExpanded ? latestVideos : latestVideos.slice(0, 4)).map((v) => {
+              const c = getCreator(v.creatorId);
+              const name = v.creatorName || c?.name || "Creator";
+              const level = v.level || c?.level || "—";
+              const idTo = v.creatorId || v.id;
+
+              return (
+                <article
+                  key={v.id}
+                  className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition w-full"
+                >
+                  <div className="aspect-[16/9] overflow-hidden">
+                    <img
+                      src={v.thumbnail || v.cover || FALLBACK_IMG}
+                      alt={`Video di ${name}`}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={handleImgError}
+                    />
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-base font-extrabold text-[#6B271A] truncate">{name}</h3>
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] shrink-0">
+                        {level}
+                      </span>
+                    </div>
+                    <div className="mt-3">
+                      <Link
+                        to={`/chat?to=${encodeURIComponent(idTo)}`}
+                        aria-label={`Contatta ${name}`}
+                        className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-[#D54E30] text-white text-sm font-semibold"
+                      >
+                        Contatta
+                      </Link>
                     </div>
                   </div>
                 </article>
               );
             })}
-            {latestVideos.length === 0 && (
-              <div className="text-sm text-gray-600">
-                Ancora nessun video. <Link to="/registrazione-creator" className="underline">Diventa creator</Link>.
-              </div>
-            )}
           </div>
         </section>
 

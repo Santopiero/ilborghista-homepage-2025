@@ -6,7 +6,7 @@ import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
 import {
   ChevronLeft, ChevronRight, Share2, Heart, Film, CalendarDays, Route, ShoppingBag,
   List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Info, Search, Menu, X,
-  LogIn, UserPlus, Users, MessageCircle, Mail, CheckCircle2, AlertCircle
+  LogIn, UserPlus, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned
 } from "lucide-react";
 
 /* ========= Helpers ========= */
@@ -39,11 +39,7 @@ function TopBar({ slug }) {
     <>
       <header className="fixed inset-x-0 top-0 z-50 border-b bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
-          <Link
-            to="/"
-            aria-label="Vai alla home di Il Borghista"
-            className="inline-flex items-center"
-          >
+          <Link to="/" aria-label="Vai alla home di Il Borghista" className="inline-flex items-center">
             <span className="text-lg font-extrabold tracking-tight text-[#6B271A]">
               Il Borghista
             </span>
@@ -176,8 +172,42 @@ function HScrollWithArrows({ children, className = "" }) {
   );
 }
 
+/* ========= HERO OVERLAY (BTN mobile + MAPPA desktop) ========= */
+function HeroOverlay({ mapsUrl }) {
+  return (
+    <div className="absolute left-4 right-4 top-16 z-20 flex items-start justify-between">
+      {/* Bottone mobile */}
+      <a
+        href={mapsUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="md:hidden inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-sm font-semibold text-[#6B271A] shadow ring-1 ring-black/5 hover:bg-white"
+      >
+        <MapPinned className="h-4 w-4" />
+        Apri mappa
+      </a>
+
+      {/* Mappa desktop (piccola card) */}
+      <div className="hidden md:block ml-auto w-[320px] max-w-[46vw] overflow-hidden rounded-xl bg-white/90 shadow ring-1 ring-black/10">
+        <div className="h-[180px] w-full">
+          <iframe
+            title="Mappa del borgo"
+            src={mapsUrl.replace("/maps/search/", "/maps?q=").replace("search/?api=1&query=", "") + "&output=embed"}
+            className="h-full w-full"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        </div>
+        <div className="px-3 py-2 text-xs text-neutral-700">
+          Vista mappa · clicca per aprire in Google Maps
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ========= Hero Gallery ========= */
-function HeroGallery({ title, gallery = [], fallback }) {
+function HeroGallery({ title, gallery = [], fallback, overlay = null }) {
   const [i, setI] = useState(0);
   const n = gallery?.length || 0;
   const hasMany = n > 1;
@@ -222,6 +252,9 @@ function HeroGallery({ title, gallery = [], fallback }) {
           decoding="async"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
+
+        {/* Overlay (btn mobile + mappa desktop) */}
+        {overlay}
 
         {/* Nome foto (alto sx) */}
         {current?.name && (
@@ -503,6 +536,10 @@ export default function HomeBorgo() {
 
   const videos = useMemo(() => getVideosByBorgo(slug), [slug]);
 
+  // URL mappa (funziona senza API key)
+  const place = (meta?.name || borgo?.name || slug) + " " + ((borgo?.provincia || meta?.provincia || "") + " " + (borgo?.regione || meta?.regione || "")).trim();
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
+
   // Mock min 4 card per test fluidità
   const eventi = [
     { title: "Festa delle tradizioni", img: "https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=1200&auto=format&fit=crop", when: "6–8 SET" },
@@ -528,8 +565,13 @@ export default function HomeBorgo() {
     <>
       <TopBar slug={slug} />
       <main className="min-h-screen bg-white pt-14">
-        {/* HERO */}
-        <HeroGallery title={title} gallery={gallery} fallback={gallery?.[0]?.src} />
+        {/* HERO + overlay (btn mobile + mappa desktop) */}
+        <HeroGallery
+          title={title}
+          gallery={gallery}
+          fallback={gallery?.[0]?.src}
+          overlay={<HeroOverlay mapsUrl={mapsUrl} />}
+        />
 
         {/* PILLOLE */}
         <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">

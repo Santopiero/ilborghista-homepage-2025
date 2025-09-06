@@ -10,8 +10,8 @@ import {
 import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
 import {
   ChevronLeft, ChevronRight, Share2, Heart, Film, CalendarDays, Route, ShoppingBag,
-  List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Info, Search, Menu, X,
-  LogIn, UserPlus, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned, MapPin, Star
+  List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Search, Menu, X,
+  LogIn, UserPlus, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned, MapPin, Star, Bus
 } from "lucide-react";
 
 /* ========= Helpers ========= */
@@ -128,7 +128,7 @@ function TopBar({ slug }) {
               <li><Link to="/login" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><LogIn className="h-4 w-4" /> Accedi</Link></li>
               <li><Link to="/registrazione" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><UserPlus className="h-4 w-4" /> Registrati</Link></li>
               <li><Link to="/creator" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><Users className="h-4 w-4" /> I nostri creator</Link></li>
-              <li><Link to={`/borghi/${slug}/info-utili`} className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><Info className="h-4 w-4" /> Info utili</Link></li>
+              <li><Link to={`/borghi/${slug}/trasporti`} className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><Bus className="h-4 w-4" /> Trasporti</Link></li>
               <li><Link to="/contatti" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><MessageCircle className="h-4 w-4" /> Contattaci</Link></li>
               <li className="mt-2 border-t pt-2">
                 <Link to="/registrazione-creator" className="flex items-center justify-center rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white" onClick={() => setMenuOpen(false)}>
@@ -326,18 +326,32 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null }) {
   );
 }
 
-/* ========= Pillola ========= */
-const Pill = ({ to, icon: Icon, label, analytics }) => (
-  <Link
-    to={to}
-    data-analytics={`pillola:${analytics || label.toLowerCase()}`}
-    aria-label={`Vai a ${label}`}
-    className="inline-flex h-11 items-center gap-2 rounded-full border border-[#E1B671] bg-[#FAF5E0] px-3 text-sm font-semibold text-[#6B271A] hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#6B271A] focus:ring-offset-2"
-  >
-    <Icon className="h-4 w-4" />
-    {label}
-  </Link>
-);
+/* ========= Nav “palline” (come Esperienze) ========= */
+function NavItem({ to, label, icon: Icon, bg, color }) {
+  return (
+    <Link to={to} aria-label={label} title={label} className="flex items-center gap-2 shrink-0">
+      <span
+        className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5"
+        style={{ backgroundColor: bg, color }}
+      >
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="hidden sm:inline text-sm text-[#1A1818]">{label}</span>
+    </Link>
+  );
+}
+const Divider = () => <span className="mx-2 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
+
+const colors = {
+  cosafare:    { bg: "#2E7D32", color: "#ffffff" },
+  mangiare:    { bg: "#C81E3C", color: "#ffffff" },
+  eventi:      { bg: "#F4B000", color: "#ffffff" },
+  artigiani:   { bg: "#9A5B2D", color: "#ffffff" },
+  trasporti:   { bg: "#1649D7", color: "#ffffff" },
+  esperienze:  { bg: "#21C195", color: "#ffffff" },
+  dormire:     { bg: "#EC6A9E", color: "#ffffff" },
+  prodotti:    { bg: "#4B2E12", color: "#ffffff" },
+};
 
 /* ========= Descrizione ========= */
 function DescriptionBlock({ text, slug }) {
@@ -645,17 +659,24 @@ export default function HomeBorgo() {
           overlay={<HeroOverlay mapsUrl={mapsUrl} />}
         />
 
-        {/* PILLOLE */}
-        <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Pill to={`/borghi/${slug}/eventi`}          icon={CalendarDays} label="Eventi e Sagre" analytics="eventi" />
-            <Pill to={`/borghi/${slug}/esperienze`}      icon={Route}        label="Esperienze"      analytics="esperienze" />
-            <Pill to={`/borghi/${slug}/prodotti-tipici`} icon={ShoppingBag}  label="Prodotti Tipici" analytics="prodotti" />
-            <Pill to={`/borghi/${slug}/artigiani`}       icon={Hammer}       label="Artigiani"       analytics="artigiani" />
-            <Pill to={`/borghi/${slug}/mangiare-bere`}   icon={Utensils}     label="Dove Mangiare"   analytics="mangiare" />
-            <Pill to={`/borghi/${slug}/dormire`}         icon={BedDouble}    label="Dove Dormire"    analytics="dormire" />
-            <Pill to={`/borghi/${slug}/cosa-fare`}       icon={ListIcon}     label="Cosa Fare"       analytics="cosa-fare" />
-            <Pill to={`/borghi/${slug}/info-utili`}      icon={Info}         label="Info Utili"      analytics="info-utili" />
+        {/* NAV “PALLINE” (come Esperienze) */}
+        <section className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3 overflow-x-auto pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
+            <NavItem to={`/borghi/${slug}/cosa-fare`} label="Cosa fare" icon={ListIcon} {...colors.cosafare} />
+            <Divider />
+            <NavItem to={`/borghi/${slug}/mangiare-bere`} label="Mangiare" icon={Utensils} {...colors.mangiare} />
+            <Divider />
+            <NavItem to={`/borghi/${slug}/eventi`} label="Eventi e Sagre" icon={CalendarDays} {...colors.eventi} />
+            <Divider />
+            <NavItem to={`/borghi/${slug}/artigiani`} label="Artigiani" icon={Hammer} {...colors.artigiani} />
+            <Divider />
+            <NavItem to={`/borghi/${slug}/trasporti`} label="Trasporti" icon={Bus} {...colors.trasporti} />
+            <Divider />
+            <NavItem to={`/borghi/${slug}/esperienze`} label="Esperienze" icon={Route} {...colors.esperienze} />
+            <Divider />
+            <NavItem to={`/borghi/${slug}/dormire`} label="Dormire" icon={BedDouble} {...colors.dormire} />
+            <Divider />
+            <NavItem to={`/borghi/${slug}/prodotti-tipici`} label="Prodotti tipici" icon={ShoppingBag} {...colors.prodotti} />
           </div>
         </section>
 
@@ -758,7 +779,7 @@ export default function HomeBorgo() {
           />
         ) : null}
 
-        {/* ESPERIENZE (contenuti editoriali) */}
+        {/* ESPERIENZE (editoriali) */}
         <SectionCarousel id="esperienze" title="Esperienze" items={esperienze}
           render={(it,i)=>(
             <article key={i} className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white" role="listitem">

@@ -1,15 +1,27 @@
 // src/pages/HomeBorgo.jsx
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { findBorgoBySlug, getVideosByBorgo } from "../lib/store";
+import {
+  findBorgoBySlug,
+  getVideosByBorgo,
+  listPoiByBorgo,
+  getVideosByPoi,
+} from "../lib/store";
 import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
 import {
   ChevronLeft, ChevronRight, Share2, Heart, Film, CalendarDays, Route, ShoppingBag,
   List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Info, Search, Menu, X,
-  LogIn, UserPlus, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned
+  LogIn, UserPlus, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned, MapPin, Star
 } from "lucide-react";
 
 /* ========= Helpers ========= */
+const isFoodDrink = (p) =>
+  /(ristor|tratt|osteria|pizzer|bar|caff|café|enotec|pub|agritur)/i.test(p.type || p.name || "");
+const isSleep = (p) =>
+  /(hotel|b&b|b\s*&\s*b|bed|albergo|affittacamere|casa|agriturismo|residence)/i.test(p.type || p.name || "");
+const isArtigiano = (p) =>
+  /(artigian|laborator|bottega|ceramic|liutaio|tessil|falegn|orafo)/i.test(p.type || p.name || "");
+
 function getYouTubeId(url = "") {
   try {
     const u = new URL(url);
@@ -21,7 +33,7 @@ function getYouTubeId(url = "") {
 const getYouTubeThumb = (url = "") =>
   getYouTubeId(url) ? `https://i.ytimg.com/vi/${getYouTubeId(url)}/hqdefault.jpg` : "";
 
-/* ========= TopBar fissa: brand testuale + ricerca + hamburger ========= */
+/* ========= TopBar fissa ========= */
 function TopBar({ slug }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -40,9 +52,7 @@ function TopBar({ slug }) {
       <header className="fixed inset-x-0 top-0 z-50 border-b bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
           <Link to="/" aria-label="Vai alla home di Il Borghista" className="inline-flex items-center">
-            <span className="text-lg font-extrabold tracking-tight text-[#6B271A]">
-              Il Borghista
-            </span>
+            <span className="text-lg font-extrabold tracking-tight text-[#6B271A]">Il Borghista</span>
           </Link>
 
           {/* Ricerca desktop */}
@@ -172,11 +182,11 @@ function HScrollWithArrows({ children, className = "" }) {
   );
 }
 
-/* ========= HERO OVERLAY (BTN mobile + MAPPA desktop) ========= */
+/* ========= HERO OVERLAY ========= */
 function HeroOverlay({ mapsUrl }) {
   return (
     <div className="absolute left-4 right-4 top-16 z-20 flex items-start justify-between">
-      {/* Bottone mobile */}
+      {/* Bottone mobile: mappa */}
       <a
         href={mapsUrl}
         target="_blank"
@@ -267,6 +277,16 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null }) {
           {n ? `${i + 1} / ${n}` : "1 / 1"}
         </div>
 
+        {/* BOTTONI MOBILE: condividi/salva */}
+        <div className="md:hidden absolute right-3 bottom-3 z-10 flex flex-col gap-2">
+          <button aria-label="Condividi" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#6B271A] shadow ring-1 ring-black/5">
+            <Share2 className="h-5 w-5" />
+          </button>
+          <button aria-label="Salva" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#6B271A] shadow ring-1 ring-black/5">
+            <Heart className="h-5 w-5" />
+          </button>
+        </div>
+
         {/* Frecce desktop */}
         {hasMany && (
           <>
@@ -288,7 +308,7 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null }) {
         )}
       </div>
 
-      {/* Titolo + azioni */}
+      {/* Titolo + azioni (desktop) */}
       <div className="absolute inset-x-0 bottom-4">
         <div className="mx-auto flex max-w-6xl items-end justify-between gap-3 px-4 sm:px-6">
           <h1 className="text-3xl font-extrabold text-white drop-shadow md:text-4xl">{title}</h1>
@@ -306,7 +326,7 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null }) {
   );
 }
 
-/* ========= Pillola (Link a rotte reali) ========= */
+/* ========= Pillola ========= */
 const Pill = ({ to, icon: Icon, label, analytics }) => (
   <Link
     to={to}
@@ -319,7 +339,7 @@ const Pill = ({ to, icon: Icon, label, analytics }) => (
   </Link>
 );
 
-/* ========= Descrizione (fade + toggle persistente) ========= */
+/* ========= Descrizione ========= */
 function DescriptionBlock({ text, slug }) {
   const KEY = `descr-expanded:${slug}`;
   const [expanded, setExpanded] = useState(() => {
@@ -347,7 +367,7 @@ function DescriptionBlock({ text, slug }) {
   );
 }
 
-/* ========= In Breve (testo + mini-slideshow) ========= */
+/* ========= In Breve ========= */
 function SmallGallery({ items = [] }) {
   const ref = useRef(null);
   const scrollBy = (dx) => ref.current && ref.current.scrollBy({ left: dx, behavior: "smooth" });
@@ -407,6 +427,47 @@ function InBreve({ meta, borgo, slug }) {
   );
 }
 
+/* ========= Card POI ========= */
+function CardPOI({ slug, p }) {
+  const hasVideo = typeof getVideosByPoi === "function" && p?.id ? getVideosByPoi(p.id).length > 0 : false;
+  return (
+    <li className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white" role="listitem">
+      <Link to={`/borghi/${slug}/poi/${p.id}`} className="block">
+        <div className="relative h-40 w-full bg-neutral-100">
+          <img
+            src={p.cover || "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop"}
+            alt={p.name}
+            className="h-40 w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+          {hasVideo && (
+            <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-[#6B271A] shadow ring-1 ring-black/5">
+              <Film className="h-3.5 w-3.5" /> video
+            </span>
+          )}
+        </div>
+        <div className="p-3">
+          <h3 className="line-clamp-2 font-semibold text-[#6B271A]">{p.name}</h3>
+          <div className="mt-1 text-xs text-neutral-600 flex items-center gap-2">
+            {p.type && <span>{p.type}</span>}
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5 text-[#D54E30]" />
+              {p.borgo || p.city || p.comune || ""}
+            </span>
+            {p.rating ? (
+              <span className="inline-flex items-center gap-1">
+                <Star className="h-3.5 w-3.5 text-[#E6B800]" />
+                {Number(p.rating).toFixed(1)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </Link>
+    </li>
+  );
+}
+
 /* ========= Sezione generica con carosello ========= */
 function SectionCarousel({ id, title, items = [], render, extraLink = null }) {
   return (
@@ -415,17 +476,19 @@ function SectionCarousel({ id, title, items = [], render, extraLink = null }) {
         <h2 className="text-xl font-extrabold text-[#6B271A]">{title}</h2>
         {extraLink ? <Link to={extraLink} className="text-sm font-semibold underline">Vedi tutti</Link> : null}
       </div>
-      <HScrollWithArrows className="mt-3">{items.map((it, idx) => render(it, idx))}</HScrollWithArrows>
+      <HScrollWithArrows className="mt-3">
+        {items.map((it, idx) => render(it, idx))}
+      </HScrollWithArrows>
     </section>
   );
 }
 
-/* ========= Newsletter CTA (in fondo) ========= */
+/* ========= Newsletter CTA ========= */
 function NewsletterCTA({ slug }) {
   const [email, setEmail] = useState("");
   const [privacy, setPrivacy] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState(null); // "ok" | "error"
+  const [status, setStatus] = useState(null);
   const [msg, setMsg] = useState("");
 
   const isValid = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v || "").trim());
@@ -437,7 +500,6 @@ function NewsletterCTA({ slug }) {
 
     setLoading(true); setStatus(null); setMsg("");
     try {
-      // Sostituisci con il tuo endpoint reale (Mailchimp/Sendinblue/Custom)
       const res = await fetch("/api/newsletter/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -536,11 +598,21 @@ export default function HomeBorgo() {
 
   const videos = useMemo(() => getVideosByBorgo(slug), [slug]);
 
-  // URL mappa (funziona senza API key)
+  // POI per sezioni
+  const allPoi = useMemo(() => listPoiByBorgo(slug), [slug]);
+  const eatDrink = useMemo(() => allPoi.filter(isFoodDrink), [allPoi]);
+  const sleep = useMemo(() => allPoi.filter(isSleep), [allPoi]);
+  const artigiani = useMemo(() => allPoi.filter(isArtigiano), [allPoi]);
+  const thingsToDo = useMemo(
+    () => allPoi.filter((p) => !isFoodDrink(p) && !isSleep(p) && !isArtigiano(p)),
+    [allPoi]
+  );
+
+  // URL mappa
   const place = (meta?.name || borgo?.name || slug) + " " + ((borgo?.provincia || meta?.provincia || "") + " " + (borgo?.regione || meta?.regione || "")).trim();
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
 
-  // Mock min 4 card per test fluidità
+  // Mock min 4 card per sezioni contenutistiche
   const eventi = [
     { title: "Festa delle tradizioni", img: "https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=1200&auto=format&fit=crop", when: "6–8 SET" },
     { title: "Concerti in piazza", img: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1200&auto=format&fit=crop", when: "12–13 SET" },
@@ -565,7 +637,7 @@ export default function HomeBorgo() {
     <>
       <TopBar slug={slug} />
       <main className="min-h-screen bg-white pt-14">
-        {/* HERO + overlay (btn mobile + mappa desktop) */}
+        {/* HERO + overlay (mappa) + mobile share/save */}
         <HeroGallery
           title={title}
           gallery={gallery}
@@ -591,7 +663,7 @@ export default function HomeBorgo() {
         <DescriptionBlock text={descr} slug={slug} />
         <InBreve meta={meta} borgo={borgo} slug={slug} />
 
-        {/* VIDEO CREATOR */}
+        {/* CREATOR */}
         <section id="creator" className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-xl font-extrabold text-[#6B271A]">
@@ -654,7 +726,39 @@ export default function HomeBorgo() {
           )}
         />
 
-        {/* ESPERIENZE */}
+        {/* COSA FARE */}
+        {thingsToDo?.length ? (
+          <SectionCarousel id="cosa-fare" title="Cosa fare" items={thingsToDo.slice(0, 12)}
+            render={(p)=>(<CardPOI key={p.id} slug={slug} p={p} />)}
+            extraLink={`/borghi/${slug}/cosa-fare`}
+          />
+        ) : null}
+
+        {/* MANGIARE E BERE */}
+        {eatDrink?.length ? (
+          <SectionCarousel id="mangiare-bere" title="Mangiare e bere" items={eatDrink.slice(0, 12)}
+            render={(p)=>(<CardPOI key={p.id} slug={slug} p={p} />)}
+            extraLink={`/borghi/${slug}/mangiare-bere`}
+          />
+        ) : null}
+
+        {/* DORMIRE */}
+        {sleep?.length ? (
+          <SectionCarousel id="dormire" title="Dormire" items={sleep.slice(0, 12)}
+            render={(p)=>(<CardPOI key={p.id} slug={slug} p={p} />)}
+            extraLink={`/borghi/${slug}/dormire`}
+          />
+        ) : null}
+
+        {/* ARTIGIANI */}
+        {artigiani?.length ? (
+          <SectionCarousel id="artigiani" title="Artigiani" items={artigiani.slice(0, 12)}
+            render={(p)=>(<CardPOI key={p.id} slug={slug} p={p} />)}
+            extraLink={`/borghi/${slug}/artigiani`}
+          />
+        ) : null}
+
+        {/* ESPERIENZE (contenuti editoriali) */}
         <SectionCarousel id="esperienze" title="Esperienze" items={esperienze}
           render={(it,i)=>(
             <article key={i} className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white" role="listitem">

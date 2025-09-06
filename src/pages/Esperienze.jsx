@@ -1,5 +1,6 @@
 // src/pages/Esperienze.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { BORGI_BY_SLUG } from "../data/borghi";
 import { findBorgoBySlug, listPoiByBorgo, getVideosByPoi } from "../lib/store";
@@ -84,7 +85,7 @@ function TopBar({ slug }) {
         </div>
       </header>
       {menuOpen && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[90]">
           <div className="absolute inset-0 bg-black/30" onClick={() => setMenuOpen(false)} />
           <nav className="absolute right-0 top-0 h-full w-80 max-w-[85%] bg-white shadow-xl" aria-label="Menu principale">
             <div className="flex items-center justify-between border-b p-4">
@@ -107,23 +108,23 @@ function TopBar({ slug }) {
   );
 }
 
-/* ---------- “Palline” nav ---------- */
-function Dot({ to, label, icon: Icon, bg = "#e5e7eb", color = "#fff" }) {
+/* ---------- Nav “palline” ---------- */
+function NavItem({ to, label, icon: Icon, bg, color }) {
   return (
-    <Link
-      to={to}
-      aria-label={label}
-      title={label}
-      className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5 shrink-0"
-      style={{ backgroundColor: bg, color }}
-    >
-      <Icon className="h-5 w-5" />
+    <Link to={to} aria-label={label} title={label} className="flex items-center gap-2 shrink-0">
+      <span
+        className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5"
+        style={{ backgroundColor: bg, color }}
+      >
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="hidden sm:inline text-sm text-[#1A1818]">{label}</span>
     </Link>
   );
 }
 const Divider = () => <span className="mx-2 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
 
-/* ---------- Chip helpers (filtri compatti orizzontali) ---------- */
+/* ---------- Chip helpers ---------- */
 function SelectChip({ label, value, onChange, options }) {
   return (
     <label className="relative inline-flex shrink-0 items-center">
@@ -141,20 +142,48 @@ function SelectChip({ label, value, onChange, options }) {
     </label>
   );
 }
-function DropdownChip({ label, value, onChange, items }) {
+
+/* ---------- Dropdown partner con Portal ---------- */
+function PartnerDropdownChip({ value, onChange }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const btnRef = useRef(null);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 200 });
+
+  const items = [
+    { value: "all", label: "Tutti i partner" },
+    { value: "getyourguide", label: "GetYourGuide" },
+    { value: "viator", label: "Viator" },
+    { value: "musement", label: "Musement" },
+    { value: "freedome", label: "Freedome" },
+  ];
+
+  const current = items.find((i) => i.value === value)?.label || "Partner";
+
+  const update = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 8, left: r.left, width: Math.max(180, r.width) });
+  };
+
   useEffect(() => {
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    const onEsc = (e) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onEsc);
-    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onEsc); };
-  }, []);
-  const current = items.find((i) => i.value === value)?.label || label;
+    if (!open) return;
+    update();
+    const onScroll = () => update();
+    const onResize = () => update();
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
-    <div className="relative" ref={ref}>
+    <>
       <button
+        ref={btnRef}
         type="button"
         className="inline-flex h-9 items-center rounded-full border bg-white px-3 text-sm font-semibold text-[#6B271A] shadow-sm"
         onClick={() => setOpen((v) => !v)}
@@ -164,23 +193,63 @@ function DropdownChip({ label, value, onChange, items }) {
         {current}
         <ChevronDown className="ml-1 h-4 w-4 text-neutral-500" />
       </button>
-      {open && (
-        <ul role="listbox" className="absolute left-0 z-50 mt-1 w-48 overflow-hidden rounded-xl border bg-white p-1 shadow-lg">
-          {items.map((i) => (
-            <li key={i.value}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={i.value === value}
-                onClick={() => { onChange(i.value); setOpen(false); }}
-                className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${i.value === value ? "bg-[#FAF5E0] text-[#6B271A]" : "hover:bg-neutral-50"}`}
-              >
-                {i.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+
+      {open &&
+        createPortal(
+          <>
+            {/* backdrop per click-outside */}
+            <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
+            <ul
+              role="listbox"
+              className="fixed z-[9999] overflow-hidden rounded-xl border bg-white p-1 shadow-lg"
+              style={{ top: pos.top, left: pos.left, width: pos.width }}
+            >
+              {items.map((i) => (
+                <li key={i.value}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={i.value === value}
+                    onClick={() => {
+                      onChange(i.value);
+                      setOpen(false);
+                    }}
+                    className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${
+                      i.value === value ? "bg-[#FAF5E0] text-[#6B271A]" : "hover:bg-neutral-50"
+                    }`}
+                  >
+                    {i.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>,
+          document.body
+        )}
+    </>
+  );
+}
+
+/* ---------- Toggle Esperienze ⇄ Itinerari (segmented) ---------- */
+function EToggle({ value, onChange }) {
+  return (
+    <div className="inline-flex h-9 items-center rounded-full border bg-white p-0.5 shadow-sm" role="tablist" aria-label="Tipo contenuto">
+      {[
+        { v: "esperienze", l: "Esperienze" },
+        { v: "itinerari", l: "Itinerari" },
+      ].map(({ v, l }) => (
+        <button
+          key={v}
+          role="tab"
+          aria-selected={value === v}
+          onClick={() => onChange(v)}
+          className={`px-3 text-sm font-semibold rounded-full ${
+            value === v ? "bg-[#FAF5E0] text-[#6B271A]" : "text-[#6B271A]/70 hover:bg-neutral-50"
+          }`}
+        >
+          {l}
+        </button>
+      ))}
     </div>
   );
 }
@@ -190,11 +259,12 @@ function ExperienceCard({ slug, p }) {
   const partner = partnerLabel(p);
   const price = priceFrom(p);
   const href = withUtm(p.affiliateUrl || p.url, partner) || `/borghi/${slug}/poi/${p.id}`;
-  const hasVideo = p.hasVideo || (typeof getVideosByPoi === "function" && p.id ? getVideosByPoi(p.id).length > 0 : false);
+  const hasVideo =
+    p.hasVideo || (typeof getVideosByPoi === "function" && p.id ? getVideosByPoi(p.id).length > 0 : false);
 
   return (
     <article className="overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow" role="listitem">
-      <a href={href} target="_blank" rel="noreferrer" aria-label={`Controlla disponibilità: ${p.name}`} className="block">
+      <a href={href} target="_blank" rel="noreferrer" aria-label={`Apri dettagli: ${p.name}`} className="block">
         <div className="relative aspect-[16/9] w-full bg-neutral-100">
           <img
             src={p.cover || "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1200&auto=format&fit=crop"}
@@ -203,17 +273,14 @@ function ExperienceCard({ slug, p }) {
             loading="lazy"
             decoding="async"
           />
-          {/* partner sx */}
           <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-[#6B271A] shadow ring-1 ring-black/5">
             {partner || "Partner"}
           </span>
-          {/* prezzo dx SOLO in foto */}
           {price != null && (
             <span className="absolute right-2 top-2 rounded-full border border-[#E1B671] bg-[#D54E30] px-2 py-0.5 text-[11px] font-bold text-white shadow">
               da {fmtPrice(price).replace(/\s?EUR?/, "").trim()}
             </span>
           )}
-          {/* video */}
           {hasVideo && (
             <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
               <Film className="h-3.5 w-3.5" /> video
@@ -239,76 +306,30 @@ function ExperienceCard({ slug, p }) {
               </span>
             )}
           </div>
-
-          <div className="mt-3">
-            <a
-              href={href}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`Apri i dettagli dell'esperienza: ${p.name}`}
-              className="inline-flex w-full items-center justify-center rounded-xl bg-[#6B271A] px-4 py-2 text-sm font-semibold text-white hover:opacity-95"
-            >
-              Controlla disponibilità
-            </a>
-          </div>
         </div>
       </a>
     </article>
   );
 }
 
-/* ---- Seed di 4 esperienze (fallback) ---- */
+/* ---- Seeds fallback ---- */
 const MOCK_ITEMS = [
-  {
-    id: "mock-exp-1",
-    name: "Aosta: volo in mongolfiera sulle Alpi con vista mozzafiato",
+  { id: "mock-exp-1", name: "Aosta: volo in mongolfiera sulle Alpi con vista mozzafiato",
     cover: "https://images.unsplash.com/photo-1520974735194-6c1f1c1d0b35?q=80&w=1200&auto=format&fit=crop",
-    partner: "Viator",
-    priceFrom: 245,
-    duration: "3 ore",
-    comune: "Aosta",
-    provincia: "AO",
-    affiliateUrl: "https://example.com/viator?prod=balloon-alps",
-    rating: { value: 4.8, count: 132 },
-    hasVideo: true,
-  },
-  {
-    id: "mock-exp-2",
-    name: "Perugia: giro in mongolfiera tra Umbria e Assisi",
+    partner: "Viator", priceFrom: 245, duration: "3 ore", comune: "Aosta", provincia: "AO",
+    affiliateUrl: "https://example.com/viator?prod=balloon-alps", rating: { value: 4.8, count: 132 }, hasVideo: true },
+  { id: "mock-exp-2", name: "Perugia: giro in mongolfiera tra Umbria e Assisi",
     cover: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop",
-    partner: "Musement",
-    priceFrom: 160,
-    duration: "2 ore",
-    comune: "Perugia",
-    provincia: "PG",
-    affiliateUrl: "https://example.com/musement?prod=balloon-perugia",
-    rating: { value: 4.6, count: 89 },
-  },
-  {
-    id: "mock-exp-3",
-    name: "Etna: esclusivo tour in mongolfiera",
+    partner: "Musement", priceFrom: 160, duration: "2 ore", comune: "Perugia", provincia: "PG",
+    affiliateUrl: "https://example.com/musement?prod=balloon-perugia", rating: { value: 4.6, count: 89 } },
+  { id: "mock-exp-3", name: "Etna: esclusivo tour in mongolfiera",
     cover: "https://images.unsplash.com/photo-1491555103944-7c647fd857e6?q=80&w=1200&auto=format&fit=crop",
-    partner: "Freedome",
-    priceFrom: 1600,
-    duration: "1 giorno",
-    comune: "Catania",
-    provincia: "CT",
-    affiliateUrl: "https://example.com/freedome?prod=etna-balloon",
-    rating: { value: 4.9, count: 57 },
-    hasVideo: true,
-  },
-  {
-    id: "mock-exp-4",
-    name: "Firenze: volo in mongolfiera sulla Toscana",
+    partner: "Freedome", priceFrom: 1600, duration: "1 giorno", comune: "Catania", provincia: "CT",
+    affiliateUrl: "https://example.com/freedome?prod=etna-balloon", rating: { value: 4.9, count: 57 }, hasVideo: true },
+  { id: "mock-exp-4", name: "Firenze: volo in mongolfiera sulla Toscana",
     cover: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1200&auto=format&fit=crop",
-    partner: "GetYourGuide",
-    priceFrom: 270,
-    duration: "3 ore",
-    comune: "Firenze",
-    provincia: "FI",
-    affiliateUrl: "https://example.com/gyg?prod=firenze-balloon",
-    rating: { value: 4.7, count: 201 },
-  },
+    partner: "GetYourGuide", priceFrom: 270, duration: "3 ore", comune: "Firenze", provincia: "FI",
+    affiliateUrl: "https://example.com/gyg?prod=firenze-balloon", rating: { value: 4.7, count: 201 } },
 ];
 
 /* ---------- Pagina ---------- */
@@ -326,23 +347,21 @@ export default function Esperienze() {
   );
 
   /* FILTRI */
-  const [contentType, setContentType] = useState("all");  // all | esperienze | itinerari
-  const [priceBand, setPriceBand] = useState("all");      // all | lt50 | 50-100 | 100-250 | gt250
-  const [partner, setPartner] = useState("all");          // all | getyourguide | viator | musement | freedome
-  const [duration, setDuration] = useState("all");        // all | le2 | 2-4 | day
-  const [order, setOrder] = useState("auto");             // auto | priceAsc | priceDesc | az | rating
+  const [contentType, setContentType] = useState("esperienze"); // esperienze | itinerari
+  const [priceBand, setPriceBand] = useState("all");
+  const [partner, setPartner] = useState("all");
+  const [duration, setDuration] = useState("all");
+  const [order, setOrder] = useState("auto");
 
   const base = useMemo(() => {
     let arr = poiClean;
-    if (contentType === "esperienze") arr = arr.filter(isBookableExperience);
-    if (contentType === "itinerari") arr = arr.filter(isItinerary);
+    arr = contentType === "itinerari" ? arr.filter(isItinerary) : arr.filter(isBookableExperience);
     return arr;
   }, [poiClean, contentType]);
 
   const baseWithSeeds = useMemo(() => {
     if (contentType === "itinerari") return base;
-    const needSeeds = base.length < 4;
-    return needSeeds ? [...base, ...MOCK_ITEMS.map((m) => ({ ...m, id: `${slug}-${m.id}` }))] : base;
+    return base.length < 4 ? [...base, ...MOCK_ITEMS.map((m) => ({ ...m, id: `${slug}-${m.id}` }))] : base;
   }, [base, contentType, slug]);
 
   const filtered = useMemo(() => {
@@ -385,22 +404,20 @@ export default function Esperienze() {
   }, [baseWithSeeds, priceBand, partner, duration, order]);
 
   const resultsCount = filtered.length;
-
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     (meta?.name || borgo?.name || slug) + " " + ((borgo?.provincia || meta?.provincia || "") + " " + (borgo?.regione || meta?.regione || "")).trim()
   )}`;
 
-  /* palette delle palline (come nello screenshot) */
   const colors = {
     home:        { bg: "#222222", color: "#ffffff" },
-    cosafare:    { bg: "#2E7D32", color: "#ffffff" },    // verde
-    mangiare:    { bg: "#C81E3C", color: "#ffffff" },    // rosso
-    eventi:      { bg: "#F4B000", color: "#ffffff" },    // giallo
-    artigiani:   { bg: "#9A5B2D", color: "#ffffff" },    // marrone
-    trasporti:   { bg: "#1649D7", color: "#ffffff" },    // blu
-    esperienze:  { bg: "#21C195", color: "#ffffff" },    // verde acqua
-    dormire:     { bg: "#EC6A9E", color: "#ffffff" },    // rosa
-    prodotti:    { bg: "#4B2E12", color: "#ffffff" },    // marrone scuro
+    cosafare:    { bg: "#2E7D32", color: "#ffffff" },
+    mangiare:    { bg: "#C81E3C", color: "#ffffff" },
+    eventi:      { bg: "#F4B000", color: "#ffffff" },
+    artigiani:   { bg: "#9A5B2D", color: "#ffffff" },
+    trasporti:   { bg: "#1649D7", color: "#ffffff" },
+    esperienze:  { bg: "#21C195", color: "#ffffff" },
+    dormire:     { bg: "#EC6A9E", color: "#ffffff" },
+    prodotti:    { bg: "#4B2E12", color: "#ffffff" },
   };
 
   return (
@@ -408,31 +425,31 @@ export default function Esperienze() {
       <TopBar slug={slug} />
 
       <main className="min-h-screen bg-white pt-14">
-        {/* PALLINE (mobile scroll, desktop con separatori) */}
+        {/* PALLINE */}
         <section className="mx-auto max-w-6xl px-4 py-2 sm:px-6">
-          <div className="flex items-center gap-1 overflow-x-auto pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
-            <Dot to={`/borghi/${slug}`} icon={Home} label="Home borgo" {...colors.home} />
+          <div className="flex items-center gap-3 overflow-x-auto pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
+            <NavItem to={`/borghi/${slug}`} label="Home borgo" icon={Home} {...colors.home} />
             <Divider />
-            <Dot to={`/borghi/${slug}/cosa-fare`} icon={ListIcon} label="Cosa fare" {...colors.cosafare} />
+            <NavItem to={`/borghi/${slug}/cosa-fare`} label="Cosa fare" icon={ListIcon} {...colors.cosafare} />
             <Divider />
-            <Dot to={`/borghi/${slug}/mangiare-bere`} icon={Utensils} label="Mangiare" {...colors.mangiare} />
+            <NavItem to={`/borghi/${slug}/mangiare-bere`} label="Mangiare" icon={Utensils} {...colors.mangiare} />
             <Divider />
-            <Dot to={`/borghi/${slug}/eventi`} icon={CalendarDays} label="Eventi e Sagre" {...colors.eventi} />
+            <NavItem to={`/borghi/${slug}/eventi`} label="Eventi e Sagre" icon={CalendarDays} {...colors.eventi} />
             <Divider />
-            <Dot to={`/borghi/${slug}/artigiani`} icon={Hammer} label="Artigiani" {...colors.artigiani} />
+            <NavItem to={`/borghi/${slug}/artigiani`} label="Artigiani" icon={Hammer} {...colors.artigiani} />
             <Divider />
-            <Dot to={`/borghi/${slug}/trasporti`} icon={Bus} label="Trasporti" {...colors.trasporti} />
+            <NavItem to={`/borghi/${slug}/trasporti`} label="Trasporti" icon={Bus} {...colors.trasporti} />
             <Divider />
-            <Dot to={`/borghi/${slug}/esperienze`} icon={Route} label="Esperienze" {...colors.esperienze} />
+            <NavItem to={`/borghi/${slug}/esperienze`} label="Esperienze" icon={Route} {...colors.esperienze} />
             <Divider />
-            <Dot to={`/borghi/${slug}/dormire`} icon={BedDouble} label="Dormire" {...colors.dormire} />
+            <NavItem to={`/borghi/${slug}/dormire`} label="Dormire" icon={BedDouble} {...colors.dormire} />
             <Divider />
-            <Dot to={`/borghi/${slug}/prodotti-tipici`} icon={ShoppingBag} label="Prodotti tipici" {...colors.prodotti} />
+            <NavItem to={`/borghi/${slug}/prodotti-tipici`} label="Prodotti tipici" icon={ShoppingBag} {...colors.prodotti} />
           </div>
         </section>
 
-        {/* Header compatto */}
-        <section className="border-t bg-[#FAF5E0]">
+        {/* Header + Filtri (bianco) */}
+        <section className="border-t bg-white">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2 sm:px-6">
             <h1 className="text-base sm:text-lg font-extrabold text-[#6B271A]">
               {contentType === "itinerari" ? "Itinerari" : "Esperienze"} a {title}
@@ -442,44 +459,11 @@ export default function Esperienze() {
             </a>
           </div>
 
-          {/* FILTRI orizzontali compatti */}
-          <div className="sticky top-14 z-40 border-t border-[#E9DEC7] bg-[#FAF5E0]">
+          <div className="sticky top-14 z-[80] border-t bg-white">
             <div className="mx-auto max-w-6xl px-4 sm:px-6">
               <div className="flex items-center gap-2 overflow-x-auto py-2" style={{ WebkitOverflowScrolling: "touch" }}>
-                {/* Tipo */}
-                <div className="inline-flex h-9 shrink-0 items-center rounded-full border bg-white p-0.5 shadow-sm">
-                  {[
-                    { v: "all", l: "Tutti" },
-                    { v: "esperienze", l: "Esperienze" },
-                    { v: "itinerari", l: "Itinerari" },
-                  ].map(({ v, l }) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setContentType(v)}
-                      className={`px-3 text-sm font-semibold rounded-full ${contentType === v ? "bg-[#FAF5E0] text-[#6B271A]" : "text-[#6B271A]/80 hover:bg-neutral-50"}`}
-                      aria-pressed={contentType === v}
-                    >
-                      {l}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Partner dropdown chip */}
-                <DropdownChip
-                  label="Partner"
-                  value={partner}
-                  onChange={setPartner}
-                  items={[
-                    { value: "all", label: "Tutti i partner" },
-                    { value: "getyourguide", label: "GetYourGuide" },
-                    { value: "viator", label: "Viator" },
-                    { value: "musement", label: "Musement" },
-                    { value: "freedome", label: "Freedome" },
-                  ]}
-                />
-
-                {/* Select chip: Prezzo, Durata, Ordina */}
+                <EToggle value={contentType} onChange={setContentType} />
+                <PartnerDropdownChip value={partner} onChange={setPartner} />
                 <SelectChip
                   label="Prezzo"
                   value={priceBand}
@@ -520,12 +504,12 @@ export default function Esperienze() {
           </div>
         </section>
 
-        {/* Conteggio risultati minimal sopra la griglia */}
+        {/* Conteggio risultati */}
         <div className="mx-auto max-w-6xl px-4 pt-4 text-sm text-neutral-600 sm:px-6">
           {resultsCount} {resultsCount === 1 ? "risultato" : "risultati"}
         </div>
 
-        {/* Griglia risultati */}
+        {/* Griglia */}
         <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
           {filtered.length === 0 ? (
             <div className="rounded-2xl border bg-white p-6 text-center text-neutral-700">
@@ -546,9 +530,6 @@ export default function Esperienze() {
             <Link to={`/borghi/${slug}`} className="rounded-full border px-3 py-2 text-sm font-semibold text-[#6B271A] hover:bg-neutral-50">
               ← Torna alla pagina del borgo
             </Link>
-            <a href={mapsUrl} target="_blank" rel="noreferrer" className="rounded-full border px-3 py-2 text-sm font-semibold text-[#6B271A] hover:bg-neutral-50">
-              Apri su Google Maps
-            </a>
           </div>
         </section>
       </main>

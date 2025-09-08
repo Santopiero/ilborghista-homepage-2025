@@ -123,7 +123,7 @@ export default function ModalInstallApp() {
           ) : (
             <>
               <ol className="list-decimal pl-5 text-sm text-gray-700 space-y-1">
-                <li>Su iPhone/iPad apri il menu <span className="font-medium">Condividi</span> (icona con freccia 🔼).</li>
+                <li>Su iPhone/iPad apri il menu <span className="font-medium">Condividi</span> (Qadrato con freccia).</li>
                 <li>Tocca <span className="font-medium">Aggiungi a schermata Home</span>.</li>
                 <li>Conferma il nome <span className="font-medium">Il Borghista</span> e tocca <span className="font-medium">Aggiungi</span>.</li>
               </ol>

@@ -145,7 +145,7 @@ function TopBar({ slug }) {
             </div>
 
             <ul className="p-2">
-              {/* Accedi + Registrati -> un solo click */}
+              {/* Accedi + Registrati */}
               <li>
                 <Link
                   to="/registrazione-utente"
@@ -166,8 +166,6 @@ function TopBar({ slug }) {
                 </Link>
               </li>
 
-              {/* Trasporti: rimosso SOLO dal menu */}
-
               <li>
                 <Link
                   to="/contatti"
@@ -178,9 +176,9 @@ function TopBar({ slug }) {
                 </Link>
               </li>
 
-              {/* Installa l’app (solo se non già A2HS) */}
+              {/* Installa l’app: SOLO mobile (sm:hidden) e solo se non già installata */}
               {typeof window !== "undefined" && !isStandalone() && (
-                <li className="mt-1">
+                <li className="mt-1 sm:hidden">
                   <button
                     onClick={() => {
                       setMenuOpen(false);
@@ -225,14 +223,14 @@ function HScrollWithArrows({ children, className = "" }) {
       <button
         aria-label="Scorri a sinistra"
         onClick={() => scrollBy(-1)}
-        className="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5 hover:bg-neutral-50 md:flex"
+        className="absolute left-0 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5 hover:bg-neutral-50 md:flex"
       >
         <ChevronLeft className="h-5 w-5" />
       </button>
       <button
         aria-label="Scorri a destra"
         onClick={() => scrollBy(1)}
-        className="absolute right-0 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5 hover:bg-neutral-50 md:flex"
+        className="absolute right-0 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5 hover:bg-neutral-50 md:flex"
       >
         <ChevronRight className="h-5 w-5" />
       </button>
@@ -240,7 +238,7 @@ function HScrollWithArrows({ children, className = "" }) {
       <div
         ref={ref}
         role="list"
-        className="scrollbar-none -mx-1 flex snap-x snap-mandatory gap-6 overflow-x-auto px-1 md:snap-none"
+        className="scrollbar-none -mx-1 flex snap-x snap-mandatory gap-5 overflow-x-auto px-1 md:snap-none"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         {children}
@@ -318,10 +316,10 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
         {/* frecce desktop */}
         {hasMany && (
           <>
-            <button aria-label="Foto precedente" onClick={() => setI((v) => (v - 1 + n) % n)} className="absolute left-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow hover:bg-white md:flex">
+            <button aria-label="Foto precedente" onClick={() => setI((v) => (v - 1 + n) % n)} className="absolute left-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow hover:bg-white md:flex">
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <button aria-label="Foto successiva" onClick={() => setI((v) => (v + 1) % n)} className="absolute right-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow hover:bg-white md:flex">
+            <button aria-label="Foto successiva" onClick={() => setI((v) => (v + 1) % n)} className="absolute right-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow hover:bg-white md:flex">
               <ChevronRight className="h-5 w-5" />
             </button>
           </>
@@ -330,16 +328,16 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
 
       {/* titolo + extra (Info + Sostieni) */}
       <div className="absolute inset-x-0 bottom-4">
-        <div className="mx-auto flex max-w-6xl items-end justify-between gap-3 px-4 sm:px-6">
+        <div className="mx-auto flex max-w-6xl items-end justify-between gap-2 px-4 sm:px-6">
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-extrabold text-white drop-shadow md:text-4xl">{title}</h1>
             {leftExtras}
           </div>
           <div className="hidden items-center gap-2 sm:flex">
-            <button className="inline-flex h-11 items-center gap-2 rounded-xl border bg-white/90 px-3 text-[#6B271A] hover:bg-white">
+            <button className="inline-flex h-10 items-center gap-2 rounded-xl border bg-white/90 px-3 text-[#6B271A] hover:bg-white">
               <Share2 className="h-4 w-4" /> Condividi
             </button>
-            <button className="inline-flex h-11 items-center gap-2 rounded-xl border bg-white/90 px-3 text-[#6B271A] hover:bg-white">
+            <button className="inline-flex h-10 items-center gap-2 rounded-xl border bg-white/90 px-3 text-[#6B271A] hover:bg-white">
               <Heart className="h-4 w-4" /> Salva
             </button>
           </div>
@@ -360,28 +358,43 @@ const colors = {
   dormire:    { bg: "#EC6A9E", color: "#ffffff" },
   prodotti:   { bg: "#8C6A18", color: "#ffffff" },
 };
+
 function NavBall({ to, label, icon: Icon, bg, color }) {
   return (
-    <Link to={to} aria-label={label} title={label} className="flex items-center gap-2 shrink-0">
-      <span className="inline-flex h-11 w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5" style={{ background: bg, color }}>
+    <Link to={to} aria-label={label} title={label} className="flex items-center gap-1.5 shrink-0">
+      <span
+        className="inline-flex h-10 w-10 items-center justify-center rounded-full shadow ring-1 ring-black/5"
+        style={{ background: bg, color }}
+      >
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
-      <span className="hidden sm:inline text-sm text-[#1A1818]">{label}</span>
+      <span className="hidden sm:inline text-[13.5px] leading-none text-[#1A1818] whitespace-nowrap">
+        {label}
+      </span>
     </Link>
   );
 }
 function NavTileMobile({ to, label, icon: Icon, bg, color, gradient }) {
   return (
-    <Link to={to} aria-label={label} className="flex items-center gap-3 rounded-2xl border bg-white p-3 shadow-sm hover:shadow ring-1 ring-transparent hover:ring-[#6B271A]/20 active:scale-[0.99] transition">
-      <span className="relative inline-flex h-14 w-14 items-center justify-center rounded-full shadow ring-1 ring-black/5" style={{ background: gradient ? undefined : bg, color }}>
+    <Link
+      to={to}
+      aria-label={label}
+      className="flex items-center gap-3 rounded-2xl border bg-white p-2.5 shadow-sm hover:shadow ring-1 ring-transparent hover:ring-[#6B271A]/20 active:scale-[0.99] transition"
+    >
+      <span
+        className="relative inline-flex h-12 w-12 items-center justify-center rounded-full shadow ring-1 ring-black/5"
+        style={{ background: gradient ? undefined : bg, color }}
+      >
         {gradient ? <span className="absolute inset-0 rounded-full" style={{ background: colors.esperienze.bg }} /> : null}
-        <Icon className="h-6 w-6 relative" aria-hidden="true" />
+        <Icon className="h-5 w-5 relative" aria-hidden="true" />
       </span>
-      <span className="text-[16.5px] leading-tight font-extrabold text-[#5B2A1F]">{label}</span>
+      <span className="text-[15px] leading-tight font-extrabold text-[#5B2A1F]">
+        {label}
+      </span>
     </Link>
   );
 }
-const Divider = () => <span className="mx-2 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
+const Divider = () => <span className="mx-1.5 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
 
 /* ================= Descrizione & In breve ================= */
 function DescriptionBlock({ text, slug }) {
@@ -515,25 +528,35 @@ function DiscoverBorgoCardHM({ b }) {
   );
 }
 
-/* 3) Prossimi eventi */
-function HMEventCard({ ev }) {
+/* 3) Prossimi eventi – locandina verticale */
+function HMEventPosterCard({ ev }) {
   return (
-    <article className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
-      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-t-3xl">
-        <img src={ev.img} alt={ev.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+    <article className="snap-center shrink-0 w-[68%] xs:w-[54%] sm:w-[38%] md:w-[28%] lg:w-[22%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+      {/* Locandina verticale 2:3 */}
+      <div className="relative aspect-[2/3] w-full overflow-hidden">
+        <img
+          src={ev.img}
+          alt={ev.title}
+          className="h-full w-full object-cover"
+          loading="lazy"
+          decoding="async"
+        />
         {ev.tag && (
-          <span className="absolute right-3 bottom-3 rounded-full bg-white/95 px-3 py-1 text-xs font-extrabold text-[#5B2A1F] shadow ring-1 ring-black/5">
+          <span className="absolute right-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-extrabold text-[#5B2A1F] shadow ring-1 ring-black/5">
             {ev.tag}
           </span>
         )}
       </div>
+
       <div className="p-4">
         <h3 className="font-extrabold text-[#5B2A1F]">{ev.title}</h3>
-        <div className="mt-2 text-sm text-neutral-700">{ev.date}</div>
-        <div className="mt-1 inline-flex items-center gap-1 text-sm text-neutral-700">
-          <MapPin className="h-4 w-4 text-[#D54E30]" />
-          {ev.place}
-        </div>
+        {ev.date && <div className="mt-2 text-sm text-neutral-700">{ev.date}</div>}
+        {ev.place && (
+          <div className="mt-1 inline-flex items-center gap-1 text-sm text-neutral-700">
+            <MapPin className="h-4 w-4 text-[#D54E30]" />
+            {ev.place}
+          </div>
+        )}
         {ev.meta && <div className="mt-1 text-sm text-neutral-700">{ev.meta}</div>}
       </div>
     </article>
@@ -698,14 +721,14 @@ export default function HomeBorgo() {
 
   /* NAV items */
   const navBase = [
-    { key: "cosafare",   label: "Cosa fare",              to: `/borghi/${slug}/cosa-fare`,      icon: ListIcon,   ...colors.cosafare },
-    { key: "mangiare",   label: "Mangiare e Bere",        to: `/borghi/${slug}/mangiare-bere`,  icon: Utensils,   ...colors.mangiare },
-    { key: "eventi",     label: "Eventi e Sagre",         to: `/borghi/${slug}/eventi`,         icon: CalendarDays, ...colors.eventi },
-    { key: "artigiani",  label: "Artigiani",              to: `/borghi/${slug}/artigiani`,      icon: Hammer,     ...colors.artigiani },
-    { key: "trasporti",  label: "Trasporti",              to: `/borghi/${slug}/trasporti`,      icon: Bus,        ...colors.trasporti },
-    { key: "esperienze", label: "Esperienze e Itinerari", to: `/borghi/${slug}/esperienze`,     icon: Route,      ...colors.esperienze },
-    { key: "dormire",    label: "Dormire",                to: `/borghi/${slug}/dormire`,        icon: BedDouble,  ...colors.dormire },
-    { key: "prodotti",   label: "Prodotti tipici",        to: `/borghi/${slug}/prodotti-tipici`,icon: ShoppingBag,...colors.prodotti },
+    { key: "cosafare",   label: "Cosa fare",              to: `/borghi/${slug}/cosa-fare`,       icon: ListIcon,   ...colors.cosafare },
+    { key: "mangiare",   label: "Mangiare e Bere",        to: `/borghi/${slug}/mangiare-bere`,   icon: Utensils,   ...colors.mangiare },
+    { key: "eventi",     label: "Eventi e Sagre",         to: `/borghi/${slug}/eventi`,          icon: CalendarDays, ...colors.eventi },
+    { key: "artigiani",  label: "Artigiani",              to: `/borghi/${slug}/artigiani`,       icon: Hammer,     ...colors.artigiani },
+    { key: "trasporti",  label: "Trasporti",              to: `/borghi/${slug}/trasporti`,       icon: Bus,        ...colors.trasporti },
+    { key: "esperienze", label: "Esperienze e Itinerari", to: `/borghi/${slug}/esperienze`,      icon: Route,      ...colors.esperienze },
+    { key: "dormire",    label: "Dormire",                to: `/borghi/${slug}/dormire`,         icon: BedDouble,  ...colors.dormire },
+    { key: "prodotti",   label: "Prodotti tipici",        to: `/borghi/${slug}/prodotti-tipici`, icon: ShoppingBag, ...colors.prodotti },
   ];
 
   const infoHref = `/borghi/${slug}/info`;
@@ -723,11 +746,11 @@ export default function HomeBorgo() {
           overlay={<HeroOverlay mapsUrl={mapsUrl} />}
           leftExtras={
             <>
-              <Link to={infoHref} aria-label={`Informazioni su ${title}`} className="inline-flex h-9 md:h-11 items-center gap-1.5 rounded-full border bg-white/90 px-2 md:px-3 text-white md:text-[#6B271A] hover:bg-white">
+              <Link to={infoHref} aria-label={`Informazioni su ${title}`} className="inline-flex h-9 md:h-10 items-center gap-1.5 rounded-full border bg-white/90 px-2 md:px-3 text-white md:text-[#6B271A] hover:bg-white">
                 <Info className="h-4 w-4" />
                 <span className="hidden md:inline font-semibold text-[#6B271A]">Info</span>
               </Link>
-              <Link to={donateHref} aria-label={`Sostieni ${title}`} className="inline-flex h-9 md:h-11 items-center gap-1.5 rounded-full bg-[#06B6D4] px-2 md:px-3 text-white hover:opacity-95">
+              <Link to={donateHref} aria-label={`Sostieni ${title}`} className="inline-flex h-9 md:h-10 items-center gap-1.5 rounded-full bg-[#06B6D4] px-2 md:px-3 text-white hover:opacity-95">
                 <HandHeart className="h-4 w-4" />
                 <span className="hidden md:inline font-semibold">Sostieni il borgo</span>
               </Link>
@@ -735,14 +758,14 @@ export default function HomeBorgo() {
           }
         />
 
-        {/* NAV – mobile griglia / desktop fila */}
+        {/* NAV – mobile griglia / desktop fila compatta */}
         <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:hidden">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:hidden">
             {navBase.map((n) => (
               <NavTileMobile key={n.key} to={n.to} label={n.label} icon={n.icon} bg={n.bg} color={n.color} gradient={n.gradient} />
             ))}
           </div>
-          <div className="hidden items-center gap-3 overflow-x-auto pb-2 sm:flex" style={{ WebkitOverflowScrolling: "touch" }}>
+          <div className="hidden items-center gap-2 overflow-x-auto pb-1 sm:flex" style={{ WebkitOverflowScrolling: "touch" }}>
             {navBase.map((n, i) => (
               <React.Fragment key={n.key}>
                 <NavBall to={n.to} label={n.label} icon={n.icon} bg={n.gradient ? undefined : n.bg} color={n.color} />
@@ -778,10 +801,10 @@ export default function HomeBorgo() {
           ))}
         </SectionHM>
 
-        {/* Prossimi eventi */}
+        {/* Prossimi eventi — locandine verticali */}
         <SectionHM title="Prossimi eventi" linkTo={`/borghi/${slug}/eventi`}>
           {eventi.map((ev, i) => (
-            <HMEventCard key={i} ev={ev} />
+            <HMEventPosterCard key={i} ev={ev} />
           ))}
         </SectionHM>
 

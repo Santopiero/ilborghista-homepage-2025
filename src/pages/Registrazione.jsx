@@ -16,7 +16,9 @@ export default function Registrazione() {
   }
 
   const HERO_URL =
-    "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=2000&auto=format&fit=crop";
+    "https://images.unsplash.com/photo-1691524711418-53acf98c84fa?q=80&w=1332&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
+  const CTA_BG_URL =
+    "https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=80&w=2000&auto=format&fit=crop";
 
   return (
     <main className="min-h-screen bg-white">
@@ -47,21 +49,20 @@ export default function Registrazione() {
         </div>
       </section>
 
-      {/* Intro con termini in bold */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-        <p className="text-gray-700 text-base md:text-lg">
+      {/* Intro (frase ridotta, termini in bold) */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-4">
+        <p className="text-gray-700 text-sm md:text-base">
           Scegli il profilo con cui vuoi registrarti su{" "}
-          <span className="font-semibold text-[#6B271A]">Il Borghista</span>. Puoi promuovere il tuo{" "}
-          <span className="font-semibold">borgo</span>, far crescere la tua{" "}
-          <span className="font-semibold">attività</span>, pubblicare contenuti come{" "}
-          <span className="font-semibold">Creator</span>, oppure come{" "}
-          <span className="font-semibold">utente</span>, godendo della bellezza, salvare esperienze,
-          segnalare eventi e lasciare feedback utili alla community.
+          <span className="font-semibold text-[#6B271A]">Il Borghista</span>: promuovi il tuo{" "}
+          <span className="font-semibold">borgo</span>, fai crescere la tua{" "}
+          <span className="font-semibold">attività</span>, pubblica come{" "}
+          <span className="font-semibold">Creator</span> o esplora da{" "}
+          <span className="font-semibold">utente</span> salvando esperienze, eventi e feedback.
         </p>
       </section>
 
       {/* Card a scorrimento orizzontale */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-12">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-10">
         <div className="relative">
           <div
             ref={scrollerRef}
@@ -74,7 +75,7 @@ export default function Registrazione() {
             >
               <div className="w-full overflow-hidden h-40 sm:h-48 md:h-56">
                 <img
-                  src="https://images.unsplash.com/photo-1586448184757-c29a99f1f2c7?q=80&w=1400&auto=format&fit=crop"
+                  src="https://media.istockphoto.com/id/1454275264/it/foto/arcidosso.jpg?s=2048x2048&w=is&k=20&c=b9Px_El6XNdGbNSgZ4VT36yYiQzHQrvIdTCvjb8Ptsk="
                   alt="Borgo italiano"
                   className="w-full h-full object-cover"
                   loading="lazy"
@@ -104,7 +105,7 @@ export default function Registrazione() {
             >
               <div className="w-full overflow-hidden h-40 sm:h-48 md:h-56">
                 <img
-                  src="https://images.unsplash.com/photo-1542744173-05336fcc7ad4?q=80&w=1400&auto=format&fit=crop"
+                  src="https://images.unsplash.com/photo-1534650075489-3baecec1e8b1?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
                   alt="Attività locale"
                   className="w-full h-full object-cover"
                   loading="lazy"
@@ -134,7 +135,7 @@ export default function Registrazione() {
             >
               <div className="w-full overflow-hidden h-40 sm:h-48 md:h-56">
                 <img
-                  src="https://images.unsplash.com/photo-1518779578993-ec3579fee39f?q=80&w=1400&auto=format&fit=crop"
+                  src="https://images.unsplash.com/photo-1673767296863-c00f139e4be8?q=80&w=1171&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
                   alt="Creator che realizza un video"
                   className="w-full h-full object-cover"
                   loading="lazy"
@@ -164,7 +165,7 @@ export default function Registrazione() {
             >
               <div className="w-full overflow-hidden h-40 sm:h-48 md:h-56">
                 <img
-                  src="https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1400&auto=format&fit=crop"
+                  src="https://media.istockphoto.com/id/1346146237/it/foto/ragazza-adolescente-madre-e-nonna-stanno-visitando-la-bellissima-citt%C3%A0-di-valldemossa-maiorca.jpg?s=2048x2048&w=is&k=20&c=ZJLmMy8do469viYOxDPxLMWvC-zK813omrP4juZ1u48="
                   alt="Coppia che pianifica un viaggio"
                   className="w-full h-full object-cover"
                   loading="lazy"
@@ -203,6 +204,31 @@ export default function Registrazione() {
           >
             <ArrowRight className="w-5 h-5" />
           </button>
+        </div>
+      </section>
+
+      {/* CTA finale con foto potente */}
+      <section className="w-full">
+        <div
+          className="relative w-full rounded-none md:rounded-2xl overflow-hidden"
+          style={{
+            backgroundImage: `url(${CTA_BG_URL})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div className="absolute inset-0 bg-black/35" />
+          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-10 md:py-14 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <h2 className="text-white text-xl md:text-2xl font-extrabold">
+              Contribuisci a rendere unico ogni luogo.
+            </h2>
+            <Link
+              to="/registrazione-creator"
+              className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-[#E1B671] text-[#6B271A] font-semibold shadow hover:brightness-95"
+            >
+              Contribuisci ora
+            </Link>
+          </div>
         </div>
       </section>
 

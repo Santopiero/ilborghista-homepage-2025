@@ -358,7 +358,7 @@ export default function HomepageMockup() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <Link to="/" className="text-xl font-extrabold text-[#6B271A]">il borghista</Link>
             <div className="flex items-center gap-3">
-              <Link to="/creator" className="text-sm font-semibold underline text-[#6B271A]">Creator</Link>
+              <Link to="/creator" className="text-sm font-semibold underline text-[#6B271A]">Creators</Link>
               <Link to="/registrazione-comune" className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]">
                 <User size={18} /> Registrati
               </Link>

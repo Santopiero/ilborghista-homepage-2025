@@ -354,7 +354,7 @@ const colors = {
   eventi:     { bg: "#F4B000", color: "#ffffff" },
   artigiani:  { bg: "#9A5B2D", color: "#ffffff" },
   trasporti:  { bg: "#1649D7", color: "#ffffff" },
-  esperienze: { bg: "linear-gradient(145deg,#14b8a6 0%,#22c55e 100%)", color: "#ffffff", gradient: true },
+  esperienze: { bg: "#4ada48ff", color:"#ffffff"},
   dormire:    { bg: "#EC6A9E", color: "#ffffff" },
   prodotti:   { bg: "#8C6A18", color: "#ffffff" },
 };

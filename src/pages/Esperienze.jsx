@@ -315,7 +315,7 @@ function ExperienceCard({ slug, p }) {
 /* ---- Seeds fallback ---- */
 const MOCK_ITEMS = [
   { id: "mock-exp-1", name: "Aosta: volo in mongolfiera sulle Alpi con vista mozzafiato",
-    cover: "https://images.unsplash.com/photo-1520974735194-6c1f1c1d0b35?q=80&w=1200&auto=format&fit=crop",
+    cover: "https://images.unsplash.com/photo-1725744837149-0e6985bbf8a5?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     partner: "Viator", priceFrom: 245, duration: "3 ore", comune: "Aosta", provincia: "AO",
     affiliateUrl: "https://example.com/viator?prod=balloon-alps", rating: { value: 4.8, count: 132 }, hasVideo: true },
   { id: "mock-exp-2", name: "Perugia: giro in mongolfiera tra Umbria e Assisi",

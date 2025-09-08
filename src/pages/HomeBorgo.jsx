@@ -326,32 +326,53 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null }) {
   );
 }
 
-/* ========= Nav “palline” (come Esperienze) ========= */
-function NavItem({ to, label, icon: Icon, bg, color }) {
+/* ========= Palette / componenti nav ========= */
+const colors = {
+  cosafare:   { bg: "#2E7D32", color: "#ffffff" },
+  mangiare:   { bg: "#C81E3C", color: "#ffffff" },
+  eventi:     { bg: "#F4B000", color: "#ffffff" },
+  artigiani:  { bg: "#9A5B2D", color: "#ffffff" },
+  trasporti:  { bg: "#1649D7", color: "#ffffff" },
+  esperienze: { bg: "linear-gradient(145deg,#14b8a6 0%,#22c55e 100%)", color: "#ffffff", gradient: true },
+  dormire:    { bg: "#EC6A9E", color: "#ffffff" },
+  prodotti:   { bg: "#8C6A18", color: "#ffffff" }, // oro scuro per contrasto
+};
+
+function NavBall({ to, label, icon: Icon, bg, color }) {
   return (
     <Link to={to} aria-label={label} title={label} className="flex items-center gap-2 shrink-0">
       <span
-        className="inline-flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5"
-        style={{ backgroundColor: bg, color }}
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5"
+        style={{ background: bg, color }}
       >
-        <Icon className="h-5 w-5" />
+        <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
       <span className="hidden sm:inline text-sm text-[#1A1818]">{label}</span>
     </Link>
   );
 }
-const Divider = () => <span className="mx-2 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
 
-const colors = {
-  cosafare:    { bg: "#2E7D32", color: "#ffffff" },
-  mangiare:    { bg: "#C81E3C", color: "#ffffff" },
-  eventi:      { bg: "#F4B000", color: "#ffffff" },
-  artigiani:   { bg: "#9A5B2D", color: "#ffffff" },
-  trasporti:   { bg: "#1649D7", color: "#ffffff" },
-  esperienze:  { bg: "#21C195", color: "#ffffff" },
-  dormire:     { bg: "#EC6A9E", color: "#ffffff" },
-  prodotti:    { bg: "#4B2E12", color: "#ffffff" },
-};
+/* Mobile “pallotta”: icona tonda + label a destra, tutto cliccabile */
+function NavTileMobile({ to, label, icon: Icon, bg, color, aria }) {
+  return (
+    <Link
+      to={to}
+      aria-label={aria || label}
+      className="flex items-center gap-3 rounded-2xl border bg-white p-3 shadow-sm hover:shadow ring-1 ring-transparent hover:ring-[#6B271A]/20 active:scale-[0.99] transition"
+    >
+      <span
+        className="inline-flex h-14 w-14 items-center justify-center rounded-full shadow ring-1 ring-black/5"
+        style={{ background: bg, color }}
+      >
+        <Icon className="h-6 w-6" aria-hidden="true" />
+      </span>
+      <span className="text-[16.5px] leading-tight font-extrabold text-[#5B2A1F]">
+        {label}
+      </span>
+    </Link>
+  );
+}
+const Divider = () => <span className="mx-2 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
 
 /* ========= Descrizione ========= */
 function DescriptionBlock({ text, slug }) {
@@ -647,6 +668,28 @@ export default function HomeBorgo() {
   ];
   const nearby = (BORGI_INDEX || []).filter((b) => b.slug !== slug).slice(0, 8);
 
+  /* === NAV ITEMS === */
+  const navBase = [
+    { key: "cosafare",   label: "Cosa fare",              to: `/borghi/${slug}/cosa-fare`,      icon: ListIcon,   ...colors.cosafare },
+    { key: "mangiare",   label: "Mangiare e Bere",        to: `/borghi/${slug}/mangiare-bere`,  icon: Utensils,   ...colors.mangiare },
+    { key: "eventi",     label: "Eventi e Sagre",         to: `/borghi/${slug}/eventi`,         icon: CalendarDays, ...colors.eventi },
+    { key: "artigiani",  label: "Artigiani",              to: `/borghi/${slug}/artigiani`,      icon: Hammer,     ...colors.artigiani },
+    { key: "trasporti",  label: "Trasporti",              to: `/borghi/${slug}/trasporti`,      icon: Bus,        ...colors.trasporti },
+    { key: "esperienze", label: "Esperienze e Itinerari", to: `/borghi/${slug}/esperienze`,     icon: Route,      ...colors.esperienze },
+    { key: "dormire",    label: "Dormire",                to: `/borghi/${slug}/dormire`,        icon: BedDouble,  ...colors.dormire },
+    { key: "prodotti",   label: "Prodotti tipici",        to: `/borghi/${slug}/prodotti-tipici`,icon: ShoppingBag,...colors.prodotti },
+  ];
+  // Ordinamento dinamico opzionale
+  const priority = Array.isArray(meta?.homeNavPriority) ? meta.homeNavPriority : null;
+  const navItems = useMemo(() => {
+    if (!priority) return navBase;
+    const weight = (k) => {
+      const idx = priority.indexOf(k);
+      return idx === -1 ? 999 : idx;
+    };
+    return [...navBase].sort((a, b) => weight(a.key) - weight(b.key));
+  }, [slug, priority]);
+
   return (
     <>
       <TopBar slug={slug} />
@@ -659,24 +702,51 @@ export default function HomeBorgo() {
           overlay={<HeroOverlay mapsUrl={mapsUrl} />}
         />
 
-        {/* NAV “PALLINE” (come Esperienze) */}
-        <section className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3 overflow-x-auto pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
-            <NavItem to={`/borghi/${slug}/cosa-fare`} label="Cosa fare" icon={ListIcon} {...colors.cosafare} />
-            <Divider />
-            <NavItem to={`/borghi/${slug}/mangiare-bere`} label="Mangiare" icon={Utensils} {...colors.mangiare} />
-            <Divider />
-            <NavItem to={`/borghi/${slug}/eventi`} label="Eventi e Sagre" icon={CalendarDays} {...colors.eventi} />
-            <Divider />
-            <NavItem to={`/borghi/${slug}/artigiani`} label="Artigiani" icon={Hammer} {...colors.artigiani} />
-            <Divider />
-            <NavItem to={`/borghi/${slug}/trasporti`} label="Trasporti" icon={Bus} {...colors.trasporti} />
-            <Divider />
-            <NavItem to={`/borghi/${slug}/esperienze`} label="Esperienze" icon={Route} {...colors.esperienze} />
-            <Divider />
-            <NavItem to={`/borghi/${slug}/dormire`} label="Dormire" icon={BedDouble} {...colors.dormire} />
-            <Divider />
-            <NavItem to={`/borghi/${slug}/prodotti-tipici`} label="Prodotti tipici" icon={ShoppingBag} {...colors.prodotti} />
+        {/* NAV: MOBILE = griglia 2xN con pallotte; DESKTOP = riga orizzontale */}
+        <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+          {/* Mobile 2 colonne */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:hidden">
+            {navItems.map((n) => (
+              <NavTileMobile
+                key={n.key}
+                to={n.to}
+                label={n.label}
+                icon={n.icon}
+                bg={n.gradient ? undefined : n.bg}
+                color={n.color}
+                aria={`${n.label} a ${title}`}
+              />
+            )).map((el, i) =>
+              React.cloneElement(el, {
+                style: navItems[i]?.gradient ? { background: "transparent" } : undefined,
+                children: (
+                  <>
+                    {/* Se gradient, applico il gradiente sul cerchio */}
+                    {navItems[i]?.gradient ? (
+                      <span
+                        className="inline-flex h-14 w-14 items-center justify-center rounded-full shadow ring-1 ring-black/5"
+                        style={{ background: colors.esperienze.bg, color: colors.esperienze.color }}
+                      >
+                        {React.createElement(navItems[i].icon, { className: "h-6 w-6", "aria-hidden": true })}
+                      </span>
+                    ) : el.props.children?.[0]}
+                    <span className="text-[16.5px] leading-tight font-extrabold text-[#5B2A1F]">
+                      {navItems[i].label}
+                    </span>
+                  </>
+                ),
+              })
+            )}
+          </div>
+
+          {/* Desktop fila orizzontale */}
+          <div className="hidden items-center gap-3 overflow-x-auto pb-2 sm:flex" style={{ WebkitOverflowScrolling: "touch" }}>
+            {navItems.map((n, idx) => (
+              <React.Fragment key={n.key}>
+                <NavBall to={n.to} label={n.label} icon={n.icon} bg={n.gradient ? undefined : n.bg} color={n.color} />
+                {idx < navItems.length - 1 ? <Divider /> : null}
+              </React.Fragment>
+            ))}
           </div>
         </section>
 

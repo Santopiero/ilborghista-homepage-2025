@@ -11,7 +11,8 @@ import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
 import {
   ChevronLeft, ChevronRight, Share2, Heart, Film, CalendarDays, Route, ShoppingBag,
   List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Search, Menu, X,
-  LogIn, UserPlus, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned, MapPin, Star, Bus
+  LogIn, UserPlus, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned,
+  MapPin, Star, Bus, Info, HandHeart
 } from "lucide-react";
 
 /* ========= Helpers ========= */
@@ -186,38 +187,22 @@ function HScrollWithArrows({ children, className = "" }) {
 function HeroOverlay({ mapsUrl }) {
   return (
     <div className="absolute left-4 right-4 top-16 z-20 flex items-start justify-between">
-      {/* Bottone mobile: mappa */}
+      {/* Unico bottone mappa (mobile+desktop) */}
       <a
         href={mapsUrl}
         target="_blank"
         rel="noreferrer"
-        className="md:hidden inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-sm font-semibold text-[#6B271A] shadow ring-1 ring-black/5 hover:bg-white"
+        className="inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-sm font-semibold text-[#6B271A] shadow ring-1 ring-black/5 hover:bg-white"
       >
         <MapPinned className="h-4 w-4" />
-        Apri mappa
+        <span className="hidden md:inline">Apri mappa</span>
       </a>
-
-      {/* Mappa desktop (piccola card) */}
-      <div className="hidden md:block ml-auto w-[320px] max-w-[46vw] overflow-hidden rounded-xl bg-white/90 shadow ring-1 ring-black/10">
-        <div className="h-[180px] w-full">
-          <iframe
-            title="Mappa del borgo"
-            src={mapsUrl.replace("/maps/search/", "/maps?q=").replace("search/?api=1&query=", "") + "&output=embed"}
-            className="h-full w-full"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-        </div>
-        <div className="px-3 py-2 text-xs text-neutral-700">
-          Vista mappa · clicca per aprire in Google Maps
-        </div>
-      </div>
     </div>
   );
 }
 
 /* ========= Hero Gallery ========= */
-function HeroGallery({ title, gallery = [], fallback, overlay = null }) {
+function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras = null }) {
   const [i, setI] = useState(0);
   const n = gallery?.length || 0;
   const hasMany = n > 1;
@@ -263,7 +248,7 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null }) {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
 
-        {/* Overlay (btn mobile + mappa desktop) */}
+        {/* Overlay (bottone mappa) */}
         {overlay}
 
         {/* Nome foto (alto sx) */}
@@ -308,10 +293,14 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null }) {
         )}
       </div>
 
-      {/* Titolo + azioni (desktop) */}
+      {/* Titolo + azioni */}
       <div className="absolute inset-x-0 bottom-4">
         <div className="mx-auto flex max-w-6xl items-end justify-between gap-3 px-4 sm:px-6">
-          <h1 className="text-3xl font-extrabold text-white drop-shadow md:text-4xl">{title}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-extrabold text-white drop-shadow md:text-4xl">{title}</h1>
+            {/* extra (Info + Sostieni) */}
+            {leftExtras}
+          </div>
           <div className="hidden items-center gap-2 sm:flex">
             <button className="inline-flex h-11 items-center gap-2 rounded-xl border bg-white/90 px-3 text-[#6B271A] hover:bg-white">
               <Share2 className="h-4 w-4" /> Condividi
@@ -335,7 +324,7 @@ const colors = {
   trasporti:  { bg: "#1649D7", color: "#ffffff" },
   esperienze: { bg: "linear-gradient(145deg,#14b8a6 0%,#22c55e 100%)", color: "#ffffff", gradient: true },
   dormire:    { bg: "#EC6A9E", color: "#ffffff" },
-  prodotti:   { bg: "#8C6A18", color: "#ffffff" }, // oro scuro per contrasto
+  prodotti:   { bg: "#8C6A18", color: "#ffffff" },
 };
 
 function NavBall({ to, label, icon: Icon, bg, color }) {
@@ -353,7 +342,7 @@ function NavBall({ to, label, icon: Icon, bg, color }) {
 }
 
 /* Mobile “pallotta”: icona tonda + label a destra, tutto cliccabile */
-function NavTileMobile({ to, label, icon: Icon, bg, color, aria }) {
+function NavTileMobile({ to, label, icon: Icon, bg, color, aria, gradient }) {
   return (
     <Link
       to={to}
@@ -362,8 +351,11 @@ function NavTileMobile({ to, label, icon: Icon, bg, color, aria }) {
     >
       <span
         className="inline-flex h-14 w-14 items-center justify-center rounded-full shadow ring-1 ring-black/5"
-        style={{ background: bg, color }}
+        style={{ background: gradient ? undefined : bg, color }}
       >
+        {gradient ? (
+          <span className="h-14 w-14 absolute rounded-full -z-10" style={{ background: colors.esperienze.bg }} />
+        ) : null}
         <Icon className="h-6 w-6" aria-hidden="true" />
       </span>
       <span className="text-[16.5px] leading-tight font-extrabold text-[#5B2A1F]">
@@ -462,7 +454,7 @@ function InBreve({ meta, borgo, slug }) {
   );
 }
 
-/* ========= Card POI ========= */
+/* ========= POI card (resto sezioni) ========= */
 function CardPOI({ slug, p }) {
   const hasVideo = typeof getVideosByPoi === "function" && p?.id ? getVideosByPoi(p.id).length > 0 : false;
   return (
@@ -503,6 +495,31 @@ function CardPOI({ slug, p }) {
   );
 }
 
+/* ========= Card stile HM per Eventi/Esperienze/Prodotti ========= */
+function HMCard({ img, title, href = "#", badgeLeft, badgeRight, meta }) {
+  return (
+    <a href={href} className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white hover:shadow transition" role="listitem">
+      <div className="relative aspect-[16/9] w-full bg-neutral-100">
+        <img src={img} alt={title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+        {badgeLeft ? (
+          <span className="absolute left-2 top-2 rounded-full border border-[#E1B671] bg-[#6B271A] px-2 py-0.5 text-[11px] font-bold text-white shadow">
+            {badgeLeft}
+          </span>
+        ) : null}
+        {badgeRight ? (
+          <span className="absolute right-2 top-2 rounded-full border border-[#E1B671] bg-[#D54E30] px-2 py-0.5 text-[11px] font-bold text-white shadow">
+            {badgeRight}
+          </span>
+        ) : null}
+      </div>
+      <div className="p-3">
+        <h3 className="line-clamp-2 h-[44px] font-semibold text-[#1A1818]">{title}</h3>
+        {meta ? <div className="text-xs text-neutral-600 mt-1">{meta}</div> : null}
+      </div>
+    </a>
+  );
+}
+
 /* ========= Sezione generica con carosello ========= */
 function SectionCarousel({ id, title, items = [], render, extraLink = null }) {
   return (
@@ -511,9 +528,7 @@ function SectionCarousel({ id, title, items = [], render, extraLink = null }) {
         <h2 className="text-xl font-extrabold text-[#6B271A]">{title}</h2>
         {extraLink ? <Link to={extraLink} className="text-sm font-semibold underline">Vedi tutti</Link> : null}
       </div>
-      <HScrollWithArrows className="mt-3">
-        {items.map((it, idx) => render(it, idx))}
-      </HScrollWithArrows>
+      <HScrollWithArrows className="mt-3">{items.map((it, idx) => render(it, idx))}</HScrollWithArrows>
     </section>
   );
 }
@@ -679,7 +694,6 @@ export default function HomeBorgo() {
     { key: "dormire",    label: "Dormire",                to: `/borghi/${slug}/dormire`,        icon: BedDouble,  ...colors.dormire },
     { key: "prodotti",   label: "Prodotti tipici",        to: `/borghi/${slug}/prodotti-tipici`,icon: ShoppingBag,...colors.prodotti },
   ];
-  // Ordinamento dinamico opzionale
   const priority = Array.isArray(meta?.homeNavPriority) ? meta.homeNavPriority : null;
   const navItems = useMemo(() => {
     if (!priority) return navBase;
@@ -690,16 +704,39 @@ export default function HomeBorgo() {
     return [...navBase].sort((a, b) => weight(a.key) - weight(b.key));
   }, [slug, priority]);
 
+  const infoHref = `/borghi/${slug}/info`;        // placeholder info
+  const donateHref = `/borghi/${slug}/sostieni`;  // placeholder sostieni
+
   return (
     <>
       <TopBar slug={slug} />
       <main className="min-h-screen bg-white pt-14">
-        {/* HERO + overlay (mappa) + mobile share/save */}
+        {/* HERO + overlay (bottone mappa) + extra (Info + Sostieni) */}
         <HeroGallery
           title={title}
           gallery={gallery}
           fallback={gallery?.[0]?.src}
           overlay={<HeroOverlay mapsUrl={mapsUrl} />}
+          leftExtras={
+            <>
+              <Link
+                to={infoHref}
+                aria-label={`Informazioni su ${title}`}
+                className="inline-flex h-9 md:h-11 items-center gap-1.5 rounded-full border bg-white/90 px-2 md:px-3 text-white md:text-[#6B271A] hover:bg-white"
+              >
+                <Info className="h-4 w-4" />
+                <span className="hidden md:inline font-semibold text-[#6B271A]">Info</span>
+              </Link>
+              <Link
+                to={donateHref}
+                aria-label={`Sostieni ${title}`}
+                className="inline-flex h-9 md:h-11 items-center gap-1.5 rounded-full bg-[#06B6D4] px-2 md:px-3 text-white hover:opacity-95"
+              >
+                <HandHeart className="h-4 w-4" />
+                <span className="hidden md:inline font-semibold">Sostieni il borgo</span>
+              </Link>
+            </>
+          }
         />
 
         {/* NAV: MOBILE = griglia 2xN con pallotte; DESKTOP = riga orizzontale */}
@@ -712,31 +749,12 @@ export default function HomeBorgo() {
                 to={n.to}
                 label={n.label}
                 icon={n.icon}
-                bg={n.gradient ? undefined : n.bg}
+                bg={n.bg}
                 color={n.color}
+                gradient={n.gradient}
                 aria={`${n.label} a ${title}`}
               />
-            )).map((el, i) =>
-              React.cloneElement(el, {
-                style: navItems[i]?.gradient ? { background: "transparent" } : undefined,
-                children: (
-                  <>
-                    {/* Se gradient, applico il gradiente sul cerchio */}
-                    {navItems[i]?.gradient ? (
-                      <span
-                        className="inline-flex h-14 w-14 items-center justify-center rounded-full shadow ring-1 ring-black/5"
-                        style={{ background: colors.esperienze.bg, color: colors.esperienze.color }}
-                      >
-                        {React.createElement(navItems[i].icon, { className: "h-6 w-6", "aria-hidden": true })}
-                      </span>
-                    ) : el.props.children?.[0]}
-                    <span className="text-[16.5px] leading-tight font-extrabold text-[#5B2A1F]">
-                      {navItems[i].label}
-                    </span>
-                  </>
-                ),
-              })
-            )}
+            ))}
           </div>
 
           {/* Desktop fila orizzontale */}
@@ -804,16 +822,16 @@ export default function HomeBorgo() {
           )}
         </section>
 
-        {/* EVENTI */}
+        {/* EVENTI (stile HM) */}
         <SectionCarousel id="eventi" title="Eventi e Sagre" items={eventi}
           render={(ev,i)=>(
-            <article key={i} className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white" role="listitem">
-              <div className="relative">
-                <img src={ev.img} alt={ev.title} className="h-40 w-full object-cover" loading="lazy" decoding="async" />
-                <span className="absolute left-2 top-2 rounded-full border border-[#E1B671] bg-[#6B271A] px-2 py-0.5 text-[11px] font-bold text-white">{ev.when}</span>
-              </div>
-              <div className="p-3"><h3 className="line-clamp-2 font-semibold text-[#6B271A]">{ev.title}</h3></div>
-            </article>
+            <HMCard
+              key={i}
+              img={ev.img}
+              title={ev.title}
+              badgeLeft={ev.when}
+              href={`/borghi/${slug}/eventi`}
+            />
           )}
         />
 
@@ -849,23 +867,28 @@ export default function HomeBorgo() {
           />
         ) : null}
 
-        {/* ESPERIENZE (editoriali) */}
+        {/* ESPERIENZE (stile HM) */}
         <SectionCarousel id="esperienze" title="Esperienze" items={esperienze}
           render={(it,i)=>(
-            <article key={i} className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white" role="listitem">
-              <img src={it.img} alt={it.title} className="h-40 w-full object-cover" loading="lazy" decoding="async" />
-              <div className="p-3"><h3 className="font-semibold text-[#6B271A]">{it.title}</h3><div className="mt-1 text-xs text-neutral-600">{it.meta}</div></div>
-            </article>
+            <HMCard
+              key={i}
+              img={it.img}
+              title={it.title}
+              meta={it.meta}
+              href={`/borghi/${slug}/esperienze`}
+            />
           )}
         />
 
-        {/* PRODOTTI TIPICI */}
+        {/* PRODOTTI TIPICI (stile HM) */}
         <SectionCarousel id="prodotti-tipici" title="Prodotti Tipici" items={prodottiTipici}
           render={(p,i)=>(
-            <article key={i} className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white" role="listitem">
-              <img src={p.img} alt={p.title} className="h-40 w-full object-cover" loading="lazy" decoding="async" />
-              <div className="p-3"><h3 className="font-semibold text-[#6B271A]">{p.title}</h3></div>
-            </article>
+            <HMCard
+              key={i}
+              img={p.img}
+              title={p.title}
+              href={`/borghi/${slug}/prodotti-tipici`}
+            />
           )}
         />
 

@@ -41,7 +41,13 @@ export default function RegistrazioneUtente() {
   const remainingToNext = Math.max(0, nextThreshold - profile.points);
   const levelProgress = Math.min(100, Math.round(((profile.points - prevThreshold) / Math.max(1, nextThreshold - prevThreshold)) * 100));
 
-  // Toast
+  const levelByPoints = React.useCallback((pts) => {
+    let name = USER_LEVELS[0].name;
+    for (let i = 0; i < USER_LEVELS.length; i++) if (pts >= USER_LEVELS[i].at) name = USER_LEVELS[i].name;
+    return name;
+  }, [USER_LEVELS]);
+
+  // Toast (fallback)
   const [toast, setToast] = React.useState({ show: false, text: "", kind: "success" });
   const showToast = React.useCallback((text, kind = "success") => {
     setToast({ show: true, text, kind });
@@ -49,15 +55,15 @@ export default function RegistrazioneUtente() {
     showToast._t = window.setTimeout(() => setToast({ show: false, text: "", kind }), 2200);
   }, []);
 
-  // Confetti (canvas-confetti se presente; fallback canvas)
+  // Confetti (canvas-confetti se disponibile; fallback canvas)
   const canvasRef = React.useRef(null);
   const prefersReduced = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const fireConfetti = React.useCallback((opts = {}) => {
     if (prefersReduced) return;
-    const { burst = 150, spread = 70 } = opts;
+    const { burst = 160, spread = 80, originY = 0.2 } = opts;
     if (typeof window !== "undefined" && typeof window.confetti === "function") {
-      window.confetti({ particleCount: Math.min(300, burst), spread, origin: { y: 0.2 } });
+      window.confetti({ particleCount: Math.min(300, burst), spread, origin: { y: originY } });
       return;
     }
     const canvas = canvasRef.current; if (!canvas) return;
@@ -72,7 +78,7 @@ export default function RegistrazioneUtente() {
       const angle = rad(-spread / 2 + Math.random() * spread);
       const speed = 6 + Math.random() * 6;
       return {
-        x: W / 2, y: H * 0.25,
+        x: W / 2, y: H * originY,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed - Math.random() * 4,
         g: 0.18 + Math.random() * 0.2,
@@ -98,18 +104,33 @@ export default function RegistrazioneUtente() {
     step();
   }, [prefersReduced]);
 
-  // Award points: solo quando decidi di assegnarli (es. approvazione)
-  const awardPoints = React.useCallback((delta) => {
+  // Popup celebrazione
+  const [celebrate, setCelebrate] = React.useState({ show: false, title: "", subtitle: "" });
+  const openCelebrate = React.useCallback((title, subtitle = "") => {
+    setCelebrate({ show: true, title, subtitle });
+    window.clearTimeout(openCelebrate._t);
+    openCelebrate._t = window.setTimeout(() => setCelebrate({ show: false, title: "", subtitle: "" }), 2200);
+  }, []);
+
+  // Assegna punti + trigger popup/confetti + level-up
+  const awardPoints = React.useCallback((delta, { reason = "" } = {}) => {
     const prevPoints = profile.points;
-    const newPoints = prevPoints + delta;
     const prevIdx = levelIndex;
+    const newPoints = prevPoints + delta;
     const next = { ...profile, points: newPoints };
     saveProfile(next);
-    // confetti se level-up
+
+    openCelebrate(`+${delta} punti`, reason || "Ben fatto!");
+
     let newIdx = 0;
     for (let i = 0; i < USER_LEVELS.length; i++) if (newPoints >= USER_LEVELS[i].at) newIdx = i;
-    if (newIdx > prevIdx) fireConfetti({ burst: 180, spread: 85 });
-  }, [profile, levelIndex, USER_LEVELS, saveProfile, fireConfetti]);
+    if (newIdx > prevIdx) {
+      fireConfetti({ burst: 200, spread: 90 });
+      openCelebrate("🎉 Livello aumentato!", `Sei ora ${USER_LEVELS[newIdx]?.name}`);
+    } else {
+      fireConfetti({ burst: 140, spread: 70 });
+    }
+  }, [profile, levelIndex, USER_LEVELS, saveProfile, fireConfetti, openCelebrate]);
 
   /* =======================
      Check-in (+2)
@@ -119,12 +140,15 @@ export default function RegistrazioneUtente() {
   const isSameDay = profile.lastLogin === todayStr;
 
   const doDailyCheckin = () => {
-    if (isSameDay) return showToast("Check-in: +2 punti guadagnati oggi!");
+    if (isSameDay) {
+      openCelebrate("Check-in già fatto oggi", "Torna domani per la serie 🔥");
+      return;
+    }
     const y = new Date(); y.setDate(y.getDate() - 1);
     const yStr = y.toISOString().slice(0, 10);
     const nextStreak = profile.lastLogin === yStr ? (profile.streak + 1) : 1;
     saveProfile({ ...profile, streak: nextStreak, lastLogin: todayStr });
-    awardPoints(DAILY_POINTS);
+    awardPoints(DAILY_POINTS, { reason: "Check-in completato" });
     showToast("Check-in: +2 punti guadagnati oggi!");
   };
 
@@ -141,7 +165,7 @@ export default function RegistrazioneUtente() {
   };
 
   /* =======================
-     Preferiti (read-only dai “cuori”) + quick add
+     Preferiti (read-only) + quick add
   ======================= */
   const FAVORITE_KEYS = ["ib_favorites", "ib_user_favorites", "ib_global_favorites", "ilborghista_favorites", "ilb_favorites"];
   const normalizeFav = (it) => {
@@ -191,9 +215,24 @@ export default function RegistrazioneUtente() {
       localStorage.setItem("ib_user_favorites", JSON.stringify(arr));
     } catch {}
     setFavorites(readGlobalFavorites());
-    // ❌ Niente punti per i preferiti (anti-scam)
-    showToast("Preferito aggiunto!");
+    openCelebrate("Preferito salvato ❤️", "Lo ritrovi nella tua lista");
   };
+
+  /* =======================
+     Badge dinamici
+  ======================= */
+  const getCount = (k) => {
+    try { const a = JSON.parse(localStorage.getItem(k) || "[]"); return Array.isArray(a) ? a.length : 0; } catch { return 0; }
+  };
+  const badges = React.useMemo(() => {
+    const b = [];
+    if (profile.points >= 50) b.push({ key: "exp", label: "Esploratore", icon: "🧭" });
+    if (profile.streak >= 7) b.push({ key: "streak7", label: "Costanza 7", icon: "🔥" });
+    if (getCount("ib_user_feedbacks") > 0) b.push({ key: "story", label: "Raccontastorie", icon: "💬" });
+    if (getCount("ib_user_events") > 0) b.push({ key: "segnalatore", label: "Segnalatore", icon: "📅" });
+    if (favorites.length >= 5) b.push({ key: "lover", label: "Local Lover", icon: "❤️" });
+    return b;
+  }, [profile.points, profile.streak, favorites.length]);
 
   /* =======================
      Modali (Feedback / Evento)
@@ -210,12 +249,102 @@ export default function RegistrazioneUtente() {
   };
 
   /* =======================
+     Attività recente (mock)
+  ======================= */
+  const seedActivities = React.useMemo(() => ([
+    { who: "Giulia", what: "ha aggiunto Matera ai preferiti", icon: "❤️" },
+    { who: "Luca", what: "ha segnalato una sagra a Nusco", icon: "📅" },
+    { who: "Sara", what: "ha lasciato un feedback su Orta", icon: "💬" },
+    { who: "Mauro", what: "ha scoperto un nuovo borgo", icon: "🧭" },
+    { who: "Elena", what: "ha caricato la foto profilo", icon: "📷" },
+  ]), []);
+  const [feed, setFeed] = React.useState(seedActivities.slice(0, 4));
+  React.useEffect(() => {
+    const t = setInterval(() => {
+      setFeed((cur) => {
+        const next = [...cur];
+        next.pop();
+        next.unshift(seedActivities[(Math.random() * seedActivities.length) | 0]);
+        return next;
+      });
+    }, 5000);
+    return () => clearInterval(t);
+  }, [seedActivities]);
+
+  /* =======================
+     Classifica regionale & nazionale
+  ======================= */
+  const [region, setRegion] = React.useState(() => localStorage.getItem("ib_user_region") || "Basilicata");
+  const saveRegion = (r) => { setRegion(r); try { localStorage.setItem("ib_user_region", r); } catch {} };
+
+  const REGIONS = ["Basilicata","Puglia","Sicilia","Toscana","Lazio","Piemonte"];
+
+  const seedNational = React.useMemo(() => ([
+    { name: "Giulia R.", points: 720, region: "Toscana" },
+    { name: "Luca B.", points: 540, region: "Lazio" },
+    { name: "Sara C.", points: 410, region: "Puglia" },
+    { name: "Mauro D.", points: 360, region: "Basilicata" },
+    { name: "Elena F.", points: 320, region: "Piemonte" },
+    { name: "Paolo M.", points: 305, region: "Sicilia" },
+  ]), []);
+
+  const seedRegional = React.useMemo(() => ({
+    Basilicata: [
+      { name: "Paolo V.", points: 380 }, { name: "Anna S.", points: 260 }, { name: "Giorgio L.", points: 210 }
+    ],
+    Puglia: [
+      { name: "Marco T.", points: 420 }, { name: "Serena P.", points: 270 }, { name: "Roberto N.", points: 200 }
+    ],
+    Sicilia: [
+      { name: "Alessia C.", points: 390 }, { name: "Giovanni R.", points: 280 }, { name: "Gaia Z.", points: 180 }
+    ],
+    Toscana: [
+      { name: "Giulia R.", points: 720 }, { name: "Lorenzo F.", points: 340 }, { name: "Irene M.", points: 235 }
+    ],
+    Lazio: [
+      { name: "Luca B.", points: 540 }, { name: "Chiara T.", points: 295 }, { name: "Marta D.", points: 190 }
+    ],
+    Piemonte: [
+      { name: "Elena F.", points: 320 }, { name: "Fabio S.", points: 260 }, { name: "Dario Q.", points: 210 }
+    ],
+  }), []);
+
+  const youName = (profile.name?.trim() || "Tu");
+  const buildBoard = React.useCallback((list) => {
+    const merged = list.filter(p => p.name !== youName);
+    merged.push({ name: youName, points: profile.points, isYou: true, region });
+    merged.sort((a,b) => b.points - a.points);
+    return merged.slice(0, 10).map((row, i) => ({
+      ...row,
+      rank: i + 1,
+      level: levelByPoints(row.points),
+    }));
+  }, [youName, profile.points, region, levelByPoints]);
+
+  const nationalBoard = React.useMemo(() => buildBoard([...seedNational]), [seedNational, buildBoard]);
+  const regionalBoard = React.useMemo(() => buildBoard([...(seedRegional[region] || [])]), [seedRegional, region, buildBoard]);
+
+  const [boardTab, setBoardTab] = React.useState("regionale");
+
+  /* =======================
      Render
   ======================= */
   return (
     <main className="min-h-screen bg-[#FFF8E6] relative">
       {/* Canvas confetti */}
       <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-[60]" />
+
+      {/* Celebration popup */}
+      {celebrate.show && (
+        <div className="fixed inset-0 z-[65] grid place-items-center">
+          <div className="bg-black/30 absolute inset-0" />
+          <div className="relative mx-4 rounded-2xl bg-white shadow-2xl border border-[#E1B671]/60 p-5 text-center max-w-sm">
+            <div className="text-3xl mb-1">🎉</div>
+            <div className="text-lg font-bold text-[#6B271A]">{celebrate.title}</div>
+            {celebrate.subtitle && <div className="text-[#6B271A]/80 mt-1 text-sm">{celebrate.subtitle}</div>}
+          </div>
+        </div>
+      )}
 
       {/* Header + Toggle */}
       <header className="border-b border-[#E1B671]/40 bg-[#FFF8E6]/80 backdrop-blur sticky top-0 z-50">
@@ -231,7 +360,7 @@ export default function RegistrazioneUtente() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 p-4 sm:p-6 lg:p-8">
-        {/* Header motivante */}
+        {/* Header motivante + 3 bottoni */}
         <section className="text-center">
           <h1 className="text-lg sm:text-xl font-black text-[#6B271A]">
             Ciao {profile.name?.trim() || "viaggiatore"}! Oggi puoi aiutare il tuo borgo a farsi conoscere.
@@ -240,7 +369,6 @@ export default function RegistrazioneUtente() {
             Ti mancano <b>{remainingToNext}</b> punti per diventare <b>{nextLevel?.name}</b>.
           </p>
 
-          {/* 3 Bottoni azione principali */}
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button
               onClick={() => setOpenFavModal(true)}
@@ -265,9 +393,9 @@ export default function RegistrazioneUtente() {
 
         {/* Layout: mobile 1 col, desktop 2 col */}
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          {/* Colonna 1: Profilo + Progress + Check-in + Roadmap */}
+          {/* Colonna 1: Profilo + Progress + Check-in + Badge + Roadmap + Attività recente */}
           <section className="rounded-2xl border border-[#E1B671]/50 bg-white p-4 sm:p-5 shadow-sm">
-            {/* Avatar + info */}
+            {/* Avatar, badge */}
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg sm:text-xl font-bold text-[#6B271A]">Il tuo profilo</h2>
@@ -286,6 +414,17 @@ export default function RegistrazioneUtente() {
               </div>
             </div>
 
+            {/* Badge */}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {badges.length === 0 ? (
+                <span className="text-xs text-[#6B271A]/70">Completa azioni per sbloccare badge!</span>
+              ) : badges.map(b => (
+                <span key={b.key} className="text-xs px-2 py-1 rounded-full bg-[#FFF1D1] text-[#6B271A] border border-[#E1B671]/70">
+                  <span className="mr-1">{b.icon}</span>{b.label}
+                </span>
+              ))}
+            </div>
+
             {/* Progress bar unica */}
             <div className="mt-4 space-y-2">
               <ProgressBar value={levelProgress} />
@@ -297,7 +436,7 @@ export default function RegistrazioneUtente() {
               </p>
             </div>
 
-            {/* Roadmap livelli: dove sei e dove puoi arrivare */}
+            {/* Roadmap livelli */}
             <div className="mt-4">
               <div className="flex items-center justify-between text-sm text-[#6B271A]/80">
                 <span>Livello attuale: <b>{USER_LEVELS[levelIndex]?.name}</b></span>
@@ -334,8 +473,21 @@ export default function RegistrazioneUtente() {
             <div className="mt-4 rounded-xl border border-[#E1B671]/60 bg-[#FFFDF7] p-3 text-xs text-[#6B271A]">
               <b>Come si guadagnano i punti</b><br />
               • Check-in: +2 al giorno.<br />
-              • Feedback/Evento: punti assegnati <b>dopo approvazione</b> dell’admin (niente premi facili).<br />
+              • Feedback/Evento: punti assegnati <b>dopo approvazione</b> dell’admin.<br />
               • Preferiti: <b>0 punti</b>.
+            </div>
+
+            {/* Attività recente */}
+            <div className="mt-5">
+              <h3 className="text-sm font-bold text-[#6B271A]">Attività recente</h3>
+              <ul className="mt-2 space-y-2">
+                {feed.map((a, i) => (
+                  <li key={i} className="flex items-center gap-2 text-sm text-[#6B271A]">
+                    <span className="w-6 h-6 rounded-full bg-[#FFF1D1] grid place-items-center">{a.icon}</span>
+                    <span><b>{a.who}</b> {a.what}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </section>
 
@@ -344,26 +496,11 @@ export default function RegistrazioneUtente() {
             <h2 className="text-lg sm:text-xl font-bold text-[#6B271A] text-center md:text-left">I tuoi preferiti</h2>
 
             {favorites.length === 0 ? (
-              <div className="mt-4">
-                <p className="text-center text-[#6B271A]/80">
-                  Salva i borghi che ami ❤️ e crea la tua mappa dei luoghi del cuore.
-                </p>
-                {/* Due card finte con cuore lampeggiante */}
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[1, 2].map((i) => (
-                    <div key={i} className="rounded-xl overflow-hidden border border-[#E1B671]/40 bg-[#FFFDF7]">
-                      <div className="aspect-[16/9] bg-gradient-to-br from-[#FFF1D1] to-white relative">
-                        <span className="absolute right-2 top-2 text-2xl animate-pulse select-none">❤️</span>
-                      </div>
-                      <div className="p-3">
-                        <div className="h-3 w-1/2 bg-[#FFF1D1] rounded mb-2" />
-                        <div className="h-3 w-1/3 bg-[#FFF1D1] rounded" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-5 text-center">
-                  <Link to="/borghi" className="inline-flex min-h-11 px-5 rounded-xl bg-[#6B271A] text-white font-semibold hover:opacity-95">
+              <div className="mt-4 grid">
+                <div className="rounded-2xl border border-[#E1B671]/60 bg-gradient-to-br from-[#FFF1D1] to-white p-6 text-center">
+                  <div className="text-4xl mb-2 animate-pulse">❤️</div>
+                  <p className="text-[#6B271A]">Salva i borghi che ami e crea la tua mappa dei luoghi del cuore.</p>
+                  <Link to="/borghi" className="mt-4 inline-flex min-h-11 px-5 rounded-xl bg-[#6B271A] text-white font-semibold hover:opacity-95">
                     Scopri borghi
                   </Link>
                 </div>
@@ -371,15 +508,21 @@ export default function RegistrazioneUtente() {
             ) : (
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {favorites.map((f) => (
-                  <article key={`${f.id}-${f.title}`} className="rounded-xl border border-[#E1B671]/40 bg-[#FFFDF7] overflow-hidden">
+                  <article key={`${f.id}-${f.title}`} className="group rounded-xl border border-[#E1B671]/40 bg-[#FFFDF7] overflow-hidden transition-shadow hover:shadow-md">
                     <div className="relative aspect-[16/9] bg-[#FFF1D1]">
                       {f.image ? (
-                        <img src={f.image} alt={f.title} className="w-full h-full object-cover" />
+                        <img src={f.image} alt={f.title} className="w-full h-full object-cover transition-transform group-hover:scale-[1.02]" />
                       ) : (
                         <div className="w-full h-full grid place-items-center text-[#6B271A]/40 text-sm">Nessuna immagine</div>
                       )}
+                      <div className="absolute top-2 right-2">
+                        <span className="relative inline-block">
+                          <span className="absolute inset-0 rounded-full animate-ping opacity-20 bg-white" />
+                          <span className="relative text-xl select-none">❤️</span>
+                        </span>
+                      </div>
                       {f.meta && (
-                        <span className="absolute top-2 right-2 text-xs px-2 py-1 rounded-full bg-white/90 text-[#6B271A] shadow">
+                        <span className="absolute top-2 left-2 text-xs px-2 py-1 rounded-full bg-white/90 text-[#6B271A] shadow">
                           {f.meta}
                         </span>
                       )}
@@ -401,6 +544,82 @@ export default function RegistrazioneUtente() {
             )}
           </section>
         </div>
+
+        {/* ===== Classifica ===== */}
+        <section className="mt-6 rounded-2xl border border-[#E1B671]/50 bg-white p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setBoardTab("regionale")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${boardTab === "regionale" ? "bg-[#6B271A] text-white" : "bg-[#FFF1D1] text-[#6B271A]"}`}
+              >
+                Classifica Regionale
+              </button>
+              <button
+                onClick={() => setBoardTab("nazionale")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${boardTab === "nazionale" ? "bg-[#6B271A] text-white" : "bg-[#FFF1D1] text-[#6B271A]"}`}
+              >
+                Classifica Nazionale
+              </button>
+            </div>
+
+            {boardTab === "regionale" && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-[#6B271A]">Regione:</label>
+                <select
+                  value={region}
+                  onChange={(e) => saveRegion(e.target.value)}
+                  className="rounded-lg border border-[#E1B671] px-2 py-1 bg-white text-sm"
+                >
+                  {REGIONS.map(r => <option key={r}>{r}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <p className="mt-2 text-xs text-[#6B271A]/70">
+            Scala la classifica per sbloccare badge e riconoscimenti. La tua riga è evidenziata.
+          </p>
+
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-[600px] w-full text-left">
+              <thead>
+                <tr className="text-[#6B271A] text-xs uppercase">
+                  <th className="py-2 pr-3">#</th>
+                  <th className="py-2 pr-3">Utente</th>
+                  {boardTab === "nazionale" && <th className="py-2 pr-3">Regione</th>}
+                  <th className="py-2 pr-3">Livello</th>
+                  <th className="py-2 pr-3 text-right">Punti</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(boardTab === "regionale" ? regionalBoard : nationalBoard).map((row) => (
+                  <tr key={`${boardTab}-${row.rank}-${row.name}`}
+                      className={`text-sm border-t ${row.isYou ? "bg-[#FFF1D1]" : "bg-white"}`}>
+                    <td className="py-2 pr-3 font-semibold text-[#6B271A]">{row.rank}</td>
+                    <td className="py-2 pr-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-full bg-[#FFF1D1] border border-[#E1B671]/70 grid place-items-center text-xs">
+                          {row.isYou ? (profile.name?.[0]?.toUpperCase() || "T") : row.name[0]}
+                        </span>
+                        <span className="text-[#6B271A]">{row.isYou ? `${youName} (tu)` : row.name}</span>
+                      </div>
+                    </td>
+                    {boardTab === "nazionale" && (
+                      <td className="py-2 pr-3 text-[#6B271A]/80">{row.region || "-"}</td>
+                    )}
+                    <td className="py-2 pr-3">
+                      <span className="px-2 py-0.5 rounded-full bg-[#FFFDF7] border border-[#E1B671]/60 text-[#6B271A] text-xs">
+                        {row.level}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3 text-right font-bold text-[#6B271A]">{row.points}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
 
       {/* Modali */}
@@ -415,10 +634,9 @@ export default function RegistrazioneUtente() {
         <FeedbackModal
           onClose={() => setOpenFeedback(false)}
           onSubmit={(payload) => {
-            // Salva in revisione (niente punti immediati)
             pushToLS("ib_user_feedbacks", { id: cryptoRandom(), status: "pending", createdAt: Date.now(), ...payload });
-            fireConfetti({ burst: 140, spread: 70 }); // azione importante
-            showToast("Feedback inviato, grazie! In revisione.");
+            fireConfetti({ burst: 150, spread: 75 });
+            openCelebrate("Feedback inviato!", "In revisione");
             setOpenFeedback(false);
           }}
         />
@@ -428,16 +646,15 @@ export default function RegistrazioneUtente() {
         <EventModal
           onClose={() => setOpenEvent(false)}
           onSubmit={(payload) => {
-            // Salva in revisione (niente punti immediati)
             pushToLS("ib_user_events", { id: cryptoRandom(), status: "pending", createdAt: Date.now(), ...payload });
-            fireConfetti({ burst: 160, spread: 80 }); // azione importante
-            showToast("Evento inviato, in revisione.");
+            fireConfetti({ burst: 170, spread: 85 });
+            openCelebrate("Evento inviato!", "In revisione");
             setOpenEvent(false);
           }}
         />
       )}
 
-      {/* Toast */}
+      {/* Toast (fallback) */}
       {toast.show && (
         <div className={`fixed bottom-4 right-4 z-[70] rounded-xl px-4 py-3 shadow
           ${toast.kind === "error" ? "bg-red-50 text-red-800 border border-red-200" : "bg-emerald-50 text-emerald-800 border border-emerald-200"}`}>

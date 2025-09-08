@@ -1,6 +1,17 @@
 // src/HomepageMockup.jsx
 import { useState, useRef, useEffect } from "react";
-import { MapPin, Clock, Search, Star, User, Car, Gift, Utensils } from "lucide-react";
+import {
+  MapPin,
+  Clock,
+  Search,
+  Star,
+  User,
+  Car,
+  Gift,
+  Utensils,
+  Smartphone,
+  X, // ⬅️ per la CTA
+} from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   getCurrentUser,
@@ -50,10 +61,35 @@ export default function HomepageMockup() {
     navigate(`/chat/${thread.id}`);
   }
 
+  /* ---------- CTA Installa App (mobile) ---------- */
+  const isStandalone = () =>
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true);
+
+  const HIDE_KEY = "installCtaHiddenUntil";
+  const HIDE_DAYS = 30;
+
+  const [showInstallCta, setShowInstallCta] = useState(false);
+
+  useEffect(() => {
+    const until = Number(localStorage.getItem(HIDE_KEY) || 0);
+    const hidden = until && Date.now() < until;
+    if (!isStandalone() && !hidden) setShowInstallCta(true);
+  }, []);
+
+  function hideInstallCta(days = HIDE_DAYS) {
+    try {
+      localStorage.setItem(HIDE_KEY, String(Date.now() + days * 864e5));
+    } catch {}
+    setShowInstallCta(false);
+  }
+
   /* ---------- PRIMITIVE ---------- */
   function Carousel({ images = [], heightClass = "h-40", rounded = "rounded-2xl" }) {
     const [idx, setIdx] = useState(0);
-    const startX = useRef(0), endX = useRef(0);
+    const startX = useRef(0),
+      endX = useRef(0);
     const clamp = (n) => (n < 0 ? images.length - 1 : n >= images.length ? 0 : n);
     const go = (n) => setIdx(clamp(n));
     return (
@@ -71,7 +107,14 @@ export default function HomepageMockup() {
           style={{ transform: `translateX(-${idx * 100}%)` }}
         >
           {images.map((src, i) => (
-            <img key={i} loading="lazy" src={src} alt="" className={`w-full ${heightClass} object-cover flex-shrink-0`} onError={onImgErr}/>
+            <img
+              key={i}
+              loading="lazy"
+              src={src}
+              alt=""
+              className={`w-full ${heightClass} object-cover flex-shrink-0`}
+              onError={onImgErr}
+            />
           ))}
         </div>
         {images.length > 1 && (
@@ -81,7 +124,9 @@ export default function HomepageMockup() {
                 key={i}
                 onClick={() => setIdx(i)}
                 aria-label={`Vai alla foto ${i + 1}`}
-                className={`w-2.5 h-2.5 rounded-full transition ${i === idx ? "bg-white shadow ring-1 ring-black/10" : "bg-white/60 hover:bg-white"}`}
+                className={`w-2.5 h-2.5 rounded-full transition ${
+                  i === idx ? "bg-white shadow ring-1 ring-black/10" : "bg-white/60 hover:bg-white"
+                }`}
               />
             ))}
           </div>
@@ -92,8 +137,18 @@ export default function HomepageMockup() {
 
   /* ---------- SERVIZI: solo testo centrato ---------- */
   const ServiceTile = ({ img, label, href = "#" }) => (
-    <Link to={href} className="group relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition ring-1 ring-[#E1B671]/70 bg-white" aria-label={label}>
-      <img loading="lazy" src={img} alt={label} className="absolute inset-0 w-full h-full object-cover duration-300 group-hover:scale-105" onError={onImgErr}/>
+    <Link
+      to={href}
+      className="group relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition ring-1 ring-[#E1B671]/70 bg-white"
+      aria-label={label}
+    >
+      <img
+        loading="lazy"
+        src={img}
+        alt={label}
+        className="absolute inset-0 w-full h-full object-cover duration-300 group-hover:scale-105"
+        onError={onImgErr}
+      />
       <div className="absolute inset-0 bg-black/30" />
       <div className="relative grid place-items-center h-48 sm:h-56 p-6">
         <h3 className="text-2xl sm:text-3xl font-extrabold text-white drop-shadow text-center">{label}</h3>
@@ -102,7 +157,8 @@ export default function HomepageMockup() {
   );
 
   /* ---------- BORGO CARD ---------- */
-  const formatIt = (n, d = 1) => (typeof n === "number" ? n.toLocaleString("it-IT", { minimumFractionDigits: d, maximumFractionDigits: d }) : n);
+  const formatIt = (n, d = 1) =>
+    typeof n === "number" ? n.toLocaleString("it-IT", { minimumFractionDigits: d, maximumFractionDigits: d }) : n;
   const BORGI_EXTRA = {
     viggiano: {
       borgoName: "Viggiano",
@@ -121,9 +177,19 @@ export default function HomepageMockup() {
     const hasRating = typeof extra.ratingAvg === "number" && typeof extra.ratingCount === "number" && extra.ratingCount > 0;
 
     return (
-      <Link to={`/borghi/${b.slug}`} className="group overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition min-w-[280px] max-w-[280px] snap-start" aria-label={`Apri ${name}`}>
+      <Link
+        to={`/borghi/${b.slug}`}
+        className="group overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition min-w-[280px] max-w-[280px] snap-start"
+        aria-label={`Apri ${name}`}
+      >
         <div className="relative aspect-[16/9] overflow-hidden">
-          <img loading="lazy" src={b.hero || FALLBACK_IMG} alt={`Veduta di ${name}`} className="w-full h-full object-cover" onError={onImgErr}/>
+          <img
+            loading="lazy"
+            src={b.hero || FALLBACK_IMG}
+            alt={`Veduta di ${name}`}
+            className="w-full h-full object-cover"
+            onError={onImgErr}
+          />
           <div className="absolute top-2 left-2 max-w-[82%] px-2.5 py-1 rounded-lg bg-white text-[#6B271A] text-sm font-semibold shadow">
             <span className="block truncate">{name}</span>
           </div>
@@ -149,23 +215,22 @@ export default function HomepageMockup() {
   };
 
   /* ---------- EVENTI: poster 3:4 ---------- */
-  const EventPosterCard = ({
-    poster,
-    title,
-    dateText,
-    placeText,
-    detailsText,
-    type,
-    href = "#",
-    fixedWidth = true,
-  }) => (
+  const EventPosterCard = ({ poster, title, dateText, placeText, detailsText, type, href = "#", fixedWidth = true }) => (
     <a
       href={href}
-      className={`group overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition ${fixedWidth ? "min-w-[85%] max-w-[85%]" : "w-full"}`}
+      className={`group overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition ${
+        fixedWidth ? "min-w-[85%] max-w-[85%]" : "w-full"
+      }`}
       aria-label={title}
     >
       <div className="relative aspect-[3/4] overflow-hidden">
-        <img loading="lazy" src={poster || FALLBACK_IMG} alt={title} className="w-full h-full object-cover object-center" onError={onImgErr}/>
+        <img
+          loading="lazy"
+          src={poster || FALLBACK_IMG}
+          alt={title}
+          className="w-full h-full object-cover object-center"
+          onError={onImgErr}
+        />
         {type && (
           <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-white/95 text-[#6B271A] border border-[#E1B671] shadow">
             {type}
@@ -187,13 +252,21 @@ export default function HomepageMockup() {
 
   /* ---------- ESPERIENZA & PRODOTTO ---------- */
   const ExperienceCard = ({ images, title, location, region, meta, priceFrom, fixedWidth = true }) => (
-    <article className={`overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white ${fixedWidth ? "min-w-[300px] max-w-[300px]" : "w-full"}`}>
+    <article
+      className={`overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white ${
+        fixedWidth ? "min-w-[300px] max-w-[300px]" : "w-full"
+      }`}
+    >
       <div className="relative">
         <Carousel images={images} />
-        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">da {priceFrom}</span>
+        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">
+          da {priceFrom}
+        </span>
       </div>
       <div className="p-4 text-left space-y-2">
-        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">Esperienza</span>
+        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">
+          Esperienza
+        </span>
         <h3 className="text-base font-extrabold text-[#6B271A] leading-snug">{title}</h3>
         <div className="flex items-center text-sm text-gray-600 gap-2">
           <MapPin size={16} className="text-[#D54E30]" /> {location} | {region}
@@ -210,7 +283,7 @@ export default function HomepageMockup() {
   const ProductCard = ({ img, title, origin, priceFrom }) => (
     <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white min-w-[280px] max-w-[280px]">
       <div className="relative h-40 w-full">
-        <img loading="lazy" src={img} alt={title} className="h-40 w-full object-cover" onError={onImgErr}/>
+        <img loading="lazy" src={img} alt={title} className="h-40 w-full object-cover" onError={onImgErr} />
         <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">
           da {priceFrom}
         </span>
@@ -229,12 +302,10 @@ export default function HomepageMockup() {
   /* ---------------- HERO ---------------- */
   const HeroHeader = () => (
     <section className="relative">
-      <img src={HERO_IMAGE_URL} alt="Hero Il Borghista" className="absolute inset-0 w-full h-full object-cover" onError={onImgErr}/>
+      <img src={HERO_IMAGE_URL} alt="Hero Il Borghista" className="absolute inset-0 w-full h-full object-cover" onError={onImgErr} />
       <div className="absolute inset-0 bg-black/30" />
       <div className="relative max-w-6xl mx-auto px-6 pt-16 pb-20 text-center text-white">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight drop-shadow-md">
-          Trova cosa fare vicino a te
-        </h1>
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight drop-shadow-md">Trova cosa fare vicino a te</h1>
         <p className="mt-3 text-base md:text-lg drop-shadow">Eventi, esperienze e borghi in tutta Italia. Cerca e parti.</p>
 
         {/* === Barra con pillole RIPRISTINATA === */}
@@ -359,16 +430,50 @@ export default function HomepageMockup() {
             <Link to="/" className="text-xl font-extrabold text-[#6B271A]">il borghista</Link>
             <div className="flex items-center gap-3">
               <Link to="/creator" className="text-sm font-semibold underline text-[#6B271A]">Creators</Link>
-              <Link to="/registrazione-comune" className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]">
+              <Link
+                to="/registrazione-comune"
+                className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]"
+              >
                 <User size={18} /> Registrati
               </Link>
             </div>
           </div>
         </header>
 
+        {/* CTA Installa App — tra header e hero (solo mobile) */}
+        {showInstallCta && (
+          <div className="md:hidden mx-auto w-full max-w-6xl px-4 sm:px-6">
+            <div className="mt-2 rounded-xl bg-[#0b3a53] text-white shadow flex items-center justify-between gap-3 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Smartphone className="h-5 w-5" />
+                <span className="font-semibold">Installa l’app</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  className="rounded-lg bg-white/10 px-3 py-1 text-sm font-semibold hover:bg-white/15 active:scale-[0.98]"
+                  onClick={() => window.__openInstallModal?.()}
+                >
+                  Installa ora
+                </button>
+                <button
+                  type="button"
+                  aria-label="Chiudi"
+                  className="ml-1 p-1 opacity-80 hover:opacity-100"
+                  onClick={() => hideInstallCta()}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {signupSuccess && (
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="rounded-xl bg-green-50 border border-green-200 text-green-800 px-4 py-3 text-sm">✅ Grazie! Iscrizione completata correttamente.</div>
+            <div className="rounded-xl bg-green-50 border border-green-200 text-green-800 px-4 py-3 text-sm">
+              ✅ Grazie! Iscrizione completata correttamente.
+            </div>
           </div>
         )}
 
@@ -379,21 +484,35 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Servizi</h2>
-            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
+            <a href="#" className="text-sm font-semibold underline">
+              Vedi tutti
+            </a>
           </div>
           <div className="mt-4 relative md:hidden">
             <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent rounded-l-2xl" />
             <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent rounded-r-2xl" />
             <div className="flex gap-5 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
-              <div className="min-w-[66%]"><ServiceTile img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1400&auto=format&fit=crop" label="Esperienze" /></div>
-              <div className="min-w-[66%]"><ServiceTile img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1400&auto=format&fit=crop" label="Prodotti tipici" /></div>
-              <div className="min-w-[66%]"><ServiceTile img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1400&auto=format&fit=crop" label="Noleggio auto" /></div>
+              <div className="min-w-[66%]">
+                <ServiceTile img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1400&auto=format&fit=crop" label="Esperienze" />
+              </div>
+              <div className="min-w-[66%]">
+                <ServiceTile img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1400&auto=format&fit=crop" label="Prodotti tipici" />
+              </div>
+              <div className="min-w-[66%]">
+                <ServiceTile img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1400&auto=format&fit=crop" label="Noleggio auto" />
+              </div>
             </div>
           </div>
           <div className="mt-5 hidden md:grid grid-cols-3 gap-6">
-            <div className="h-56"><ServiceTile img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1600&auto=format&fit=crop" label="Esperienze" /></div>
-            <div className="h-56"><ServiceTile img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1600&auto=format&fit=crop" label="Prodotti tipici" /></div>
-            <div className="h-56"><ServiceTile img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1600&auto=format&fit=crop" label="Noleggio auto" /></div>
+            <div className="h-56">
+              <ServiceTile img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1600&auto=format&fit=crop" label="Esperienze" />
+            </div>
+            <div className="h-56">
+              <ServiceTile img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1600&auto=format&fit=crop" label="Prodotti tipici" />
+            </div>
+            <div className="h-56">
+              <ServiceTile img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1600&auto=format&fit=crop" label="Noleggio auto" />
+            </div>
           </div>
         </section>
 
@@ -401,7 +520,9 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Video dei creator</h2>
-            <Link to="/creator" className="text-sm font-semibold underline">Vedi tutti</Link>
+            <Link to="/creator" className="text-sm font-semibold underline">
+              Vedi tutti
+            </Link>
           </div>
           <div className="mt-4 md:hidden">
             <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4" style={{ WebkitOverflowScrolling: "touch" }}>
@@ -412,14 +533,25 @@ export default function HomepageMockup() {
                 const idTo = v.creatorId || v.id;
                 const borgo = BORGI_BY_SLUG[v.borgoSlug];
                 return (
-                  <article key={v.id} className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition min-w-[300px] max-w-[300px] flex-shrink-0 snap-start">
+                  <article
+                    key={v.id}
+                    className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition min-w-[300px] max-w-[300px] flex-shrink-0 snap-start"
+                  >
                     <div className="aspect-[16/9] overflow-hidden">
-                      <img src={v.thumbnail || v.cover || FALLBACK_IMG} alt={`Video di ${name}`} className="w-full h-full object-cover" loading="lazy" onError={onImgErr}/>
+                      <img
+                        src={v.thumbnail || v.cover || FALLBACK_IMG}
+                        alt={`Video di ${name}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={onImgErr}
+                      />
                     </div>
                     <div className="p-4">
                       <div className="flex items-center justify-between gap-2">
                         <h3 className="text-base font-extrabold text-[#6B271A] truncate">{name}</h3>
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] shrink-0">{level}</span>
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] shrink-0">
+                          {level}
+                        </span>
                       </div>
                       {borgo && (
                         <div className="mt-1 flex items-center gap-2 text-sm text-gray-700">
@@ -427,7 +559,11 @@ export default function HomepageMockup() {
                         </div>
                       )}
                       <div className="mt-3 flex items-center justify-end">
-                        <Link to={`/chat?to=${encodeURIComponent(idTo)}`} aria-label={`Contatta ${name}`} className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#D54E30] text-white">
+                        <Link
+                          to={`/chat?to=${encodeURIComponent(idTo)}`}
+                          aria-label={`Contatta ${name}`}
+                          className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#D54E30] text-white"
+                        >
                           <User size={18} />
                         </Link>
                       </div>
@@ -438,36 +574,50 @@ export default function HomepageMockup() {
             </div>
           </div>
           <div className="mt-4 hidden md:grid grid-cols-4 gap-5">
-            {listLatestVideos(24).slice(0, 4).map((v) => {
-              const c = getCreator(v.creatorId);
-              const name = v.creatorName || c?.name || "Creator";
-              const level = v.level || c?.level || "—";
-              const idTo = v.creatorId || v.id;
-              const borgo = BORGI_BY_SLUG[v.borgoSlug];
-              return (
-                <article key={v.id} className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition">
-                  <div className="aspect-[16/9] overflow-hidden">
-                    <img src={v.thumbnail || v.cover || FALLBACK_IMG} alt={`Video di ${name}`} className="w-full h-full object-cover" loading="lazy" onError={onImgErr}/>
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-base font-extrabold text-[#6B271A] truncate">{name}</h3>
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] shrink-0">{level}</span>
+            {listLatestVideos(24)
+              .slice(0, 4)
+              .map((v) => {
+                const c = getCreator(v.creatorId);
+                const name = v.creatorName || c?.name || "Creator";
+                const level = v.level || c?.level || "—";
+                const idTo = v.creatorId || v.id;
+                const borgo = BORGI_BY_SLUG[v.borgoSlug];
+                return (
+                  <article key={v.id} className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition">
+                    <div className="aspect-[16/9] overflow-hidden">
+                      <img
+                        src={v.thumbnail || v.cover || FALLBACK_IMG}
+                        alt={`Video di ${name}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={onImgErr}
+                      />
                     </div>
-                    {borgo && (
-                      <div className="mt-1 flex items-center gap-2 text-sm text-gray-700">
-                        <MapPin size={16} className="text-[#D54E30]" /> {borgo.name}
+                    <div className="p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-base font-extrabold text-[#6B271A] truncate">{name}</h3>
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] shrink-0">
+                          {level}
+                        </span>
                       </div>
-                    )}
-                    <div className="mt-3 flex items-center justify-end">
-                      <Link to={`/chat?to=${encodeURIComponent(idTo)}`} aria-label={`Contatta ${name}`} className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#D54E30] text-white">
-                        <User size={18} />
-                      </Link>
+                      {borgo && (
+                        <div className="mt-1 flex items-center gap-2 text-sm text-gray-700">
+                          <MapPin size={16} className="text-[#D54E30]" /> {borgo.name}
+                        </div>
+                      )}
+                      <div className="mt-3 flex items-center justify-end">
+                        <Link
+                          to={`/chat?to=${encodeURIComponent(idTo)}`}
+                          aria-label={`Contatta ${name}`}
+                          className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#D54E30] text-white"
+                        >
+                          <User size={18} />
+                        </Link>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              );
-            })}
+                  </article>
+                );
+              })}
           </div>
         </section>
 
@@ -475,7 +625,9 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Borghi da scoprire…</h2>
-            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
+            <a href="#" className="text-sm font-semibold underline">
+              Vedi tutti
+            </a>
           </div>
           <div className="mt-3 flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
             {BORGI_INDEX.map((b) => (
@@ -488,9 +640,14 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Prossimi eventi</h2>
-            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
+            <a href="#" className="text-sm font-semibold underline">
+              Vedi tutti
+            </a>
           </div>
-          <div className="mt-4 md:hidden flex gap-4 overflow-x-auto no-scrollbar pb-4 snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
+          <div
+            className="mt-4 md:hidden flex gap-4 overflow-x-auto no-scrollbar pb-4 snap-x snap-mandatory"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
             {EVENTI_QA.map((e, i) => (
               <EventPosterCard key={i} fixedWidth {...e} />
             ))}
@@ -506,14 +663,36 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Prodotti tipici</h2>
-            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
+            <a href="#" className="text-sm font-semibold underline">
+              Vedi tutti
+            </a>
           </div>
           <div className="mt-4 flex gap-5 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
             {[
-              { img: "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=1200&auto=format&fit=crop", title: "Formaggio di malga", origin: "Asiago (VI) | Veneto", priceFrom: "€7" },
-              { img: "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1200&auto=format&fit=crop", title: "Salumi tipici", origin: "Norcia (PG) | Umbria", priceFrom: "€9" },
-              { img: "https://images.unsplash.com/photo-1514515411904-65fa19574d07?q=80&w=1200&auto=format&fit=crop", title: "Olio EVO del Garda", origin: "Garda (VR) | Veneto", priceFrom: "€6" },
-              { img: "https://images.unsplash.com/photo-1543352634-8730a9c79dc5?q=80&w=1200&auto=format&fit=crop", title: "Vino Montepulciano", origin: "Montepulciano (SI) | Toscana", priceFrom: "€12" },
+              {
+                img: "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=1200&auto=format&fit=crop",
+                title: "Formaggio di malga",
+                origin: "Asiago (VI) | Veneto",
+                priceFrom: "€7",
+              },
+              {
+                img: "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1200&auto=format&fit=crop",
+                title: "Salumi tipici",
+                origin: "Norcia (PG) | Umbria",
+                priceFrom: "€9",
+              },
+              {
+                img: "https://images.unsplash.com/photo-1514515411904-65fa19574d07?q=80&w=1200&auto=format&fit=crop",
+                title: "Olio EVO del Garda",
+                origin: "Garda (VR) | Veneto",
+                priceFrom: "€6",
+              },
+              {
+                img: "https://images.unsplash.com/photo-1543352634-8730a9c79dc5?q=80&w=1200&auto=format&fit=crop",
+                title: "Vino Montepulciano",
+                origin: "Montepulciano (SI) | Toscana",
+                priceFrom: "€12",
+              },
             ].map((p, i) => (
               <ProductCard key={i} {...p} />
             ))}
@@ -541,9 +720,15 @@ export default function HomepageMockup() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 text-sm text-gray-600 flex flex-col md:flex-row gap-2 md:items-center md:justify-between">
             <div>© {new Date().getFullYear()} Il Borghista — Tutti i diritti riservati</div>
             <div className="flex gap-4">
-              <a href="#" className="hover:underline">Privacy</a>
-              <a href="#" className="hover:underline">Cookie</a>
-              <Link to="/creator" className="hover:underline">Creator</Link>
+              <a href="#" className="hover:underline">
+                Privacy
+              </a>
+              <a href="#" className="hover:underline">
+                Cookie
+              </a>
+              <Link to="/creator" className="hover:underline">
+                Creator
+              </Link>
             </div>
           </div>
         </footer>

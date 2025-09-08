@@ -11,8 +11,8 @@ import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
 import {
   ChevronLeft, ChevronRight, Share2, Heart, Film, CalendarDays, Route, ShoppingBag,
   List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Search, Menu, X,
-  LogIn, UserPlus, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned,
-  MapPin, Star, Bus, Info, HandHeart, Minus, User
+  LogIn, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned,
+  MapPin, Star, Bus, Info, HandHeart, Minus, User, Smartphone
 } from "lucide-react";
 
 /* ================= Helpers ================= */
@@ -22,6 +22,12 @@ const isSleep = (p) =>
   /(hotel|b&b|b\s*&\s*b|bed|albergo|affittacamere|casa|agriturismo|residence)/i.test(p.type || p.name || "");
 const isArtigiano = (p) =>
   /(artigian|laborator|bottega|ceramic|liutaio|tessil|falegn|orafo)/i.test(p.type || p.name || "");
+
+// Mostra/nasconde "Installa l’app" se è già A2HS
+const isStandalone = () =>
+  typeof window !== "undefined" &&
+  (window.matchMedia?.("(display-mode: standalone)").matches ||
+   window.navigator.standalone === true);
 
 const fmtPrice = (n) => {
   if (n == null || Number.isNaN(n)) return null;
@@ -137,14 +143,62 @@ function TopBar({ slug }) {
                 <X className="h-5 w-5" />
               </button>
             </div>
+
             <ul className="p-2">
-              <li><Link to="/login" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><LogIn className="h-4 w-4" /> Accedi</Link></li>
-              <li><Link to="/registrazione" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><UserPlus className="h-4 w-4" /> Registrati</Link></li>
-              <li><Link to="/creator" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><Users className="h-4 w-4" /> I nostri creator</Link></li>
-              <li><Link to={`/borghi/${slug}/trasporti`} className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><Bus className="h-4 w-4" /> Trasporti</Link></li>
-              <li><Link to="/contatti" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><MessageCircle className="h-4 w-4" /> Contattaci</Link></li>
+              {/* Accedi + Registrati -> un solo click */}
+              <li>
+                <Link
+                  to="/registrazione-utente"
+                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <LogIn className="h-4 w-4" /> Accedi / Registrati
+                </Link>
+              </li>
+
+              <li>
+                <Link
+                  to="/creator"
+                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Users className="h-4 w-4" /> I nostri creator
+                </Link>
+              </li>
+
+              {/* Trasporti: rimosso SOLO dal menu */}
+
+              <li>
+                <Link
+                  to="/contatti"
+                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <MessageCircle className="h-4 w-4" /> Contattaci
+                </Link>
+              </li>
+
+              {/* Installa l’app (solo se non già A2HS) */}
+              {typeof window !== "undefined" && !isStandalone() && (
+                <li className="mt-1">
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      window.__openInstallModal?.();
+                    }}
+                    className="w-full flex items-center gap-2 rounded-lg px-3 py-3 bg-[#0b3a53] text-white font-medium hover:opacity-90"
+                  >
+                    <Smartphone className="h-4 w-4" /> Installa l’app
+                  </button>
+                </li>
+              )}
+
               <li className="mt-2 border-t pt-2">
-                <Link to="/registrazione-creator" className="flex items-center justify-center rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white" onClick={() => setMenuOpen(false)}>
+                <Link
+                  to="/registrazione-creator"
+                  className="flex items-center justify-center rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white"
+                  onClick={() => setMenuOpen(false)}
+                >
                   Diventa Creator del Borgo
                 </Link>
               </li>
@@ -450,7 +504,6 @@ function DiscoverBorgoCardHM({ b }) {
       <div className="p-4">
         <h3 className="font-extrabold text-[#5B2A1F]">Scopri {b.name}</h3>
         <div className="mt-1 text-sm text-neutral-600">
-          {/* placeholder di sottotitolo */}
           {b.subtitle || "Itinerari, eventi e sapori del territorio"}
         </div>
         <div className="mt-2 inline-flex items-center gap-1 text-sm text-neutral-700">
@@ -491,7 +544,7 @@ function HMEventCard({ ev }) {
 function HMProductCard({ p }) {
   return (
     <article className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
-      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-t-3xl">
+      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-3xl rounded-b-none">
         <img src={p.img} alt={p.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
         {p.priceFrom != null && (
           <span className="absolute right-3 top-3 rounded-full bg-[#D54E30] px-3 py-1 text-xs font-extrabold text-white shadow ring-1 ring-[#E1B671]">
@@ -627,7 +680,7 @@ export default function HomeBorgo() {
   const eventi = [
     { title: "La festa della Madonna Nera", img: "https://images.unsplash.com/photo-1553877522-43269d4ea984?q=80&w=1500&auto=format&fit=crop", tag: "SAGRA", date: "9–10 agosto 2025", place: "Viggiano (PZ) · Santuario", meta: "Ore 21:00 · Navette gratuite" },
     { title: "Sapori in Piazza", img: "https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?q=80&w=1500&auto=format&fit=crop", tag: "SAGRA", date: "15 agosto 2025", place: "Viggiano (PZ) · Centro storico", meta: "Ingresso libero" },
-    { title: "Concerto d’estate", img: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1500&auto=format&fit=crop", tag: "", date: "22 agosto 2025", place: "Viggiano (PZ) · Arena", meta: "Ore 21:30" },
+    { title: "Concerto d’estate", img: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1500&auto=format&fit=crop", tag: "", date: "22 agosto 2025", place: "Viggiano (PZ) · Arena", meta: "Ore 21:30" },
   ];
   const homeExperiences = [
     { title: "Volo in mongolfiera all’alba", img: "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1500&auto=format&fit=crop", partner: "GetYourGuide", priceFrom: 245, url: "https://example.com/gyg" },

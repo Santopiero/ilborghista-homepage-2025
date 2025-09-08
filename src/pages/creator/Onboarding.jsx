@@ -1,836 +1,634 @@
-// src/pages/creator/Onboarding.jsx
-import React, { useEffect, useMemo, useState, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import {
-  getCurrentUser,
-  getMyCreatorProfile,
-  updateCreator,
-  listBorghi,
-  listPoiByBorgo,
-  listVideosByCreator,
-  addVideo,
-  saveVideoFile,
-  getVideoObjectURL,
-} from "../../lib/store";
-import {
-  Upload,
-  CheckCircle2,
-  MapPin,
-  Store,
-  BadgeCheck,
-  Flame,
-  User,
-  Camera,
-  ExternalLink,
-  Copy,
-  Eye,
-  Crown,
-  Award,
-  Compass,
-  Map as MapIcon,
-  Star,
-  Image as ImageIcon,
-  Layers,
-  PenTool,
-  HelpCircle,
-} from "lucide-react";
+// src/pages/CreatorMe.jsx
+import React from "react";
+import { Link } from "react-router-dom";
 
-/* ---------- Utils ---------- */
-function getYouTubeId(url) {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v") || "";
-    if (u.hostname.includes("youtu.be")) return u.pathname.slice(1);
-  } catch {}
-  return "";
-}
+/* ====== PALETTE: Creator diversa dall’area Utente ====== */
+const brand = {
+  primary: "#0D4D4D",     // teal profondo
+  accent: "#14B8A6",      // teal/emerald acceso
+  bg: "#F0FDFA",          // teal-50
+  soft: "#ECFEFF",        // cyan-50
+  sand: "#FFFDF7",
+};
 
-function YouTubeEmbed({ url, title }) {
-  const vid = getYouTubeId(url);
-  if (!vid) return null;
-  return (
-    <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
-      <iframe
-        title={title || "Anteprima YouTube"}
-        src={`https://www.youtube.com/embed/${vid}`}
-        className="w-full h-full"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-      />
-    </div>
-  );
-}
+/* ====== Livelli Creator ====== */
+const CREATOR_LEVELS = [
+  { name: "Creator", at: 0 },
+  { name: "Content Builder", at: 100 },
+  { name: "Story Architect", at: 250 },
+  { name: "Content Master", at: 500 },
+  { name: "Top Creator 🏆", at: 900 },
+];
 
-function ProgressBar({ value = 0 }) {
-  const pct = Math.max(0, Math.min(100, Math.round(value)));
-  return (
-    <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-      <div
-        className="h-full bg-[#0D4D4D]"
-        style={{ width: `${pct}%` }}
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      />
-    </div>
-  );
-}
+/* keyframes locali per micro-animazioni */
+const Keyframes = () => (
+  <style>{`
+    @keyframes pop { 0%{transform:scale(.9);opacity:.6} 60%{transform:scale(1.04);opacity:1} 100%{transform:scale(1)} }
+    .anim-pop { animation: pop .28s ease-out both; }
+    .transition-smooth { transition: all .4s cubic-bezier(.2,.8,.2,1); }
+  `}</style>
+);
 
-function Toast({ kind = "success", text, onClose }) {
-  if (!text) return null;
-  const base =
-    kind === "error"
-      ? "bg-red-50 text-red-800 border border-red-200"
-      : "bg-emerald-50 text-emerald-800 border border-emerald-200";
-  return (
-    <div className={`fixed bottom-4 right-4 z-50 rounded-xl px-4 py-3 shadow ${base}`}>
-      <div className="flex items-center gap-2">
-        <span className="font-semibold">{kind === "error" ? "Errore" : "Fatto"}</span>
-        <span className="opacity-80">{text}</span>
-        <button onClick={onClose} className="ml-2 opacity-60 hover:opacity-100">✕</button>
-      </div>
-    </div>
-  );
-}
+export default function CreatorMe() {
+  /* =========================
+   * Stato & persistenza
+   * ========================= */
+  const [me, setMe] = React.useState(() => {
+    try {
+      const raw = localStorage.getItem("ib_creator_profile");
+      return raw ? JSON.parse(raw) : { name: "", avatar: "", points: 0, videos: [] };
+    } catch { return { name: "", avatar: "", points: 0, videos: [] }; }
+  });
+  const saveMe = (next) => { setMe(next); try { localStorage.setItem("ib_creator_profile", JSON.stringify(next)); } catch {} };
 
-/* ---------- Pagina ---------- */
-export default function Onboarding() {
-  const navigate = useNavigate();
-  const USER_AREA_ROUTE = "/registrazione-utente";
+  /* =========================
+   * Livello corrente
+   * ========================= */
+  const levelIndex = React.useMemo(() => {
+    let i = 0; for (let k = 0; k < CREATOR_LEVELS.length; k++) if (me.points >= CREATOR_LEVELS[k].at) i = k; return i;
+  }, [me.points]);
+  const level = CREATOR_LEVELS[levelIndex];
+  const nextLevel = CREATOR_LEVELS[levelIndex + 1] || CREATOR_LEVELS[CREATOR_LEVELS.length - 1];
+  const prevTh = level.at, nextTh = nextLevel.at;
+  const progress = Math.min(100, Math.round(((me.points - prevTh) / Math.max(1, nextTh - prevTh)) * 100));
+  const remaining = Math.max(0, nextTh - me.points);
 
-  // Stato utente / profilo
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
+  /* =========================
+   * Confetti + popup celebrate
+   * ========================= */
+  const canvasRef = React.useRef(null);
+  const prefersReduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
-  // Gamification
-  const userLevelNames = ["Viaggiatore", "Esploratore", "Narratore", "Ambasciatore", "Top Creator"];
-  const userLevelIcons = [MapIcon, Compass, Star, Award, Crown];
-
-  const creatorLevelNames = ["Creator", "Content Builder", "Story Architect", "Content Master", "Top Creator"];
-  const creatorLevelIcons = [Camera, Layers, PenTool, Award, Crown];
-
-  // Toggle visualizzazione livelli
-  const [levelsView, setLevelsView] = useState("creator"); // 'user' | 'creator'
-
-  // Dati profilo
-  const currentLevelName = profile?.levelName || (levelsView === "creator" ? "Creator" : "Esploratore");
-  const points = profile?.points ?? 0;
-  const nextLevelAt = profile?.nextLevelAt ?? 100;
-  const streak = profile?.streak ?? 0;
-  const progress = useMemo(() => (nextLevelAt ? Math.min(100, (points / nextLevelAt) * 100) : 0), [points, nextLevelAt]);
-
-  // Avatar
-  const [avatarPreview, setAvatarPreview] = useState("");
-
-  // Master data
-  const [borghi, setBorghi] = useState([]);
-  const [poi, setPoi] = useState([]);
-
-  // Upload video
-  const [mode, setMode] = useState("youtube"); // 'youtube' | 'file'
-  const [title, setTitle] = useState("");
-  const [borgoId, setBorgoId] = useState("");
-  const [poiId, setPoiId] = useState("");
-  const [poiQuery, setPoiQuery] = useState(""); // ricerca rapida attività
-  const [ytUrl, setYtUrl] = useState("");
-  const [file, setFile] = useState(null);
-  const [filePreviewUrl, setFilePreviewUrl] = useState("");
-  const [publishNow, setPublishNow] = useState(true);
-  const [loading, setLoading] = useState(false);
-
-  // Video list
-  const [videos, setVideos] = useState([]);
-  const [videoFilter, setVideoFilter] = useState("all"); // all | published | draft | pending
-
-  // UI
-  const [toast, setToast] = useState({ kind: "success", text: "" });
-
-  // Drag & drop refs
-  const dropRef = useRef(null);
-  const [isDragging, setIsDragging] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const me = await getCurrentUser();
-        setUser(me || null);
-        const p = await getMyCreatorProfile();
-        setProfile(p || null);
-        if (p?.avatarUrl) setAvatarPreview(p.avatarUrl);
-        const b = await listBorghi();
-        setBorghi(Array.isArray(b) ? b : []);
-        const list = await listVideosByCreator();
-        setVideos(Array.isArray(list) ? list : []);
-      } catch (e) {
-        console.error(e);
-        setToast({ kind: "error", text: "Impossibile caricare i dati iniziali." });
+  const fireConfetti = React.useCallback((opts = {}) => {
+    if (prefersReduced) return;
+    const { burst = 180, spread = 80, originY = 0.2 } = opts;
+    if (typeof window !== "undefined" && typeof window.confetti === "function") {
+      window.confetti({ particleCount: Math.min(300, burst), spread, origin: { y: originY } });
+      return;
+    }
+    const c = canvasRef.current; if (!c) return;
+    const ctx = c.getContext("2d");
+    const rect = c.getBoundingClientRect();
+    const W = (c.width = rect.width * (window.devicePixelRatio || 1));
+    const H = (c.height = rect.height * (window.devicePixelRatio || 1));
+    const colors = [brand.accent, brand.primary, "#06B6D4", "#22D3EE", "#10B981", "#60A5FA"];
+    const rad = (d) => (d * Math.PI) / 180;
+    const n = Math.min(300, burst);
+    const parts = Array.from({ length: n }).map(() => {
+      const angle = rad(-spread / 2 + Math.random() * spread);
+      const speed = 6 + Math.random() * 6;
+      return {
+        x: W / 2, y: H * originY,
+        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - Math.random() * 4,
+        g: .18 + Math.random() * .2, life: 60 + Math.random() * 50,
+        size: 3 + Math.random() * 4, rot: Math.random() * Math.PI, vr: (Math.random() - .5) * .2,
+        color: colors[(Math.random() * colors.length) | 0], alpha: 1,
+      };
+    });
+    let raf; const step = () => {
+      ctx.clearRect(0, 0, W, H); let alive = false;
+      for (const p of parts) {
+        if (p.life <= 0) continue; alive = true; p.life--;
+        p.x += p.vx; p.y += p.vy; p.vy += p.g; p.rot += p.vr; p.alpha = Math.max(0, p.life / 110);
+        ctx.save(); ctx.globalAlpha = p.alpha; ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        ctx.fillStyle = p.color; ctx.fillRect(-p.size, -p.size, p.size * 2, p.size * 2); ctx.restore();
       }
-    })();
+      if (alive) raf = requestAnimationFrame(step);
+    }; step(); return () => cancelAnimationFrame(raf);
+  }, [prefersReduced]);
+
+  const [celebrate, setCelebrate] = React.useState({ show: false, title: "", subtitle: "" });
+  const openCelebrate = (title, subtitle = "") => {
+    setCelebrate({ show: true, title, subtitle });
+    clearTimeout(openCelebrate._t);
+    openCelebrate._t = setTimeout(() => setCelebrate({ show: false, title: "", subtitle: "" }), 2200);
+  };
+
+  /* =========================
+   * Award points + level-up
+   * ========================= */
+  const awardPoints = (delta, reason = "") => {
+    const before = me.points; const prevIdx = levelIndex;
+    const next = { ...me, points: before + delta }; saveMe(next);
+    openCelebrate(`+${delta} punti`, reason || "Ottimo!");
+    let newIdx = 0; for (let i = 0; i < CREATOR_LEVELS.length; i++) if (next.points >= CREATOR_LEVELS[i].at) newIdx = i;
+    fireConfetti({ burst: newIdx > prevIdx ? 220 : 150, spread: newIdx > prevIdx ? 90 : 75 });
+    if (newIdx > prevIdx) openCelebrate("🎉 Level up!", `Sei ora ${CREATOR_LEVELS[newIdx].name}`);
+  };
+
+  /* =========================
+   * Badge (locked/unlocked + anim)
+   * ========================= */
+  const computeBadges = React.useCallback((pts) => ([
+    { key: "builder",  label: "Content Builder",  need: 100, color: "#DBEAFE", icon: "🧱" },
+    { key: "architect",label: "Story Architect", need: 250, color: "#D1FAE5", icon: "🧩" },
+    { key: "master",   label: "Content Master",  need: 500, color: "#FEF3C7", icon: "🧠" },
+    { key: "top",      label: "Top Creator",     need: 900, color: "#FEE2E2", icon: "🏆" },
+  ].map(b => ({ ...b, unlocked: pts >= b.need }))), []);
+  const badges = computeBadges(me.points);
+  const prevUnlocked = React.useRef(badges.filter(b=>b.unlocked).map(b=>b.key).join(","));
+  const [justUnlocked, setJustUnlocked] = React.useState({});
+  React.useEffect(() => {
+    const now = badges.filter(b=>b.unlocked).map(b=>b.key).join(",");
+    if (now !== prevUnlocked.current) {
+      const newly = badges.filter(b=>b.unlocked && !prevUnlocked.current.includes(b.key))
+                          .reduce((acc,b)=> (acc[b.key]=true, acc),{});
+      setJustUnlocked(newly); setTimeout(()=>setJustUnlocked({}),700);
+      prevUnlocked.current = now;
+    }
+  }, [badges]);
+
+  /* =========================
+   * Missioni AUTOMATICHE
+   * upload → share → 100 views
+   * ========================= */
+  const [missions, setMissions] = React.useState(() => {
+    try { const raw = localStorage.getItem("ib_creator_missions_v2"); if (raw) return JSON.parse(raw); } catch {}
+    return [
+      { id:"upload", title:"Carica 1 video",         goal:1,   progress:0, reward:40, unlocked:true,  done:false },
+      { id:"share",  title:"Condividi un video",     goal:1,   progress:0, reward:20, unlocked:false, done:false },
+      { id:"views",  title:"Raggiungi 100 visual",   goal:100, progress:0, reward:60, unlocked:false, done:false },
+    ];
+  });
+  const persistMissions = (next) => { setMissions(next); try { localStorage.setItem("ib_creator_missions_v2", JSON.stringify(next)); } catch {} };
+
+  const completeIfNeeded = (nextList, id) => {
+    const m = nextList.find(x => x.id === id);
+    if (m && !m.done && m.progress >= m.goal) {
+      m.done = true;
+      awardPoints(m.reward, `Missione completata: ${m.title}`);
+      // sblocca la successiva
+      const order = ["upload","share","views"];
+      const idx = order.indexOf(id);
+      const nextId = order[idx+1];
+      const n = nextList.find(x=>x.id===nextId);
+      if (n) n.unlocked = true;
+    }
+  };
+
+  // trigger avanzamento missione "upload" quando aggiungi video
+  const markUpload = () => {
+    const next = missions.map(m => m.id==="upload" ? { ...m, progress: Math.min(m.goal, m.progress+1) } : m);
+    completeIfNeeded(next,"upload"); persistMissions(next);
+  };
+  // trigger avanzamento missione "share" quando usi share
+  const markShare = () => {
+    const next = missions.map(m => m.id==="share" ? { ...m, progress: Math.min(m.goal, m.progress+1) } : m);
+    completeIfNeeded(next,"share"); persistMissions(next);
+  };
+  // aggiorna missione "views" in tempo reale (max views su qualsiasi video)
+  React.useEffect(() => {
+    const maxViews = me.videos.reduce((acc,v)=> Math.max(acc, v.views||0), 0);
+    setMissions(cur => {
+      const next = cur.map(m => m.id==="views"
+        ? { ...m, progress: m.unlocked ? Math.min(m.goal, maxViews) : 0 }
+        : m
+      );
+      completeIfNeeded(next,"views"); return next;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me.videos]);
+
+  // Barra riassuntiva missioni
+  const missionsTotal = missions.length;
+  const missionsDone = missions.filter(m=>m.done).length;
+  const missionsPct = Math.round((missionsDone / Math.max(1, missionsTotal)) * 100);
+
+  /* =========================
+   * Video: stato + helper
+   * ========================= */
+  const [tab, setTab] = React.useState("Tutti"); // "Pubblicati" | "In bozza" | "In attesa"
+  const setVideos = (arr) => saveMe({ ...me, videos: arr });
+  const addVideo = (v) => setVideos([{ ...v, id: cryptoId(), createdAt: Date.now() }, ...me.videos]);
+
+  const filtered = React.useMemo(() => {
+    if (tab === "Tutti") return me.videos;
+    return me.videos.filter(v => v.status === tab);
+  }, [tab, me.videos]);
+
+  // incremento views “soft” sui pubblicati (simula traffico) + persistenza
+  React.useEffect(() => {
+    const int = setInterval(() => {
+      setMe(prev => {
+        const vids = [...prev.videos];
+        const publishedIdx = vids.map((v,i)=>({v,i})).filter(x=>x.v.status==="Pubblicati");
+        if (!publishedIdx.length) return prev;
+        const pick = publishedIdx[(Math.random()*publishedIdx.length)|0].i;
+        vids[pick] = { ...vids[pick], views: Math.min(9999, (vids[pick].views||0)+1) };
+        const next = { ...prev, videos: vids }; try { localStorage.setItem("ib_creator_profile", JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }, 6000);
+    return () => clearInterval(int);
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      if (!borgoId) {
-        setPoiId("");
-        setPoi([]);
-        return;
-      }
-      try {
-        const p = await listPoiByBorgo(borgoId);
-        setPoi(Array.isArray(p) ? p : []);
-      } catch (e) {
-        setPoi([]);
-      }
-    })();
-  }, [borgoId]);
+  /* =========================
+   * Upload form
+   * ========================= */
+  const [form, setForm] = React.useState({
+    mode: "youtube", // "youtube" | "file"
+    title: "", borgo: "", attivita: "",
+    ytUrl: "", fileDataUrl: "",
+    publishNow: false,
+  });
 
-  // Filtra attività in base a ricerca
-  const filteredPoi = useMemo(() => {
-    if (!poiQuery.trim()) return poi;
-    const q = poiQuery.trim().toLowerCase();
-    return poi.filter((p) => (p.name || p.label || "").toLowerCase().includes(q));
-  }, [poi, poiQuery]);
+  const ytId = React.useMemo(() => {
+    const m = form.ytUrl.match(/(?:v=|\/shorts\/|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+    return m ? m[1] : "";
+  }, [form.ytUrl]);
 
-  // Avatar upload
-  async function handleAvatarChange(e) {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  const absorbFile = (file) => {
+    const r = new FileReader();
+    r.onload = () => setForm(s => ({ ...s, fileDataUrl: typeof r.result === "string" ? r.result : "" }));
+    r.readAsDataURL(file);
+  };
+  const onDrop = (e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) absorbFile(f); };
+  const onFile = (e) => { const f = e.target.files?.[0]; if (f) absorbFile(f); };
+
+  const submitVideo = (e) => {
+    e.preventDefault();
+    if (!form.title.trim() || !form.borgo.trim()) return;
+    if (form.mode === "youtube" && !ytId) return;
+    const base = {
+      title: form.title.trim(),
+      borgo: form.borgo.trim(),
+      attivita: form.attivita.trim(),
+      status: form.publishNow ? "Pubblicati" : "In attesa",
+      views: 0, likes: 0,
+      thumb: form.mode === "youtube" ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : form.fileDataUrl,
+      source: form.mode === "youtube" ? { type: "youtube", id: ytId, url: form.ytUrl.trim() } : { type: "file", dataUrl: form.fileDataUrl },
+    };
+    addVideo(base);
+    // auto-missione: upload
+    markUpload();
+    // punti immediati per l’azione
+    awardPoints(20, "Video caricato");
+    // reset form
+    setForm({ mode:"youtube", title:"", borgo:"", attivita:"", ytUrl:"", fileDataUrl:"", publishNow:false });
+  };
+
+  /* =========================
+   * Share video (auto mission)
+   * ========================= */
+  const shareVideo = async (v) => {
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const dataUrl = reader.result;
-        setAvatarPreview(typeof dataUrl === "string" ? dataUrl : "");
-        try {
-          await updateCreator({ avatarDataUrl: dataUrl });
-          setToast({ kind: "success", text: "Foto profilo aggiornata." });
-          const p = await getMyCreatorProfile();
-          setProfile(p || null);
-        } catch (err) {
-          setToast({ kind: "error", text: "Salvataggio avatar non riuscito." });
-        }
-      };
-      reader.readAsDataURL(f);
-    } catch (err) {
-      setToast({ kind: "error", text: "Errore nella lettura del file immagine." });
-    }
-  }
-
-  // Drag & drop handlers
-  function onDragOver(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  }
-  function onDragLeave(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  }
-  function onDrop(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    const f = e.dataTransfer?.files?.[0];
-    if (f && f.type.startsWith("video/")) {
-      setMode("file");
-      setFile(f);
-      const url = URL.createObjectURL(f);
-      setFilePreviewUrl(url);
-    }
-  }
-
-  // File picker change
-  function onFileChange(e) {
-    const f = e.target.files?.[0];
-    setFile(f || null);
-    setFilePreviewUrl(f ? URL.createObjectURL(f) : "");
-  }
-
-  async function handleSubmit(e) {
-    e?.preventDefault?.();
-    if (!title.trim()) return setToast({ kind: "error", text: "Inserisci un titolo." });
-    if (!borgoId) return setToast({ kind: "error", text: "Seleziona un borgo." });
-    if (mode === "youtube" && !getYouTubeId(ytUrl)) {
-      return setToast({ kind: "error", text: "Inserisci un link YouTube valido." });
-    }
-    if (mode === "file" && !file) {
-      return setToast({ kind: "error", text: "Seleziona o trascina un file video." });
-    }
-
-    setLoading(true);
-    try {
-      const payload = {
-        title: title.trim(),
-        borgoId,
-        poiId: poiId || null,
-        status: publishNow ? "published" : "draft",
-        source: mode, // 'youtube' | 'file'
-      };
-
-      if (mode === "youtube") {
-        payload.youtubeUrl = ytUrl.trim();
+      if (navigator.share) {
+        await navigator.share({ title: v.title, url: v.source?.url || window.location.href });
       } else {
-        let uploadedUrl = "";
-        try {
-          const saved = await saveVideoFile(file);
-          uploadedUrl = saved?.url || "";
-        } catch {}
-        if (!uploadedUrl) {
-          uploadedUrl = getVideoObjectURL?.({ file }) || filePreviewUrl || URL.createObjectURL(file);
-        }
-        payload.fileUrl = uploadedUrl;
-        payload.filename = file?.name || undefined;
-        payload.mimeType = file?.type || undefined;
+        await navigator.clipboard?.writeText(v.source?.url || window.location.href);
       }
+      openCelebrate("Condivisione riuscita", "Grazie per far conoscere il borgo!");
+      markShare();
+      fireConfetti({ burst: 150, spread: 75 });
+    } catch {}
+  };
 
-      const created = await addVideo(payload);
-      if (created && created.id) {
-        setToast({
-          kind: "success",
-          text: publishNow
-            ? "🎥 Video caricato! È ora visibile sul tuo profilo (o in attesa di approvazione se previsto)."
-            : "Bozza salvata! La trovi nella sezione I miei video.",
-        });
-        // reset form
-        setTitle("");
-        setBorgoId("");
-        setPoiId("");
-        setPoiQuery("");
-        setYtUrl("");
-        setFile(null);
-        setFilePreviewUrl("");
-        setPublishNow(true);
-        // refresh lista
-        const list = await listVideosByCreator();
-        setVideos(Array.isArray(list) ? list : []);
-      } else {
-        setToast({ kind: "error", text: "Non è stato possibile salvare il video." });
-      }
-    } catch (err) {
-      console.error(err);
-      setToast({ kind: "error", text: "Errore durante il salvataggio del video." });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function copyToClipboard(text) {
-    if (!text) return;
-    navigator.clipboard?.writeText(text).then(
-      () => setToast({ kind: "success", text: "Link copiato negli appunti." }),
-      () => setToast({ kind: "error", text: "Impossibile copiare il link." })
-    );
-  }
-
-  // Filtri video
-  const displayedVideos = useMemo(() => {
-    if (videoFilter === "all") return videos;
-    if (videoFilter === "published") return videos.filter((v) => v.status === "published");
-    if (videoFilter === "draft") return videos.filter((v) => v.status === "draft");
-    if (videoFilter === "pending") return videos.filter((v) => v.status === "pending");
-    return videos;
-  }, [videos, videoFilter]);
-
-  // Determina livelli attivi (toggle)
-  const activeLevelNames = levelsView === "creator" ? creatorLevelNames : userLevelNames;
-  const activeLevelIcons = levelsView === "creator" ? creatorLevelIcons : userLevelIcons;
-  const currentLevelIndex = Math.max(
-    0,
-    activeLevelNames.findIndex((n) => n.toLowerCase() === currentLevelName.toLowerCase())
-  );
-
+  /* =========================
+   * Render
+   * ========================= */
   return (
-    <main className="min-h-screen bg-white">
-      {/* TopBar */}
-      <header className="sticky top-0 z-30 border-b bg-white/90 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-          <Link to="/" className="text-lg sm:text-xl font-extrabold text-[#0D4D4D]">
+    <main className="min-h-screen" style={{ background: brand.bg }}>
+      <Keyframes />
+      <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-[60]" />
+
+      {/* Popup celebrate */}
+      {celebrate.show && (
+        <div className="fixed inset-0 z-[65] grid place-items-center">
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="relative mx-4 rounded-2xl bg-white shadow-2xl border anim-pop"
+               style={{ borderColor: brand.accent }}>
+            <div className="p-5 text-center max-w-sm">
+              <div className="text-3xl mb-1">🎉</div>
+              <div className="text-lg font-bold" style={{ color: brand.primary }}>{celebrate.title}</div>
+              {celebrate.subtitle && <div className="mt-1 text-sm" style={{ color: `${brand.primary}CC` }}>{celebrate.subtitle}</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header con toggle aree (differenze evidenti) */}
+      <header className="border-b sticky top-0 z-50 backdrop-blur"
+              style={{ borderColor: `${brand.accent}66`, backgroundColor: `${brand.soft}CC` }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <Link to="/" className="text-lg sm:text-xl font-extrabold" style={{ color: brand.primary }}>
             Il Borghista
           </Link>
-
-          {/* Toggle Creator/Utente (route) */}
-          <div className="flex items-center rounded-xl border bg-white overflow-hidden">
-            <button className="px-3 py-1.5 text-sm font-medium bg-[#0D4D4D] text-white" aria-pressed="true">
-              Creator
-            </button>
-            <button
-              className="px-3 py-1.5 text-sm font-medium hover:bg-gray-50"
-              onClick={() => navigate(USER_AREA_ROUTE)}
-              title="Vai alla tua area utente"
-            >
+          <div className="flex items-center rounded-xl overflow-hidden border"
+               style={{ borderColor: brand.accent }}>
+            <Link to="/registrazione-utente"
+                  className="px-3 py-1.5 text-sm font-semibold"
+                  style={{ color: brand.primary, background: brand.soft }}>
               Utente
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {user?.name && (
-              <span className="hidden sm:flex items-center gap-1 text-sm text-gray-600">
-                <User className="w-4 h-4" />
-                {user.name}
-              </span>
-            )}
+            </Link>
+            <span className="px-3 py-1.5 text-sm font-semibold text-white"
+                  style={{ background: brand.primary }}>Creator</span>
           </div>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 grid md:grid-cols-2 gap-6">
-        {/* LEFT: 1. Gamification */}
-        <section className="rounded-2xl border bg-white shadow-sm">
-          <div className="p-5 border-b flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-[#1F2937]">1. Gamification</h2>
-              <p className="mt-1 text-sm text-gray-700 font-semibold">Partecipa e accumula punti</p>
-              <p className="mt-1 text-sm text-gray-600">
-                Partecipa alla community interagendo con i contenuti: lascia recensioni, segnala eventi e completa missioni.
-                <br />
-                Sblocca badge esclusivi e scala la classifica regionale e nazionale.
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Hero */}
+        <section className="text-center">
+          <h1 className="text-xl sm:text-2xl font-black" style={{ color: brand.primary }}>
+            Area Creator · Ispirare con le tue storie.
+          </h1>
+          <p className="text-sm sm:text-base mt-1" style={{ color: `${brand.primary}CC` }}>
+            Ti mancano <b>{remaining}</b> punti per diventare <b>{nextLevel.name}</b>.
+          </p>
+        </section>
+
+        {/* Layout mobile-first: 1 col → 2 col su md */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          {/* ===== SINISTRA: Gamification, Badge, Missioni ===== */}
+          <section className="rounded-2xl p-4 sm:p-5 shadow-sm border bg-white transition-smooth"
+                   style={{ borderColor: `${brand.accent}80` }}>
+            {/* Profilo compatto */}
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold" style={{ color: brand.primary }}>La tua progressione</h2>
+                <p className="text-sm" style={{ color: `${brand.primary}B3` }}>
+                  Pubblica video e fai crescere la tua voce: la community ti aspetta.
+                </p>
+              </div>
+              <AvatarUpload me={me} saveMe={saveMe} accent={brand.accent} />
+            </div>
+
+            {/* Barra livello */}
+            <div className="mt-4 space-y-2">
+              <Progress value={progress} primary={brand.primary} hint={brand.soft} />
+              <p className="text-center text-sm" style={{ color: `${brand.primary}CC` }}>
+                Livello attuale: <b>{level.name}</b> · Punti: <b>{me.points}</b>
+              </p>
+              <p className="text-center text-xs" style={{ color: `${brand.primary}99` }}>
+                Mancano <b>{remaining}</b> punti per <b>{nextLevel.name}</b>.
               </p>
             </div>
 
-            {/* Avatar upload */}
-            <div className="shrink-0">
-              <div className="relative w-16 h-16 rounded-full overflow-hidden border">
-                {avatarPreview ? (
-                  <img src={avatarPreview} alt="Avatar creator" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full grid place-items-center text-gray-400">
-                    <ImageIcon className="w-6 h-6" />
-                  </div>
-                )}
-                <label
-                  title="Carica foto profilo"
-                  className="absolute -bottom-1 -right-1 bg-white border rounded-full p-1 shadow cursor-pointer"
-                >
-                  <Upload className="w-4 h-4" />
-                  <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Toggle livelli + stepper */}
-          <div className="p-5 space-y-5">
-            <div className="inline-flex rounded-xl border overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setLevelsView("user")}
-                className={`px-3 py-1.5 text-sm font-medium ${
-                  levelsView === "user" ? "bg-[#0D4D4D] text-white" : "hover:bg-gray-50"
-                }`}
-              >
-                Livelli Utente
-              </button>
-              <button
-                type="button"
-                onClick={() => setLevelsView("creator")}
-                className={`px-3 py-1.5 text-sm font-medium ${
-                  levelsView === "creator" ? "bg-[#0D4D4D] text-white" : "hover:bg-gray-50"
-                }`}
-              >
-                Livelli Creator
-              </button>
-            </div>
-
-            {/* Stepper 5 livelli */}
-            <div className="flex items-center justify-between gap-2">
-              {activeLevelNames.map((lvl, idx) => {
-                const Icon = activeLevelIcons[idx] || Star;
-                const active = idx <= currentLevelIndex;
-                return (
-                  <div key={lvl} className="flex flex-col items-center gap-1 w-full">
-                    <div
-                      className={`w-9 h-9 rounded-full grid place-items-center border ${
-                        active ? "bg-[#0D4D4D] text-white border-[#0D4D4D]" : "bg-white text-gray-500"
-                      }`}
-                      title={lvl}
-                    >
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <span className={`text-[11px] text-center leading-tight ${active ? "text-[#0D4D4D]" : "text-gray-500"}`}>
-                      {lvl}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Progress + streak con micro-testo */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>
-                  Livello attuale: <b>{currentLevelName}</b>
-                </span>
-                <span>
-                  Punti: <b>{points}</b> / {nextLevelAt}
-                </span>
-              </div>
-              <ProgressBar value={progress} />
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Flame className="w-4 h-4 text-orange-500" />
-                <span>Streak: <b>{streak}</b> giorni</span>
-                <span className="inline-flex items-center gap-1 text-xs text-gray-500" title="Accedi ogni giorno per aumentare la tua serie di accessi consecutivi e guadagnare bonus punti.">
-                  <HelpCircle className="w-3.5 h-3.5" />
-                  Suggerimento
-                </span>
-              </div>
-            </div>
-
-            {/* Missioni dedicate ai creator */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Missioni da creator</h3>
-              <ul className="grid sm:grid-cols-3 gap-2">
-                <li className="text-xs text-gray-700 rounded-xl border px-3 py-2 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Carica 1 nuovo video questa settimana
-                </li>
-                <li className="text-xs text-gray-700 rounded-xl border px-3 py-2 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Condividi un video sui social
-                </li>
-                <li className="text-xs text-gray-700 rounded-xl border px-3 py-2 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Raggiungi 100 visualizzazioni su un video
-                </li>
-              </ul>
-            </div>
-
-            {/* Badge recenti */}
-            <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Badge recenti</h3>
-              <div className="flex flex-wrap gap-2">
-                {(profile?.badges?.length ? profile.badges : ["Esploratore", "Raccontastorie"]).map((b, i) => (
-                  <span key={i} className="text-xs px-2 py-1 rounded-full bg-[#EEF6F6] text-[#0D4D4D]">
-                    {typeof b === "string" ? b : b?.name || "Badge"}
+            {/* Badge (locked in grigio, unlock animato) */}
+            <div className="mt-4">
+              <h3 className="text-sm font-bold" style={{ color: brand.primary }}>Badge</h3>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {badges.map((b) => (
+                  <span key={b.key}
+                        className={`px-2 py-1 rounded-full text-xs border ${b.unlocked ? "anim-pop" : "opacity-40 grayscale"}`}
+                        style={{ background: b.unlocked ? b.color : "#F3F4F6", color: brand.primary, borderColor: `${brand.accent}66` }}>
+                    <span className="mr-1">{b.icon}</span>{b.label}
                   </span>
                 ))}
               </div>
             </div>
-          </div>
-        </section>
 
-        {/* RIGHT: 2. Carica i tuoi video (drag & drop + anteprima) */}
-        <section className="rounded-2xl border bg-white shadow-sm">
-          <div className="p-5 border-b">
-            <h2 className="text-lg sm:text-xl font-bold text-[#1F2937]">2. Carica i tuoi video</h2>
-            <p className="mt-1 text-sm text-gray-700 font-semibold">Racconta il tuo borgo con un video</p>
-            <p className="mt-1 text-sm text-gray-600">
-              Carica i tuoi video o inserisci un link YouTube per mostrare la bellezza del borgo o di un’attività locale.
-              <br />
-              Più video pubblichi, più punti guadagni e più visibilità ottieni.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="p-5 space-y-5">
-            {/* Mode switch */}
-            <div className="inline-flex rounded-xl border overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setMode("youtube")}
-                className={`px-3 py-1.5 text-sm font-medium ${
-                  mode === "youtube" ? "bg-[#0D4D4D] text-white" : "hover:bg-gray-50"
-                }`}
-              >
-                Link YouTube
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("file")}
-                className={`px-3 py-1.5 text-sm font-medium ${
-                  mode === "file" ? "bg-[#0D4D4D] text-white" : "hover:bg-gray-50"
-                }`}
-              >
-                File video
-              </button>
-            </div>
-
-            {/* Titolo */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Titolo</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Es. Tramonto a Viggiano – consigli e spot"
-                className="w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 focus:ring-[#0D4D4D]/20"
-              />
-            </div>
-
-            {/* Borgo + Attività (con ricerca) */}
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Borgo <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <MapPin className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                  <select
-                    value={borgoId}
-                    onChange={(e) => setBorgoId(e.target.value)}
-                    className="w-full rounded-xl border pl-9 pr-3 py-2 outline-none focus:ring-2 focus:ring-[#0D4D4D]/20 bg-white"
-                  >
-                    <option value="">Seleziona borgo…</option>
-                    {borghi.map((b) => (
-                      <option key={b.id || b.value} value={b.id || b.value}>
-                        {b.name || b.label}
-                      </option>
-                    ))}
-                  </select>
+            {/* Missioni automatiche */}
+            <div className="mt-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold" style={{ color: brand.primary }}>Missioni</h3>
+                <div className="text-xs px-2 py-1 rounded-full"
+                     style={{ background: brand.soft, color: brand.primary, border:`1px solid ${brand.accent}55` }}>
+                  {missionsDone}/{missionsTotal} completate
                 </div>
               </div>
+              <Progress value={missionsPct} primary={brand.accent} hint="#E6FFFB" />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Attività (opzionale)</label>
-                <input
-                  type="text"
-                  value={poiQuery}
-                  onChange={(e) => setPoiQuery(e.target.value)}
-                  placeholder="Cerca attività…"
-                  className="w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 focus:ring-[#0D4D4D]/20 mb-2"
-                  disabled={!poi.length}
-                />
-                <div className="relative">
-                  <Store className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                  <select
-                    value={poiId}
-                    onChange={(e) => setPoiId(e.target.value)}
-                    className="w-full rounded-xl border pl-9 pr-3 py-2 outline-none focus:ring-2 focus:ring-[#0D4D4D]/20 bg-white"
-                    disabled={!poi.length}
-                  >
-                    <option value="">Nessuna</option>
-                    {filteredPoi.map((p) => (
-                      <option key={p.id || p.value} value={p.id || p.value}>
-                        {p.name || p.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Input specifici + anteprima */}
-            {mode === "youtube" ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Link YouTube</label>
-                <input
-                  type="url"
-                  value={ytUrl}
-                  onChange={(e) => setYtUrl(e.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=XXXXXXXXXXX"
-                  className="w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 focus:ring-[#0D4D4D]/20"
-                />
-                {getYouTubeId(ytUrl) && (
-                  <div className="mt-3">
-                    <YouTubeEmbed url={ytUrl} title={title} />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">File video</label>
-
-                {/* Drag & Drop area */}
-                <div
-                  ref={dropRef}
-                  onDragOver={onDragOver}
-                  onDragLeave={onDragLeave}
-                  onDrop={onDrop}
-                  className={`rounded-xl border-2 border-dashed px-4 py-6 text-center cursor-pointer ${
-                    isDragging ? "border-[#0D4D4D] bg-[#EEF6F6]" : "border-gray-300 hover:bg-gray-50"
-                  }`}
-                  onClick={() => dropRef.current?.querySelector("input[type=file]")?.click()}
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <Upload className="w-6 h-6 text-gray-600" />
-                    <p className="text-sm text-gray-600">
-                      Trascina qui il tuo video oppure <span className="font-medium">clicca per selezionarlo</span>.
-                    </p>
-                    <input type="file" accept="video/*" onChange={onFileChange} className="hidden" />
-                  </div>
-                </div>
-
-                {/* Preview */}
-                {filePreviewUrl && (
-                  <div className="mt-3">
-                    <video src={filePreviewUrl} controls className="w-full aspect-video rounded-xl bg-black" />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Pubblica subito */}
-            <div className="flex items-center justify-between gap-3">
-              <label className="text-sm text-gray-700">Pubblica subito</label>
-              <button
-                type="button"
-                onClick={() => setPublishNow((v) => !v)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                  publishNow ? "bg-[#0D4D4D]" : "bg-gray-300"
-                }`}
-                aria-pressed={publishNow}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
-                    publishNow ? "translate-x-5" : "translate-x-1"
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* Azioni */}
-            <div className="flex items-center gap-3">
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#0D4D4D] text-white px-4 py-2 font-medium hover:opacity-90 disabled:opacity-60"
-              >
-                <Camera className="w-4 h-4" />
-                {loading ? "Salvataggio..." : publishNow ? "Pubblica video" : "Salva bozza"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTitle("");
-                  setBorgoId("");
-                  setPoiId("");
-                  setPoiQuery("");
-                  setYtUrl("");
-                  setFile(null);
-                  setFilePreviewUrl("");
-                  setPublishNow(true);
-                }}
-                className="rounded-xl border px-4 py-2 font-medium hover:bg-gray-50"
-              >
-                Annulla
-              </button>
-            </div>
-          </form>
-        </section>
-
-        {/* FULL: 3. I miei video (filtri + stats) */}
-        <section className="md:col-span-2 rounded-2xl border bg-white shadow-sm">
-          <div className="p-5 border-b flex items-center justify-between flex-wrap gap-3">
-            <h2 className="text-lg sm:text-xl font-bold text-[#1F2937]">I miei video</h2>
-            <div className="flex items-center gap-2">
-              {["all", "published", "draft", "pending"].map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setVideoFilter(f)}
-                  className={`px-3 py-1.5 text-sm rounded-xl border ${
-                    videoFilter === f ? "bg-[#0D4D4D] text-white border-[#0D4D4D]" : "hover:bg-gray-50"
-                  }`}
-                >
-                  {f === "all" && "Tutti"}
-                  {f === "published" && "Pubblicati"}
-                  {f === "draft" && "In bozza"}
-                  {f === "pending" && "In attesa"}
-                </button>
-              ))}
-            </div>
-            <Link to="/creator" className="text-sm text-[#0D4D4D] hover:underline inline-flex items-center gap-1">
-              Panoramica creator <ExternalLink className="w-4 h-4" />
-            </Link>
-          </div>
-
-          <div className="p-5">
-            {!videos?.length ? (
-              <div className="rounded-xl border border-dashed p-8 text-center text-gray-600">
-                <div className="mx-auto mb-3 w-24 h-24 rounded-full bg-[#EEF6F6] grid place-items-center">
-                  <Camera className="w-10 h-10 text-[#0D4D4D]" />
-                </div>
-                <p className="font-semibold">Non hai ancora caricato video.</p>
-                <p className="text-sm">
-                  Mostra la bellezza dei borghi: <b>il primo video ti farà guadagnare 5 punti!</b>
-                </p>
-              </div>
-            ) : !displayedVideos.length ? (
-              <div className="rounded-xl border border-dashed p-6 text-center text-gray-600">
-                Nessun video per questo filtro.
-              </div>
-            ) : (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {displayedVideos.map((v) => {
-                  const isDraft = v.status === "draft";
-                  const isPending = v.status === "pending";
-                  const thumb =
-                    v.source === "youtube"
-                      ? `https://i.ytimg.com/vi/${getYouTubeId(v.youtubeUrl)}/hqdefault.jpg`
-                      : v.fileUrl || getVideoObjectURL?.(v) || v.thumbnail;
-
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {missions.map((m, idx) => {
+                  const pct = Math.round((m.progress / m.goal) * 100);
                   return (
-                    <article key={v.id} className="rounded-2xl border overflow-hidden bg-white shadow-sm">
-                      <div className="relative aspect-video bg-gray-100">
-                        {thumb ? (
-                          <img src={thumb} alt={v.title || "Video"} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full grid place-items-center text-gray-400 text-sm">Anteprima</div>
-                        )}
-                        <span
-                          className={`absolute top-2 left-2 text-xs px-2 py-1 rounded-full shadow ${
-                            isPending
-                              ? "bg-blue-50 text-blue-800 border border-blue-200"
-                              : isDraft
-                              ? "bg-yellow-50 text-yellow-800 border border-yellow-200"
-                              : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                          }`}
-                        >
-                          {isPending ? "In attesa" : isDraft ? "Bozza" : "Pubblicato"}
+                    <article key={m.id}
+                      className="rounded-xl border p-3 bg-white transition-smooth"
+                      style={{ borderColor: `${brand.accent}80`, opacity: m.unlocked ? 1 : .6 }}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold" style={{ color: brand.primary }}>{idx+1}. {m.title}</div>
+                          <div className="text-xs mt-0.5" style={{ color: `${brand.primary}99` }}>
+                            Ricompensa: <b>+{m.reward} pt</b>
+                          </div>
+                        </div>
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full border`}
+                              style={{ background: m.done ? "#ECFDF5" : brand.sand, borderColor: `${brand.accent}66`, color: brand.primary }}>
+                          {m.done ? "Completata" : m.unlocked ? `${m.progress}/${m.goal}` : "Bloccata"}
                         </span>
                       </div>
-
-                      <div className="p-3">
-                        <h3 className="font-semibold text-[#111827] line-clamp-2">{v.title || "Video senza titolo"}</h3>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {v.borgoName || "Borgo"} {v.poiName ? `· ${v.poiName}` : ""}
-                        </p>
-
-                        {/* Stats */}
-                        <p className="mt-2 text-xs text-gray-600">
-                          👁️ {typeof v.views === "number" ? v.views : "—"} · ❤️ {typeof v.likes === "number" ? v.likes : "—"}
-                        </p>
-
-                        <div className="mt-3 flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setToast({
-                                kind: "success",
-                                text: "Azione di pubblicazione simulata. Collega qui la tua API.",
-                              })
-                            }
-                            className="flex-1 rounded-xl bg-[#EEF6F6] text-[#0D4D4D] px-3 py-2 text-sm font-medium hover:bg-[#E3F0F0]"
-                          >
-                            {isDraft ? "Pubblica" : "Metti in bozza"}
-                          </button>
-                          {v.source === "youtube" && v.youtubeUrl && (
-                            <a
-                              href={v.youtubeUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50 inline-flex items-center gap-1"
-                            >
-                              <Eye className="w-4 h-4" />
-                              Apri
-                            </a>
-                          )}
-                          {(v.publicUrl || v.youtubeUrl || v.fileUrl) && (
-                            <button
-                              type="button"
-                              onClick={() => copyToClipboard(v.publicUrl || v.youtubeUrl || v.fileUrl)}
-                              className="rounded-xl border px-3 py-2 text-sm hover:bg-gray-50 inline-flex items-center gap-1"
-                            >
-                              <Copy className="w-4 h-4" />
-                              Copia link
-                            </button>
-                          )}
-                        </div>
+                      <div className="mt-2">
+                        <Progress value={pct} primary={brand.primary} hint={brand.soft} />
                       </div>
+                      {!m.unlocked && (
+                        <p className="mt-2 text-xs" style={{ color: `${brand.primary}80` }}>
+                          Si sblocca completando la missione precedente.
+                        </p>
+                      )}
                     </article>
                   );
                 })}
               </div>
-            )}
+            </div>
+          </section>
+
+          {/* ===== DESTRA: Caricamento video ===== */}
+          <section className="rounded-2xl p-4 sm:p-5 shadow-sm border bg-white transition-smooth"
+                   style={{ borderColor: `${brand.accent}80` }}>
+            <h2 className="text-lg sm:text-xl font-bold" style={{ color: brand.primary }}>
+              1) Carica il tuo video
+            </h2>
+            <p className="text-sm mt-1" style={{ color: `${brand.primary}B3` }}>
+              Emoziona chi guarda: racconta un gesto, un suono, una luce del tuo borgo. Ogni storia può ispirare un viaggio ✨
+            </p>
+
+            {/* Switch modalità */}
+            <div className="mt-3 flex gap-2">
+              {["youtube", "file"].map((m) => (
+                <button key={m}
+                        onClick={() => setForm(s => ({ ...s, mode: m }))}
+                        className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-smooth"
+                        style={{
+                          background: form.mode === m ? brand.primary : brand.soft,
+                          color: form.mode === m ? "white" : brand.primary
+                        }}>
+                  {m === "youtube" ? "Link YouTube" : "File video"}
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={submitVideo} className="mt-3 grid gap-3">
+              <input className="rounded-xl border px-3 py-2 outline-none focus:ring-2"
+                     style={{ borderColor: brand.accent }}
+                     placeholder="Titolo (es. Tramonto a Viggiano – consigli e spot)"
+                     value={form.title} onChange={(e)=>setForm({...form,title:e.target.value})} />
+              <div className="grid sm:grid-cols-2 gap-3">
+                <input className="rounded-xl border px-3 py-2 outline-none focus:ring-2"
+                       style={{ borderColor: brand.accent }}
+                       placeholder="Borgo (obbligatorio)" required
+                       value={form.borgo} onChange={(e)=>setForm({...form,borgo:e.target.value})} />
+                <input className="rounded-xl border px-3 py-2 outline-none focus:ring-2"
+                       style={{ borderColor: brand.accent }}
+                       placeholder="Attività (opzionale)"
+                       value={form.attivita} onChange={(e)=>setForm({...form,attivita:e.target.value})} />
+              </div>
+
+              {form.mode === "youtube" ? (
+                <input className="rounded-xl border px-3 py-2 outline-none focus:ring-2"
+                       style={{ borderColor: brand.accent }}
+                       placeholder="Link YouTube (https://youtu.be/...)"
+                       value={form.ytUrl} onChange={(e)=>setForm({...form,ytUrl:e.target.value})} />
+              ) : (
+                <div onDrop={onDrop} onDragOver={(e)=>e.preventDefault()}
+                     className="rounded-xl border-2 border-dashed grid place-items-center text-center p-6"
+                     style={{ borderColor: brand.accent, background: brand.sand }}>
+                  <div>
+                    <div className="text-3xl">📤</div>
+                    <p className="text-sm" style={{ color: brand.primary }}>Trascina qui il tuo video</p>
+                    <p className="text-xs" style={{ color: `${brand.primary}99` }}>oppure</p>
+                    <label className="inline-block mt-2 px-3 py-1.5 rounded-lg font-semibold cursor-pointer"
+                           style={{ background: brand.primary, color: "white" }}>
+                      Scegli file
+                      <input type="file" accept="video/*" className="hidden" onChange={onFile} />
+                    </label>
+                  </div>
+                  {form.fileDataUrl && (
+                    <div className="mt-3 w-full rounded-lg overflow-hidden border"
+                         style={{ borderColor: brand.accent }}>
+                      <div className="aspect-video bg-[#000]/5 grid place-items-center text-sm" style={{ color: brand.primary }}>
+                        Video pronto per l’upload
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <label className="inline-flex items-center gap-2 text-sm select-none">
+                <input type="checkbox" checked={form.publishNow}
+                       onChange={(e)=>setForm({...form,publishNow:e.target.checked})} />
+                Pubblica subito (altrimenti “In attesa”)
+              </label>
+
+              <button type="submit"
+                      className="min-h-11 rounded-xl font-semibold transition-smooth hover:opacity-95"
+                      style={{ background: brand.primary, color: "white" }}>
+                🎬 Pubblica video
+              </button>
+
+              <p className="text-xs text-center" style={{ color: `${brand.primary}99` }}>
+                Al caricamento ottieni un bonus, poi completa le missioni per accelerare la crescita.
+              </p>
+            </form>
+          </section>
+        </div>
+
+        {/* ===== I MIEI VIDEO ===== */}
+        <section className="mt-6 rounded-2xl p-4 sm:p-5 shadow-sm border bg-white transition-smooth"
+                 style={{ borderColor: `${brand.accent}80` }}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h2 className="text-lg sm:text-xl font-bold" style={{ color: brand.primary }}>I miei video</h2>
+            <div className="flex gap-2">
+              {["Tutti","Pubblicati","In bozza","In attesa"].map(t => (
+                <button key={t} onClick={()=>setTab(t)}
+                        className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-smooth"
+                        style={{
+                          background: tab===t ? brand.primary : brand.soft,
+                          color: tab===t ? "white" : brand.primary
+                        }}>
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {filtered.length === 0 ? (
+            <div className="mt-4 grid place-items-center text-center rounded-2xl border p-6"
+                 style={{ borderColor: brand.accent, background: brand.sand }}>
+              <div className="text-4xl mb-2">📹</div>
+              <p className="text-sm" style={{ color: brand.primary }}>
+                Non hai ancora pubblicato video.
+              </p>
+              <p className="text-xs" style={{ color: `${brand.primary}99` }}>
+                Carica il tuo primo contenuto per avvicinarti al prossimo livello!
+              </p>
+              <a href="#" onClick={(e)=>{e.preventDefault(); window.scrollTo({top:0,behavior:"smooth"});}}
+                 className="mt-3 inline-flex px-4 py-2 rounded-xl font-semibold transition-smooth"
+                 style={{ background: brand.primary, color: "white" }}>
+                Carica il primo video
+              </a>
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {filtered.map(v => (
+                <article key={v.id}
+                         className="group rounded-xl border overflow-hidden bg-white transition-shadow hover:shadow-md"
+                         style={{ borderColor: `${brand.accent}66` }}>
+                  <div className="relative aspect-video bg-[#000]/5">
+                    {v.thumb
+                      ? <img src={v.thumb} alt={v.title} className="w-full h-full object-cover group-hover:scale-[1.02] transition-smooth" />
+                      : <div className="w-full h-full grid place-items-center text-sm" style={{ color: brand.primary }}>Nessuna anteprima</div>}
+                    <span className="absolute top-2 left-2 text-[11px] px-2 py-0.5 rounded-full bg-white/90 border"
+                          style={{ borderColor: `${brand.accent}80`, color: brand.primary }}>
+                      {v.status}
+                    </span>
+                  </div>
+                  <div className="p-3">
+                    <h3 className="font-semibold line-clamp-2" style={{ color: brand.primary }}>{v.title}</h3>
+                    <p className="text-xs mt-1" style={{ color: `${brand.primary}99` }}>
+                      {v.borgo}{v.attivita ? ` · ${v.attivita}` : ""}
+                    </p>
+                    <div className="mt-2 flex items-center justify-between text-xs" style={{ color: `${brand.primary}B3` }}>
+                      <span>👁️ {v.views || 0}</span>
+                      <div className="flex items-center gap-2">
+                        {v.source?.url && (
+                          <button onClick={()=>shareVideo(v)}
+                                  className="px-2 py-1 rounded-lg border text-xs transition-smooth hover:opacity-90"
+                                  style={{ borderColor: brand.accent, color: brand.primary }}>
+                            Condividi
+                          </button>
+                        )}
+                        <button onClick={()=>{
+                                  setVideos(me.videos.map(x=>x.id===v.id?{...x, likes:(x.likes||0)+1}:x));
+                                  awardPoints(2,"Apprezzamento ricevuto");
+                                }}
+                                className="px-2 py-1 rounded-lg text-xs transition-smooth"
+                                style={{ background: brand.soft, color: brand.primary }}>
+                          👍 {v.likes || 0}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
       </div>
-
-      <Toast kind={toast.kind} text={toast.text} onClose={() => setToast({ ...toast, text: "" })} />
     </main>
   );
+}
+
+/* ===== Support components ===== */
+function AvatarUpload({ me, saveMe, accent }) {
+  const onChange = (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const r = new FileReader(); r.onload = () => saveMe({ ...me, avatar: typeof r.result === "string" ? r.result : "" }); r.readAsDataURL(f);
+  };
+  return (
+    <div className="relative w-16 h-16 rounded-full overflow-hidden ring-2" style={{ borderColor: accent }}>
+      {me.avatar
+        ? <img src={me.avatar} alt="Avatar" className="w-full h-full object-cover" />
+        : <div className="w-full h-full grid place-items-center text-xs text-black/30">Nessuna foto</div>}
+      <label className="absolute -bottom-1 -right-1 bg-white border rounded-full p-1 shadow cursor-pointer"
+             style={{ borderColor: accent }}>
+        <input type="file" accept="image/*" className="hidden" onChange={onChange} />
+        <span className="text-xs" role="img" aria-label="carica">📷</span>
+      </label>
+    </div>
+  );
+}
+
+function Progress({ value = 0, primary = "#000", hint = "#eee" }) {
+  const pct = Math.max(0, Math.min(100, Math.round(value)));
+  return (
+    <div className="w-full h-2 sm:h-2.5 rounded-full overflow-hidden" style={{ background: hint }}>
+      <div className="h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${pct}%`, background: primary }} />
+    </div>
+  );
+}
+
+function cryptoId() {
+  try { return Math.random().toString(36).slice(2) + crypto.getRandomValues(new Uint32Array(1))[0].toString(36); }
+  catch { return Math.random().toString(36).slice(2); }
 }

@@ -3,8 +3,8 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   findBorgoBySlug,
-  getVideosByBorgo,
   listPoiByBorgo,
+  getVideosByBorgo,
   getVideosByPoi,
 } from "../lib/store";
 import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
@@ -12,10 +12,10 @@ import {
   ChevronLeft, ChevronRight, Share2, Heart, Film, CalendarDays, Route, ShoppingBag,
   List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Search, Menu, X,
   LogIn, UserPlus, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned,
-  MapPin, Star, Bus, Info, HandHeart
+  MapPin, Star, Bus, Info, HandHeart, Minus, User
 } from "lucide-react";
 
-/* ========= Helpers ========= */
+/* ================= Helpers ================= */
 const isFoodDrink = (p) =>
   /(ristor|tratt|osteria|pizzer|bar|caff|café|enotec|pub|agritur)/i.test(p.type || p.name || "");
 const isSleep = (p) =>
@@ -23,6 +23,19 @@ const isSleep = (p) =>
 const isArtigiano = (p) =>
   /(artigian|laborator|bottega|ceramic|liutaio|tessil|falegn|orafo)/i.test(p.type || p.name || "");
 
+const fmtPrice = (n) => {
+  if (n == null || Number.isNaN(n)) return null;
+  try { return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n); }
+  catch { return `€ ${Math.round(n)}`; }
+};
+function withUtm(url, partner) {
+  if (!url) return "#";
+  const u = new URL(url, window.location.origin);
+  u.searchParams.set("utm_source", "ilborghista");
+  u.searchParams.set("utm_medium", "partner");
+  u.searchParams.set("utm_campaign", (partner || "esperienze").toLowerCase());
+  return u.toString();
+}
 function getYouTubeId(url = "") {
   try {
     const u = new URL(url);
@@ -34,7 +47,7 @@ function getYouTubeId(url = "") {
 const getYouTubeThumb = (url = "") =>
   getYouTubeId(url) ? `https://i.ytimg.com/vi/${getYouTubeId(url)}/hqdefault.jpg` : "";
 
-/* ========= TopBar fissa ========= */
+/* ================= TopBar ================= */
 function TopBar({ slug }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -68,7 +81,6 @@ function TopBar({ slug }) {
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
           </form>
 
-          {/* Azioni destra */}
           <div className="flex items-center gap-2">
             {/* Ricerca mobile */}
             <button
@@ -90,7 +102,7 @@ function TopBar({ slug }) {
           </div>
         </div>
 
-        {/* Barra ricerca mobile */}
+        {/* Ricerca mobile */}
         {searchOpen && (
           <div className="border-t bg-white md:hidden">
             <form onSubmit={onSubmit} className="mx-auto max-w-6xl px-4 py-2 sm:px-6">
@@ -144,7 +156,7 @@ function TopBar({ slug }) {
   );
 }
 
-/* ========= HScroll + arrows ========= */
+/* ================= HScroll + arrows ================= */
 function HScrollWithArrows({ children, className = "" }) {
   const ref = useRef(null);
   const scrollBy = (dir) => {
@@ -174,7 +186,7 @@ function HScrollWithArrows({ children, className = "" }) {
       <div
         ref={ref}
         role="list"
-        className="scrollbar-none -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 md:snap-none"
+        className="scrollbar-none -mx-1 flex snap-x snap-mandatory gap-6 overflow-x-auto px-1 md:snap-none"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         {children}
@@ -183,11 +195,10 @@ function HScrollWithArrows({ children, className = "" }) {
   );
 }
 
-/* ========= HERO OVERLAY ========= */
+/* ================= Hero overlay ================= */
 function HeroOverlay({ mapsUrl }) {
   return (
     <div className="absolute left-4 right-4 top-16 z-20 flex items-start justify-between">
-      {/* Unico bottone mappa (mobile+desktop) */}
       <a
         href={mapsUrl}
         target="_blank"
@@ -201,7 +212,7 @@ function HeroOverlay({ mapsUrl }) {
   );
 }
 
-/* ========= Hero Gallery ========= */
+/* ================= Hero Gallery ================= */
 function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras = null }) {
   const [i, setI] = useState(0);
   const n = gallery?.length || 0;
@@ -209,60 +220,38 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
   const current = n ? gallery[i] : { src: fallback, name: title };
 
   // Swipe mobile
-  const touch = useRef({ x: 0, t: 0 });
+  const t = useRef({ x: 0, t: 0 });
   const onTouchStart = (e) => {
-    const t = e.touches?.[0]; if (!t) return;
-    touch.current = { x: t.clientX, t: Date.now() };
+    const a = e.touches?.[0]; if (!a) return;
+    t.current = { x: a.clientX, t: Date.now() };
   };
   const onTouchEnd = (e) => {
-    const dx = (e.changedTouches?.[0]?.clientX || 0) - touch.current.x;
-    const dt = Date.now() - touch.current.t;
-    if (Math.abs(dx) > 40 && dt < 500 && hasMany) {
-      setI((v) => (dx < 0 ? (v + 1) % n : (v - 1 + n) % n));
-    }
+    const dx = (e.changedTouches?.[0]?.clientX || 0) - t.current.x;
+    const dt = Date.now() - t.current.t;
+    if (Math.abs(dx) > 40 && dt < 500 && hasMany) setI((v) => (dx < 0 ? (v + 1) % n : (v - 1 + n) % n));
   };
 
-  // Precarica ±1 immagine
+  // Precarica ±1
   useEffect(() => {
     if (!n) return;
-    const next = new Image();
-    next.src = gallery[(i + 1) % n]?.src || "";
-    const prev = new Image();
-    prev.src = gallery[(i - 1 + n) % n]?.src || "";
+    const next = new Image(); next.src = gallery[(i + 1) % n]?.src || "";
+    const prev = new Image(); prev.src = gallery[(i - 1 + n) % n]?.src || "";
   }, [i, n, gallery]);
 
   return (
     <section className="relative">
-      <div
-        className="relative h-72 w-full overflow-hidden md:h-[380px]"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
-        <img
-          key={current?.src}
-          src={current?.src || fallback}
-          alt={current?.name || title}
-          className="h-full w-full object-cover"
-          loading="eager"
-          decoding="async"
-        />
+      <div className="relative h-72 w-full overflow-hidden md:h-[380px]" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        <img src={current?.src || fallback} alt={current?.name || title} className="h-full w-full object-cover" loading="eager" decoding="async" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
 
-        {/* Overlay (bottone mappa) */}
+        {/* overlay */}
         {overlay}
 
-        {/* Nome foto (alto sx) */}
-        {current?.name && (
-          <div className="absolute left-3 top-3 z-10 rounded-md bg-black/55 px-2 py-1 text-xs text-white">
-            {current.name}
-          </div>
-        )}
-        {/* Contatore (alto dx) */}
-        <div className="absolute right-3 top-3 z-10 rounded-md bg-black/55 px-2 py-1 text-xs text-white">
-          {n ? `${i + 1} / ${n}` : "1 / 1"}
-        </div>
+        {/* label foto & contatore */}
+        {current?.name ? <div className="absolute left-3 top-3 z-10 rounded-md bg-black/55 px-2 py-1 text-xs text-white">{current.name}</div> : null}
+        <div className="absolute right-3 top-3 z-10 rounded-md bg-black/55 px-2 py-1 text-xs text-white">{n ? `${i + 1} / ${n}` : "1 / 1"}</div>
 
-        {/* BOTTONI MOBILE: condividi/salva */}
+        {/* azioni mobile */}
         <div className="md:hidden absolute right-3 bottom-3 z-10 flex flex-col gap-2">
           <button aria-label="Condividi" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#6B271A] shadow ring-1 ring-black/5">
             <Share2 className="h-5 w-5" />
@@ -272,33 +261,24 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
           </button>
         </div>
 
-        {/* Frecce desktop */}
+        {/* frecce desktop */}
         {hasMany && (
           <>
-            <button
-              aria-label="Foto precedente"
-              onClick={() => setI((v) => (v - 1 + n) % n)}
-              className="absolute left-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow hover:bg-white md:flex"
-            >
+            <button aria-label="Foto precedente" onClick={() => setI((v) => (v - 1 + n) % n)} className="absolute left-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow hover:bg-white md:flex">
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <button
-              aria-label="Foto successiva"
-              onClick={() => setI((v) => (v + 1) % n)}
-              className="absolute right-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow hover:bg-white md:flex"
-            >
+            <button aria-label="Foto successiva" onClick={() => setI((v) => (v + 1) % n)} className="absolute right-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow hover:bg-white md:flex">
               <ChevronRight className="h-5 w-5" />
             </button>
           </>
         )}
       </div>
 
-      {/* Titolo + azioni */}
+      {/* titolo + extra (Info + Sostieni) */}
       <div className="absolute inset-x-0 bottom-4">
         <div className="mx-auto flex max-w-6xl items-end justify-between gap-3 px-4 sm:px-6">
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-extrabold text-white drop-shadow md:text-4xl">{title}</h1>
-            {/* extra (Info + Sostieni) */}
             {leftExtras}
           </div>
           <div className="hidden items-center gap-2 sm:flex">
@@ -315,7 +295,7 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
   );
 }
 
-/* ========= Palette / componenti nav ========= */
+/* ================= NAV (pallotte) ================= */
 const colors = {
   cosafare:   { bg: "#2E7D32", color: "#ffffff" },
   mangiare:   { bg: "#C81E3C", color: "#ffffff" },
@@ -326,47 +306,30 @@ const colors = {
   dormire:    { bg: "#EC6A9E", color: "#ffffff" },
   prodotti:   { bg: "#8C6A18", color: "#ffffff" },
 };
-
 function NavBall({ to, label, icon: Icon, bg, color }) {
   return (
     <Link to={to} aria-label={label} title={label} className="flex items-center gap-2 shrink-0">
-      <span
-        className="inline-flex h-11 w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5"
-        style={{ background: bg, color }}
-      >
+      <span className="inline-flex h-11 w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5" style={{ background: bg, color }}>
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
       <span className="hidden sm:inline text-sm text-[#1A1818]">{label}</span>
     </Link>
   );
 }
-
-/* Mobile “pallotta”: icona tonda + label a destra, tutto cliccabile */
-function NavTileMobile({ to, label, icon: Icon, bg, color, aria, gradient }) {
+function NavTileMobile({ to, label, icon: Icon, bg, color, gradient }) {
   return (
-    <Link
-      to={to}
-      aria-label={aria || label}
-      className="flex items-center gap-3 rounded-2xl border bg-white p-3 shadow-sm hover:shadow ring-1 ring-transparent hover:ring-[#6B271A]/20 active:scale-[0.99] transition"
-    >
-      <span
-        className="inline-flex h-14 w-14 items-center justify-center rounded-full shadow ring-1 ring-black/5"
-        style={{ background: gradient ? undefined : bg, color }}
-      >
-        {gradient ? (
-          <span className="h-14 w-14 absolute rounded-full -z-10" style={{ background: colors.esperienze.bg }} />
-        ) : null}
-        <Icon className="h-6 w-6" aria-hidden="true" />
+    <Link to={to} aria-label={label} className="flex items-center gap-3 rounded-2xl border bg-white p-3 shadow-sm hover:shadow ring-1 ring-transparent hover:ring-[#6B271A]/20 active:scale-[0.99] transition">
+      <span className="relative inline-flex h-14 w-14 items-center justify-center rounded-full shadow ring-1 ring-black/5" style={{ background: gradient ? undefined : bg, color }}>
+        {gradient ? <span className="absolute inset-0 rounded-full" style={{ background: colors.esperienze.bg }} /> : null}
+        <Icon className="h-6 w-6 relative" aria-hidden="true" />
       </span>
-      <span className="text-[16.5px] leading-tight font-extrabold text-[#5B2A1F]">
-        {label}
-      </span>
+      <span className="text-[16.5px] leading-tight font-extrabold text-[#5B2A1F]">{label}</span>
     </Link>
   );
 }
 const Divider = () => <span className="mx-2 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
 
-/* ========= Descrizione ========= */
+/* ================= Descrizione & In breve ================= */
 function DescriptionBlock({ text, slug }) {
   const KEY = `descr-expanded:${slug}`;
   const [expanded, setExpanded] = useState(() => {
@@ -380,53 +343,31 @@ function DescriptionBlock({ text, slug }) {
     <section className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
       <div className={`relative leading-relaxed text-gray-800 ${expanded ? "" : "max-h-28 overflow-hidden"}`}>
         <p>{text}</p>
-        {!expanded && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white via-white/90 to-transparent" />
-        )}
+        {!expanded && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white via-white/90 to-transparent" />}
       </div>
-      <button
-        className="mt-2 inline-flex h-9 items-center rounded-md px-2 text-sm font-semibold text-[#6B271A] underline"
-        onClick={() => setExpanded((v) => !v)}
-      >
+      <button className="mt-2 inline-flex h-9 items-center rounded-md px-2 text-sm font-semibold text-[#6B271A] underline" onClick={() => setExpanded((v) => !v)}>
         {expanded ? "Mostra meno" : "Mostra tutto"}
       </button>
     </section>
   );
 }
-
-/* ========= In Breve ========= */
 function SmallGallery({ items = [] }) {
   const ref = useRef(null);
   const scrollBy = (dx) => ref.current && ref.current.scrollBy({ left: dx, behavior: "smooth" });
   if (!items.length) return null;
-
   return (
     <div className="relative">
-      <div
-        ref={ref}
-        className="scrollbar-none mt-2 flex gap-2 overflow-x-auto snap-x snap-mandatory"
-        style={{ WebkitOverflowScrolling: "touch" }}
-      >
+      <div ref={ref} className="scrollbar-none mt-2 flex gap-2 overflow-x-auto snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
         {items.map((it, idx) => (
           <figure key={idx} className="snap-start shrink-0 w-40">
-            <img
-              src={it.src}
-              alt={it.name || `Foto ${idx + 1}`}
-              className="h-24 w-40 rounded-xl object-cover ring-1 ring-black/5"
-              loading="lazy"
-              decoding="async"
-            />
+            <img src={it.src} alt={it.name || `Foto ${idx + 1}`} className="h-24 w-40 rounded-xl object-cover ring-1 ring-black/5" loading="lazy" decoding="async" />
             {it.name ? <figcaption className="mt-1 truncate text-xs text-neutral-600">{it.name}</figcaption> : null}
           </figure>
         ))}
       </div>
       <div className="mt-2 hidden justify-end gap-2 md:flex">
-        <button onClick={() => scrollBy(-300)} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5" aria-label="precedente">
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <button onClick={() => scrollBy(300)} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5" aria-label="successivo">
-          <ChevronRight className="h-4 w-4" />
-        </button>
+        <button onClick={() => scrollBy(-300)} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5" aria-label="precedente"><ChevronLeft className="h-4 w-4" /></button>
+        <button onClick={() => scrollBy(300)} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5" aria-label="successivo"><ChevronRight className="h-4 w-4" /></button>
       </div>
     </div>
   );
@@ -435,7 +376,6 @@ function InBreve({ meta, borgo, slug }) {
   const regione = borgo?.regione || meta?.regione || meta?.region;
   const provincia = borgo?.provincia || meta?.provincia || meta?.province;
   const short = meta?.shortInfo || null;
-
   return (
     <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
       <div className="rounded-2xl border bg-[#FAF5E0] p-4">
@@ -446,94 +386,148 @@ function InBreve({ meta, borgo, slug }) {
           {provincia ? <li><span className="font-semibold">Provincia:</span> {provincia}</li> : null}
           <li><span className="font-semibold">Hashtag:</span> #{slug}</li>
         </ul>
-        {Array.isArray(short?.gallery) && short.gallery.length ? (
-          <div className="mt-3"><SmallGallery items={short.gallery} /></div>
-        ) : null}
+        {Array.isArray(short?.gallery) && short.gallery.length ? <div className="mt-3"><SmallGallery items={short.gallery} /></div> : null}
       </div>
     </section>
   );
 }
 
-/* ========= POI card (resto sezioni) ========= */
-function CardPOI({ slug, p }) {
-  const hasVideo = typeof getVideosByPoi === "function" && p?.id ? getVideosByPoi(p.id).length > 0 : false;
+/* ================== CARD “HM” PRECISE ================== */
+/* 1) Video dei creator */
+function CreatorCardHM({ v, borgoName }) {
+  const th = v.thumbnail || getYouTubeThumb(v.youtubeUrl || v.url);
+  const name = v.creatorName || v.author || v.owner || v.channel || (v.title ? String(v.title).split("–")[0].trim() : "Creator");
   return (
-    <li className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white" role="listitem">
-      <Link to={`/borghi/${slug}/poi/${p.id}`} className="block">
-        <div className="relative h-40 w-full bg-neutral-100">
-          <img
-            src={p.cover || "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop"}
-            alt={p.name}
-            className="h-40 w-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
-          {hasVideo && (
-            <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-[#6B271A] shadow ring-1 ring-black/5">
-              <Film className="h-3.5 w-3.5" /> video
-            </span>
+    <article className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+      <a href={v.youtubeUrl || v.url} target="_blank" rel="noreferrer" className="block">
+        <div className="relative aspect-[16/9] w-full overflow-hidden rounded-t-3xl">
+          {th ? (
+            <img src={th} alt={v.title || name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-neutral-100 text-neutral-400">
+              <PlayCircle className="h-10 w-10" />
+            </div>
           )}
+          {/* tasto "minus" in alto dx */}
+          <button
+            type="button"
+            aria-label="Opzioni"
+            className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#6B271A] shadow ring-1 ring-black/10"
+            onClick={(e) => e.preventDefault()}
+          >
+            <Minus className="h-4 w-4" />
+          </button>
         </div>
-        <div className="p-3">
-          <h3 className="line-clamp-2 font-semibold text-[#6B271A]">{p.name}</h3>
-          <div className="mt-1 text-xs text-neutral-600 flex items-center gap-2">
-            {p.type && <span>{p.type}</span>}
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5 text-[#D54E30]" />
-              {p.borgo || p.city || p.comune || ""}
-            </span>
-            {p.rating ? (
-              <span className="inline-flex items-center gap-1">
-                <Star className="h-3.5 w-3.5 text-[#E6B800]" />
-                {Number(p.rating).toFixed(1)}
-              </span>
-            ) : null}
+        <div className="p-4">
+          <div className="font-extrabold text-[#5B2A1F]">{name}</div>
+          <div className="mt-1 flex items-center gap-1 text-sm text-neutral-600">
+            <MapPin className="h-4 w-4 text-[#D54E30]" />
+            {borgoName}
           </div>
+          {/* icona profilo in basso dx */}
+          <span className="mt-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#D54E30] text-white">
+            <User className="h-4 w-4" />
+          </span>
         </div>
-      </Link>
-    </li>
+      </a>
+    </article>
   );
 }
 
-/* ========= Card stile HM per Eventi/Esperienze/Prodotti ========= */
-function HMCard({ img, title, href = "#", badgeLeft, badgeRight, meta }) {
+/* 2) Borghi da scoprire (nearby) */
+function DiscoverBorgoCardHM({ b }) {
   return (
-    <a href={href} className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white hover:shadow transition" role="listitem">
-      <div className="relative aspect-[16/9] w-full bg-neutral-100">
-        <img src={img} alt={title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-        {badgeLeft ? (
-          <span className="absolute left-2 top-2 rounded-full border border-[#E1B671] bg-[#6B271A] px-2 py-0.5 text-[11px] font-bold text-white shadow">
-            {badgeLeft}
-          </span>
-        ) : null}
-        {badgeRight ? (
-          <span className="absolute right-2 top-2 rounded-full border border-[#E1B671] bg-[#D54E30] px-2 py-0.5 text-[11px] font-bold text-white shadow">
-            {badgeRight}
-          </span>
-        ) : null}
+    <Link
+      to={`/borghi/${b.slug}`}
+      className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-[28px] bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5"
+    >
+      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-t-[28px]">
+        <img src={b.hero} alt={b.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+        <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-[#5B2A1F] shadow ring-1 ring-black/5">
+          {b.name}
+        </span>
       </div>
-      <div className="p-3">
-        <h3 className="line-clamp-2 h-[44px] font-semibold text-[#1A1818]">{title}</h3>
-        {meta ? <div className="text-xs text-neutral-600 mt-1">{meta}</div> : null}
+      <div className="p-4">
+        <h3 className="font-extrabold text-[#5B2A1F]">Scopri {b.name}</h3>
+        <div className="mt-1 text-sm text-neutral-600">
+          {/* placeholder di sottotitolo */}
+          {b.subtitle || "Itinerari, eventi e sapori del territorio"}
+        </div>
+        <div className="mt-2 inline-flex items-center gap-1 text-sm text-neutral-700">
+          <Star className="h-4 w-4 text-[#E6B800]" />
+          4,6 <span className="text-neutral-500">(128)</span>
+        </div>
       </div>
-    </a>
+    </Link>
   );
 }
 
-/* ========= Sezione generica con carosello ========= */
-function SectionCarousel({ id, title, items = [], render, extraLink = null }) {
+/* 3) Prossimi eventi */
+function HMEventCard({ ev }) {
   return (
-    <section id={id} className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-extrabold text-[#6B271A]">{title}</h2>
-        {extraLink ? <Link to={extraLink} className="text-sm font-semibold underline">Vedi tutti</Link> : null}
+    <article className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-t-3xl">
+        <img src={ev.img} alt={ev.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+        {ev.tag && (
+          <span className="absolute right-3 bottom-3 rounded-full bg-white/95 px-3 py-1 text-xs font-extrabold text-[#5B2A1F] shadow ring-1 ring-black/5">
+            {ev.tag}
+          </span>
+        )}
       </div>
-      <HScrollWithArrows className="mt-3">{items.map((it, idx) => render(it, idx))}</HScrollWithArrows>
+      <div className="p-4">
+        <h3 className="font-extrabold text-[#5B2A1F]">{ev.title}</h3>
+        <div className="mt-2 text-sm text-neutral-700">{ev.date}</div>
+        <div className="mt-1 inline-flex items-center gap-1 text-sm text-neutral-700">
+          <MapPin className="h-4 w-4 text-[#D54E30]" />
+          {ev.place}
+        </div>
+        {ev.meta && <div className="mt-1 text-sm text-neutral-700">{ev.meta}</div>}
+      </div>
+    </article>
+  );
+}
+
+/* 4) Prodotti tipici */
+function HMProductCard({ p }) {
+  return (
+    <article className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-t-3xl">
+        <img src={p.img} alt={p.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+        {p.priceFrom != null && (
+          <span className="absolute right-3 top-3 rounded-full bg-[#D54E30] px-3 py-1 text-xs font-extrabold text-white shadow ring-1 ring-[#E1B671]">
+            da {fmtPrice(p.priceFrom).replace(/\s?EUR?/, "").trim()}
+          </span>
+        )}
+      </div>
+      <div className="p-4">
+        <h3 className="font-extrabold text-[#5B2A1F]">{p.title}</h3>
+        <div className="mt-2 inline-flex items-center gap-1 text-sm text-neutral-700">
+          <MapPin className="h-4 w-4 text-[#D54E30]" />
+          {p.location}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/* ================= Section wrapper ================= */
+function SectionHM({ title, linkTo, children }) {
+  return (
+    <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-xl font-extrabold text-[#5B2A1F]">{title}</h2>
+        {linkTo && (
+          <Link to={linkTo} className="text-sm font-semibold underline">
+            Vedi tutti
+          </Link>
+        )}
+      </div>
+      <HScrollWithArrows>{children}</HScrollWithArrows>
     </section>
   );
 }
 
-/* ========= Newsletter CTA ========= */
+/* ================= Newsletter ================= */
 function NewsletterCTA({ slug }) {
   const [email, setEmail] = useState("");
   const [privacy, setPrivacy] = useState(false);
@@ -556,8 +550,7 @@ function NewsletterCTA({ slug }) {
         body: JSON.stringify({ email, borgo: slug, source: "home-borgo" }),
       });
       if (!res.ok) throw new Error("subscribe failed");
-      setStatus("ok");
-      setMsg("Iscrizione completata! Controlla la posta per confermare.");
+      setStatus("ok"); setMsg("Iscrizione completata! Controlla la posta per confermare.");
       setEmail(""); setPrivacy(false);
     } catch {
       setStatus("error"); setMsg("Si è verificato un problema. Riprova tra poco.");
@@ -574,48 +567,18 @@ function NewsletterCTA({ slug }) {
           <div className="w-full">
             <h3 className="text-lg font-extrabold text-[#6B271A]">Rimani aggiornato sui borghi</h3>
             <p className="mt-0.5 text-sm text-neutral-600">Eventi, esperienze e novità de Il Borghista. Niente spam, promesso.</p>
-
             <form onSubmit={onSubmit} className="mt-3 grid gap-2 sm:flex sm:items-center">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="La tua email"
-                aria-label="Email per iscriverti alla newsletter"
-                className="w-full rounded-xl border px-3 py-2 text-sm outline-none focus:border-[#6B271A] sm:max-w-md"
-                required
-                inputMode="email"
-                autoComplete="email"
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex h-11 items-center justify-center rounded-xl bg-[#6B271A] px-4 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-60"
-              >
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="La tua email" aria-label="Email per iscriverti alla newsletter" className="w-full rounded-xl border px-3 py-2 text-sm outline-none focus:border-[#6B271A] sm:max-w-md" required inputMode="email" autoComplete="email" />
+              <button type="submit" disabled={loading} className="inline-flex h-11 items-center justify-center rounded-xl bg-[#6B271A] px-4 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-60">
                 {loading ? "Iscrizione..." : "Iscrivimi"}
               </button>
             </form>
-
             <label className="mt-2 inline-flex items-start gap-2 text-xs text-neutral-600">
               <input type="checkbox" checked={privacy} onChange={(e) => setPrivacy(e.target.checked)} className="mt-0.5" required />
-              <span>
-                Accetto l’<Link to="/privacy" className="underline">informativa privacy</Link> e i{" "}
-                <Link to="/termini" className="underline">termini di servizio</Link>.
-              </span>
+              <span>Accetto l’<Link to="/privacy" className="underline">informativa privacy</Link> e i <Link to="/termini" className="underline">termini di servizio</Link>.</span>
             </label>
-
-            {status === "ok" && (
-              <div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-700">
-                <CheckCircle2 className="h-4 w-4" />
-                <span className="text-sm">{msg}</span>
-              </div>
-            )}
-            {status === "error" && (
-              <div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-rose-700">
-                <AlertCircle className="h-4 w-4" />
-                <span className="text-sm">{msg}</span>
-              </div>
-            )}
+            {status === "ok" && (<div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-700"><CheckCircle2 className="h-4 w-4" /><span className="text-sm">{msg}</span></div>)}
+            {status === "error" && (<div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-rose-700"><AlertCircle className="h-4 w-4" /><span className="text-sm">{msg}</span></div>)}
           </div>
         </div>
       </div>
@@ -623,7 +586,7 @@ function NewsletterCTA({ slug }) {
   );
 }
 
-/* ========= Pagina ========= */
+/* ================= Pagina ================= */
 export default function HomeBorgo() {
   const { slug } = useParams();
 
@@ -646,44 +609,41 @@ export default function HomeBorgo() {
     ? meta.gallery
     : [{ src: meta?.hero || "https://images.unsplash.com/photo-1543340713-8f6b9f4507f8?q=80&w=1600&auto=format&fit=crop", name: meta?.name || borgo?.name || "Borgo" }];
 
+  // Mappa (bottone unico)
+  const place = (meta?.name || borgo?.name || slug) + " " + ((borgo?.provincia || meta?.provincia || "") + " " + (borgo?.regione || meta?.regione || "")).trim();
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
+
+  // Video creator
   const videos = useMemo(() => getVideosByBorgo(slug), [slug]);
 
-  // POI per sezioni
+  // POI raccolte
   const allPoi = useMemo(() => listPoiByBorgo(slug), [slug]);
   const eatDrink = useMemo(() => allPoi.filter(isFoodDrink), [allPoi]);
   const sleep = useMemo(() => allPoi.filter(isSleep), [allPoi]);
   const artigiani = useMemo(() => allPoi.filter(isArtigiano), [allPoi]);
-  const thingsToDo = useMemo(
-    () => allPoi.filter((p) => !isFoodDrink(p) && !isSleep(p) && !isArtigiano(p)),
-    [allPoi]
-  );
+  const thingsToDo = useMemo(() => allPoi.filter((p) => !isFoodDrink(p) && !isSleep(p) && !isArtigiano(p)), [allPoi]);
 
-  // URL mappa
-  const place = (meta?.name || borgo?.name || slug) + " " + ((borgo?.provincia || meta?.provincia || "") + " " + (borgo?.regione || meta?.regione || "")).trim();
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
-
-  // Mock min 4 card per sezioni contenutistiche
+  // Mock coerenti con HM (>=4 per sezione)
   const eventi = [
-    { title: "Festa delle tradizioni", img: "https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=1200&auto=format&fit=crop", when: "6–8 SET" },
-    { title: "Concerti in piazza", img: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1200&auto=format&fit=crop", when: "12–13 SET" },
-    { title: "Sagra del gusto locale", img: "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop", when: "20 SET" },
-    { title: "Mercatino artigiano", img: "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop", when: "28 SET" },
+    { title: "La festa della Madonna Nera", img: "https://images.unsplash.com/photo-1553877522-43269d4ea984?q=80&w=1500&auto=format&fit=crop", tag: "SAGRA", date: "9–10 agosto 2025", place: "Viggiano (PZ) · Santuario", meta: "Ore 21:00 · Navette gratuite" },
+    { title: "Sapori in Piazza", img: "https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?q=80&w=1500&auto=format&fit=crop", tag: "SAGRA", date: "15 agosto 2025", place: "Viggiano (PZ) · Centro storico", meta: "Ingresso libero" },
+    { title: "Concerto d’estate", img: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1500&auto=format&fit=crop", tag: "", date: "22 agosto 2025", place: "Viggiano (PZ) · Arena", meta: "Ore 21:30" },
   ];
-  const esperienze = [
-    { title: "Passeggiata panoramica", meta: "3 km • 1h30", img: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=1200&auto=format&fit=crop" },
-    { title: "Percorso dei musei", meta: "2 km • 1h", img: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop" },
-    { title: "Tour centro storico", meta: "A piedi • 1h30", img: "https://images.unsplash.com/photo-1523986371872-9d3ba2e2f642?q=80&w=1200&auto=format&fit=crop" },
-    { title: "Sentiero natura", meta: "4 km • 2h", img: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1200&auto=format&fit=crop" },
+  const homeExperiences = [
+    { title: "Volo in mongolfiera all’alba", img: "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1500&auto=format&fit=crop", partner: "GetYourGuide", priceFrom: 245, url: "https://example.com/gyg" },
+    { title: "E-bike tra i borghi",          img: "https://images.unsplash.com/photo-1520974735194-6c1f1c1d0b35?q=80&w=1500&auto=format&fit=crop", partner: "Viator",        priceFrom: 59,  url: "https://example.com/viator" },
+    { title: "Tour centro storico guidato",  img: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1500&auto=format&fit=crop", partner: "Musement",      priceFrom: 18,  url: "https://example.com/musement" },
+    { title: "Degustazione prodotti tipici", img: "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1500&auto=format&fit=crop", partner: "Freedome",      priceFrom: 35,  url: "https://example.com/freedome" },
   ];
   const prodottiTipici = [
-    { title: "Formaggio di malga", img: "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=1200&auto=format&fit=crop" },
-    { title: "Salumi tipici", img: "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1200&auto=format&fit=crop" },
-    { title: "Olio EVO locale", img: "https://images.unsplash.com/photo-1514515411904-65fa19574d07?q=80&w=1200&auto=format&fit=crop" },
-    { title: "Miele artigianale", img: "https://images.unsplash.com/photo-1505577058444-a3dab90d4253?q=80&w=1200&auto=format&fit=crop" },
+    { title: "Formaggio di malga", img: "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=1500&auto=format&fit=crop", priceFrom: 7, location: "Asiago (VI) | Veneto" },
+    { title: "Salumi tipici",      img: "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1500&auto=format&fit=crop", priceFrom: 9, location: "Norcia (PG) | Umbria" },
+    { title: "Olio EVO del Garda", img: "https://images.unsplash.com/photo-1514515411904-65fa19574d07?q=80&w=1500&auto=format&fit=crop", priceFrom: 6, location: "Garda (VR) | Veneto" },
+    { title: "Vino Montepulciano", img: "https://images.unsplash.com/photo-1524594081293-190a2fe0baae?q=80&w=1500&auto=format&fit=crop", priceFrom: 8, location: "Montepulciano (SI) | Toscana" },
   ];
-  const nearby = (BORGI_INDEX || []).filter((b) => b.slug !== slug).slice(0, 8);
+  const nearby = (BORGI_INDEX || []).filter((b) => b.slug !== slug).slice(0, 4);
 
-  /* === NAV ITEMS === */
+  /* NAV items */
   const navBase = [
     { key: "cosafare",   label: "Cosa fare",              to: `/borghi/${slug}/cosa-fare`,      icon: ListIcon,   ...colors.cosafare },
     { key: "mangiare",   label: "Mangiare e Bere",        to: `/borghi/${slug}/mangiare-bere`,  icon: Utensils,   ...colors.mangiare },
@@ -694,24 +654,15 @@ export default function HomeBorgo() {
     { key: "dormire",    label: "Dormire",                to: `/borghi/${slug}/dormire`,        icon: BedDouble,  ...colors.dormire },
     { key: "prodotti",   label: "Prodotti tipici",        to: `/borghi/${slug}/prodotti-tipici`,icon: ShoppingBag,...colors.prodotti },
   ];
-  const priority = Array.isArray(meta?.homeNavPriority) ? meta.homeNavPriority : null;
-  const navItems = useMemo(() => {
-    if (!priority) return navBase;
-    const weight = (k) => {
-      const idx = priority.indexOf(k);
-      return idx === -1 ? 999 : idx;
-    };
-    return [...navBase].sort((a, b) => weight(a.key) - weight(b.key));
-  }, [slug, priority]);
 
-  const infoHref = `/borghi/${slug}/info`;        // placeholder info
-  const donateHref = `/borghi/${slug}/sostieni`;  // placeholder sostieni
+  const infoHref = `/borghi/${slug}/info`;
+  const donateHref = `/borghi/${slug}/sostieni`;
 
   return (
     <>
       <TopBar slug={slug} />
       <main className="min-h-screen bg-white pt-14">
-        {/* HERO + overlay (bottone mappa) + extra (Info + Sostieni) */}
+        {/* HERO */}
         <HeroGallery
           title={title}
           gallery={gallery}
@@ -719,19 +670,11 @@ export default function HomeBorgo() {
           overlay={<HeroOverlay mapsUrl={mapsUrl} />}
           leftExtras={
             <>
-              <Link
-                to={infoHref}
-                aria-label={`Informazioni su ${title}`}
-                className="inline-flex h-9 md:h-11 items-center gap-1.5 rounded-full border bg-white/90 px-2 md:px-3 text-white md:text-[#6B271A] hover:bg-white"
-              >
+              <Link to={infoHref} aria-label={`Informazioni su ${title}`} className="inline-flex h-9 md:h-11 items-center gap-1.5 rounded-full border bg-white/90 px-2 md:px-3 text-white md:text-[#6B271A] hover:bg-white">
                 <Info className="h-4 w-4" />
                 <span className="hidden md:inline font-semibold text-[#6B271A]">Info</span>
               </Link>
-              <Link
-                to={donateHref}
-                aria-label={`Sostieni ${title}`}
-                className="inline-flex h-9 md:h-11 items-center gap-1.5 rounded-full bg-[#06B6D4] px-2 md:px-3 text-white hover:opacity-95"
-              >
+              <Link to={donateHref} aria-label={`Sostieni ${title}`} className="inline-flex h-9 md:h-11 items-center gap-1.5 rounded-full bg-[#06B6D4] px-2 md:px-3 text-white hover:opacity-95">
                 <HandHeart className="h-4 w-4" />
                 <span className="hidden md:inline font-semibold">Sostieni il borgo</span>
               </Link>
@@ -739,30 +682,18 @@ export default function HomeBorgo() {
           }
         />
 
-        {/* NAV: MOBILE = griglia 2xN con pallotte; DESKTOP = riga orizzontale */}
+        {/* NAV – mobile griglia / desktop fila */}
         <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          {/* Mobile 2 colonne */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:hidden">
-            {navItems.map((n) => (
-              <NavTileMobile
-                key={n.key}
-                to={n.to}
-                label={n.label}
-                icon={n.icon}
-                bg={n.bg}
-                color={n.color}
-                gradient={n.gradient}
-                aria={`${n.label} a ${title}`}
-              />
+            {navBase.map((n) => (
+              <NavTileMobile key={n.key} to={n.to} label={n.label} icon={n.icon} bg={n.bg} color={n.color} gradient={n.gradient} />
             ))}
           </div>
-
-          {/* Desktop fila orizzontale */}
           <div className="hidden items-center gap-3 overflow-x-auto pb-2 sm:flex" style={{ WebkitOverflowScrolling: "touch" }}>
-            {navItems.map((n, idx) => (
+            {navBase.map((n, i) => (
               <React.Fragment key={n.key}>
                 <NavBall to={n.to} label={n.label} icon={n.icon} bg={n.gradient ? undefined : n.bg} color={n.color} />
-                {idx < navItems.length - 1 ? <Divider /> : null}
+                {i < navBase.length - 1 ? <Divider /> : null}
               </React.Fragment>
             ))}
           </div>
@@ -772,137 +703,65 @@ export default function HomeBorgo() {
         <DescriptionBlock text={descr} slug={slug} />
         <InBreve meta={meta} borgo={borgo} slug={slug} />
 
-        {/* CREATOR */}
-        <section id="creator" className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-          <div className="flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-xl font-extrabold text-[#6B271A]">
-              <Film className="h-5 w-5" /> Creator del borgo
-            </h2>
-            {videos?.length > 0 && (
-              <Link to={`/borghi/${slug}/video`} className="text-sm font-semibold underline">
-                Vedi tutti
-              </Link>
-            )}
-          </div>
+        {/* ======= SEZIONI IN STILE HM (identiche) ======= */}
 
-          {videos?.length ? (
-            <HScrollWithArrows className="mt-3">
-              {videos.map((v) => {
-                const th = v.thumbnail || getYouTubeThumb(v.youtubeUrl || v.url);
-                return (
-                  <article key={v.id} className="snap-center shrink-0 w-[78%] xs:w-[70%] sm:w-[55%] md:w-[40%] lg:w-[30%] 2xl:w-[22%] overflow-hidden rounded-2xl border bg-white" role="listitem">
-                    <a href={v.youtubeUrl || v.url} target="_blank" rel="noreferrer" className="block">
-                      <div className="relative h-44 w-full bg-neutral-100">
-                        {th ? <img src={th} alt={v.title} className="h-44 w-full object-cover" loading="lazy" decoding="async" /> :
-                          <div className="flex h-44 items-center justify-center text-neutral-400"><PlayCircle className="h-10 w-10"/></div>}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-                      </div>
-                      <div className="p-3">
-                        <h3 className="line-clamp-2 font-semibold text-[#1A1818]">{v.title || "Video"}</h3>
-                        {v.description && <p className="mt-1 line-clamp-2 text-sm text-neutral-600">{v.description}</p>}
-                      </div>
-                    </a>
-                  </article>
-                );
-              })}
-            </HScrollWithArrows>
-          ) : (
-            <div className="mt-3 rounded-2xl border bg-white p-4">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#6B271A]/10">
-                  <Film className="h-5 w-5 text-[#6B271A]" />
-                </span>
-                <div>
-                  <div className="font-semibold text-[#6B271A]">Nessun video pubblicato… ancora 😉</div>
-                  <div className="text-sm text-gray-600">Sei un creator? Racconta {meta?.name || borgo?.name || "il borgo"} con i tuoi video.</div>
-                </div>
-                <Link to="/registrazione-creator" className="ml-auto inline-flex items-center gap-2 rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white">Diventa Creator del Borgo</Link>
-              </div>
-            </div>
-          )}
-        </section>
+        {/* Video dei creator */}
+        <SectionHM title="Video dei creator" linkTo={`/borghi/${slug}/video`}>
+          {(videos?.length ? videos : Array.from({ length: 4 }).map((_, i) => ({
+            id: `mock-${i}`,
+            title: "Racconto del borgo",
+            url: "#",
+            thumbnail: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1500&auto=format&fit=crop",
+            creatorName: i === 3 ? "Gorgonzola" : "santopiero",
+          }))).map((v) => (
+            <CreatorCardHM key={v.id} v={v} borgoName={meta?.name || borgo?.name || slug} />
+          ))}
+        </SectionHM>
 
-        {/* EVENTI (stile HM) */}
-        <SectionCarousel id="eventi" title="Eventi e Sagre" items={eventi}
-          render={(ev,i)=>(
-            <HMCard
-              key={i}
-              img={ev.img}
-              title={ev.title}
-              badgeLeft={ev.when}
-              href={`/borghi/${slug}/eventi`}
-            />
-          )}
-        />
+        {/* Borghi da scoprire */}
+        <SectionHM title="Borghi da scoprire…" linkTo={`/cerca?tipo=borghi`}>
+          {nearby.map((b) => (
+            <DiscoverBorgoCardHM key={b.slug} b={b} />
+          ))}
+        </SectionHM>
 
-        {/* COSA FARE */}
+        {/* Prossimi eventi */}
+        <SectionHM title="Prossimi eventi" linkTo={`/borghi/${slug}/eventi`}>
+          {eventi.map((ev, i) => (
+            <HMEventCard key={i} ev={ev} />
+          ))}
+        </SectionHM>
+
+        {/* Prodotti tipici */}
+        <SectionHM title="Prodotti tipici" linkTo={`/borghi/${slug}/prodotti-tipici`}>
+          {prodottiTipici.map((p, i) => (
+            <HMProductCard key={i} p={p} />
+          ))}
+        </SectionHM>
+
+        {/* (Facoltative) altre raccolte locali in stile semplice */}
         {thingsToDo?.length ? (
-          <SectionCarousel id="cosa-fare" title="Cosa fare" items={thingsToDo.slice(0, 12)}
-            render={(p)=>(<CardPOI key={p.id} slug={slug} p={p} />)}
-            extraLink={`/borghi/${slug}/cosa-fare`}
-          />
+          <SectionHM title="Cosa fare" linkTo={`/borghi/${slug}/cosa-fare`}>
+            {thingsToDo.slice(0, 8).map((p) => (
+              <li key={p.id} className="list-none">
+                <CreatorCardHM
+                  v={{
+                    id: p.id,
+                    title: p.name,
+                    url: `/borghi/${slug}/poi/${p.id}`,
+                    thumbnail:
+                      p.cover ||
+                      "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop",
+                    creatorName: p.name,
+                  }}
+                  borgoName={meta?.name || borgo?.name || slug}
+                />
+              </li>
+            ))}
+          </SectionHM>
         ) : null}
 
-        {/* MANGIARE E BERE */}
-        {eatDrink?.length ? (
-          <SectionCarousel id="mangiare-bere" title="Mangiare e bere" items={eatDrink.slice(0, 12)}
-            render={(p)=>(<CardPOI key={p.id} slug={slug} p={p} />)}
-            extraLink={`/borghi/${slug}/mangiare-bere`}
-          />
-        ) : null}
-
-        {/* DORMIRE */}
-        {sleep?.length ? (
-          <SectionCarousel id="dormire" title="Dormire" items={sleep.slice(0, 12)}
-            render={(p)=>(<CardPOI key={p.id} slug={slug} p={p} />)}
-            extraLink={`/borghi/${slug}/dormire`}
-          />
-        ) : null}
-
-        {/* ARTIGIANI */}
-        {artigiani?.length ? (
-          <SectionCarousel id="artigiani" title="Artigiani" items={artigiani.slice(0, 12)}
-            render={(p)=>(<CardPOI key={p.id} slug={slug} p={p} />)}
-            extraLink={`/borghi/${slug}/artigiani`}
-          />
-        ) : null}
-
-        {/* ESPERIENZE (stile HM) */}
-        <SectionCarousel id="esperienze" title="Esperienze" items={esperienze}
-          render={(it,i)=>(
-            <HMCard
-              key={i}
-              img={it.img}
-              title={it.title}
-              meta={it.meta}
-              href={`/borghi/${slug}/esperienze`}
-            />
-          )}
-        />
-
-        {/* PRODOTTI TIPICI (stile HM) */}
-        <SectionCarousel id="prodotti-tipici" title="Prodotti Tipici" items={prodottiTipici}
-          render={(p,i)=>(
-            <HMCard
-              key={i}
-              img={p.img}
-              title={p.title}
-              href={`/borghi/${slug}/prodotti-tipici`}
-            />
-          )}
-        />
-
-        {/* BORGHI VICINI */}
-        <SectionCarousel id="borghi-vicini" title="Borghi Vicini" items={nearby}
-          render={(b)=>(
-            <Link key={b.slug} to={`/borghi/${b.slug}`} className="snap-center shrink-0 w-[70%] xs:w-[60%] sm:w-[45%] md:w-[32%] lg:w-[23%] overflow-hidden rounded-2xl border bg-white hover:shadow" role="listitem">
-              <div className="h-28 w-full"><img src={b.hero} alt={b.name} className="h-28 w-full object-cover" loading="lazy" decoding="async" /></div>
-              <div className="p-3"><div className="font-semibold text-[#6B271A]">{b.name}</div></div>
-            </Link>
-          )}
-        />
-
-        {/* NEWSLETTER */}
+        {/* Newsletter */}
         <NewsletterCTA slug={slug} />
       </main>
     </>

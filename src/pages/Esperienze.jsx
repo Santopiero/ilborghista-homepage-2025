@@ -150,7 +150,7 @@ function PartnerDropdownChip({ value, onChange }) {
   const [pos, setPos] = useState({ top: 0, left: 0, width: 200 });
 
   const items = [
-    { value: "all", label: "Tutti i partner" },
+    { value: "all", label: "Partner" },
     { value: "getyourguide", label: "GetYourGuide" },
     { value: "viator", label: "Viator" },
     { value: "musement", label: "Musement" },
@@ -469,7 +469,7 @@ export default function Esperienze() {
                   value={priceBand}
                   onChange={setPriceBand}
                   options={[
-                    { value: "all", label: "Prezzo: tutti" },
+                    { value: "all", label: "Prezzo" },
                     { value: "lt50", label: "< 50 €" },
                     { value: "50-100", label: "50–100 €" },
                     { value: "100-250", label: "100–250 €" },
@@ -481,7 +481,7 @@ export default function Esperienze() {
                   value={duration}
                   onChange={setDuration}
                   options={[
-                    { value: "all", label: "Durata: tutte" },
+                    { value: "all", label: "Durata" },
                     { value: "le2", label: "≤ 2 ore" },
                     { value: "2-4", label: "2–4 ore" },
                     { value: "day", label: "mezza/1 giornata" },
@@ -492,9 +492,9 @@ export default function Esperienze() {
                   value={order}
                   onChange={setOrder}
                   options={[
-                    { value: "auto", label: "Ordina: automatico" },
-                    { value: "priceAsc", label: "Prezzo ↑" },
-                    { value: "priceDesc", label: "Prezzo ↓" },
+                    { value: "auto", label: "Ordina" },
+                    { value: "priceAsc", label: "Prezzo più alto" },
+                    { value: "priceDesc", label: "Prezzo più basso" },
                     { value: "az", label: "A → Z" },
                     { value: "rating", label: "Valutazione" },
                   ]}

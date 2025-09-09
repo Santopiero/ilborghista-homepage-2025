@@ -508,7 +508,7 @@ export default function HomepageMockup() {
             className="w-full h-full object-cover"
             onError={onImgErr}
           />
-          <div className="absolute top-2 left-2 max-w-[82%] px-2.5 py-1 rounded-lg bg-white text-[#6B271A] text-sm font-semibold shadow">
+        <div className="absolute top-2 left-2 max-w-[82%] px-2.5 py-1 rounded-lg bg-white text-[#6B271A] text-sm font-semibold shadow">
             <span className="block truncate">{name}</span>
           </div>
           <FavoriteButton id={`borgo:${b.slug}`} className="absolute top-2 right-2" />
@@ -757,7 +757,7 @@ export default function HomepageMockup() {
                 <ul className="py-2">
                   <li>
                     <Link
-                      to="/registrazione-utente"
+                      to="/registrazione"   // <— cambiato: ora apre la pagina con le 4 modalità
                       className="flex items-center gap-2 rounded-lg px-4 py-3 hover:bg-neutral-50"
                       onClick={() => setMenuOpen(false)}
                     >

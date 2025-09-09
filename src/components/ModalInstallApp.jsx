@@ -2,12 +2,13 @@
 import { useEffect, useRef, useState } from "react";
 import { X, Smartphone } from "lucide-react";
 
+/* === Cadenza identica ============================================ */
 const DAY = 24 * 60 * 60 * 1000;
 const STEPS = [0, 3 * DAY, 90 * DAY, 180 * DAY, 365 * DAY];
 const KEY_STEP = "a2hs:step";
 const KEY_LAST = "a2hs:last";
 const KEY_INSTALLED = "a2hs:installed";
-const KEY_PENDING = "a2hs:pending";
+const KEY_PENDING = "a2hs:pending"; // auto-prompt quando rientro
 
 const getStep = () => {
   const n = parseInt(localStorage.getItem(KEY_STEP) || "0", 10);
@@ -22,6 +23,7 @@ const dueNow = () => {
   const wait = STEPS[step];
   return last === 0 ? true : Date.now() - last >= wait;
 };
+/* ================================================================ */
 
 export default function ModalInstallApp() {
   const APP_NAME = "Il Borghista";
@@ -30,10 +32,12 @@ export default function ModalInstallApp() {
   const [iosManual, setIosManual] = useState(false);
   const bipRef = useRef(null);
 
-  const ua = navigator.userAgent || "";
+  // ambiente
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
   const isStandalone =
-    window.matchMedia?.("(display-mode: standalone)")?.matches ||
-    window.navigator?.standalone === true;
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      window.navigator?.standalone === true);
 
   const isAndroid = /Android/i.test(ua);
   const isIOS = /iPad|iPhone|iPod/.test(ua);
@@ -43,22 +47,16 @@ export default function ModalInstallApp() {
     !/Edg|OPR|SamsungBrowser|UCBrowser/i.test(ua) &&
     (navigator.vendor || "").includes("Google");
 
+  /* -------- intercetta BIP + scheduling + global API -------- */
   useEffect(() => {
-    if (isStandalone || localStorage.getItem(KEY_INSTALLED) === "1") return;
-
-    // utilità di debug
-    window.__openInstallModal = () => setOpen(true);
-    window.__install_resetSchedule = () => {
-      localStorage.removeItem(KEY_STEP);
-      localStorage.removeItem(KEY_LAST);
-      setTimeout(() => setOpen(true), 50);
-    };
+    if (isStandalone) return;
 
     const onBIP = (e) => {
       e.preventDefault();
       bipRef.current = e;
       setCanInstall(true);
-      // se siamo tornati da "apri in Chrome" → autoprompt
+
+      // se arrivo dal “salta a Chrome” → autoprompt
       if (sessionStorage.getItem(KEY_PENDING) === "1") {
         sessionStorage.removeItem(KEY_PENDING);
         setTimeout(() => doInstall(), 20);
@@ -66,24 +64,30 @@ export default function ModalInstallApp() {
     };
 
     window.addEventListener("beforeinstallprompt", onBIP);
+
+    // iOS Safari non emette BIP -> modal con istruzioni
+    if (isIOS && isSafari) setIosManual(true);
+
+    if (dueNow()) setTimeout(() => setOpen(true), 6000);
+
+    (window).__openInstallModal = () => setOpen(true);
+
+    const onKey = (ev) => ev.key === "Escape" && onLater();
+    window.addEventListener("keydown", onKey);
+
     window.addEventListener("appinstalled", () => {
       localStorage.setItem(KEY_INSTALLED, "1");
       setOpen(false);
     });
 
-    // iOS Safari: niente BIP → modale con istruzioni
-    if (isIOS && isSafari) setIosManual(true);
-
-    // scheduling: mostra dopo 6s quando “è il suo turno”
-    if (dueNow()) {
-      const t = setTimeout(() => setOpen(true), 6000);
-      return () => clearTimeout(t);
-    }
-
-    return () => window.removeEventListener("beforeinstallprompt", onBIP);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBIP);
+      window.removeEventListener("keydown", onKey);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isStandalone]);
 
+  /* -------- forza apertura in Chrome (no Samsung) -------- */
   function openInChrome() {
     if (!isAndroid || isChrome) return false;
     try {
@@ -91,19 +95,26 @@ export default function ModalInstallApp() {
     } catch {}
     const scheme = location.protocol.replace(":", "");
     const href = location.href;
+    const play = "https://play.google.com/store/apps/details?id=com.android.chrome";
     const intent =
       `intent://${location.host}${location.pathname}${location.search}${location.hash}` +
       `#Intent;scheme=${scheme};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(
         href
       )};end`;
+    // se Chrome manca, Android apre il fallback_url (che è la stessa pagina);
+    // in quel caso l'utente resta dove si trova. Aggiungiamo anche un link visibile sotto.
     location.href = intent;
     return true;
   }
 
+  /* -------- prompt installazione -------- */
   async function doInstall() {
     const e = bipRef.current;
     if (!e) {
-      if (isAndroid && !isChrome) openInChrome();
+      // prompt non ancora disponibile: se non sono in Chrome su Android → apri Chrome
+      if (isAndroid && !isChrome) {
+        openInChrome();
+      }
       setOpen(false);
       return;
     }
@@ -138,7 +149,10 @@ export default function ModalInstallApp() {
 
   return (
     <div className="fixed inset-0 z-50">
+      {/* backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onLater} />
+
+      {/* dialog – grafica invariata */}
       <div
         role="dialog"
         aria-modal="true"
@@ -154,6 +168,7 @@ export default function ModalInstallApp() {
           >
             <X className="h-4 w-4" />
           </button>
+
           <div className="absolute left-4 bottom-4 flex items-center gap-3">
             <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-[#6B271A] shadow ring-1 ring-black/10">
               <Smartphone className="h-6 w-6" />
@@ -174,23 +189,33 @@ export default function ModalInstallApp() {
           >
             Più tardi
           </button>
+
+          {/* “Installa ora”: prompt se c’è, altrimenti salta a Chrome e autoprompt */}
           <button
-            onClick={() =>
-              canInstall ? doInstall() : isAndroid && !isChrome ? openInChrome() : doInstall()
-            }
+            onClick={() => (canInstall ? doInstall() : (isAndroid && !isChrome ? openInChrome() : doInstall()))}
             className="rounded-xl bg-[#D54E30] px-3 py-2 text-sm font-semibold text-white hover:opacity-95"
           >
             Installa ora
           </button>
         </div>
 
+        {/* hint piccoli (non cambia la grafica del blocco azioni) */}
         {iosManual ? (
           <div className="px-4 pb-4 text-center text-[11px] text-neutral-500">
             Su iPhone/iPad: <b>Condividi</b> (⬆️) → <b>Aggiungi a Home</b>.
           </div>
         ) : !canInstall && isAndroid && !isChrome ? (
           <div className="px-4 pb-4 text-center text-[11px] text-neutral-500">
-            Apertura in Chrome per l’installazione. Se non accade, verifica che Chrome sia presente/aggiornato.
+            Apertura in Chrome per l’installazione. Se non accade, <a
+              href="https://play.google.com/store/apps/details?id=com.android.chrome"
+              className="underline"
+              target="_blank"
+              rel="noreferrer"
+            >installa/aggiorna Chrome</a> e riprova.
+          </div>
+        ) : !canInstall && isAndroid && isChrome ? (
+          <div className="px-4 pb-4 text-center text-[11px] text-neutral-500">
+            Se non vedi il bottone, menu ⋮ → <b>Installa app</b>.
           </div>
         ) : null}
       </div>

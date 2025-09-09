@@ -1,151 +1,111 @@
-import React, { useEffect, useState, useCallback } from "react";
+// src/components/ModalInstallApp.jsx
+import { useEffect, useState } from "react";
 
-/* Utils */
+const DAY = 24 * 60 * 60 * 1000;
+const STEPS_DAYS = [0, 3, 90, 180, 365]; // 6s poi 3g, 3m, 6m, 12m
+const LS_STEP = "ib:a2hs:step";
+const LS_NEXT = "ib:a2hs:nextAt";
+
 const isStandalone = () =>
-  window.matchMedia?.("(display-mode: standalone)").matches ||
-  window.navigator.standalone === true;
+  typeof window !== "undefined" &&
+  (window.matchMedia?.("(display-mode: standalone)")?.matches ||
+    window.navigator?.standalone === true);
 
-const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
-
-const canShowAgain = () => {
-  const next = Number(localStorage.getItem("a2hs-next") || 0);
-  return Date.now() >= next;
-};
-const snooze7d = () => {
-  const sevenDays = 7 * 24 * 60 * 60 * 1000;
-  localStorage.setItem("a2hs-next", String(Date.now() + sevenDays));
-};
+const isIOS = () =>
+  typeof navigator !== "undefined" &&
+  /iphone|ipad|ipod/i.test(navigator.userAgent || "");
 
 export default function ModalInstallApp() {
-  const [show, setShow] = useState(false);
-  const [mode, setMode] = useState("none"); // 'android' | 'ios' | 'none'
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [deferred, setDeferred] = useState(null);
 
-  const close = useCallback(() => {
-    setShow(false);
-    snooze7d();
-  }, []);
-
-  // Espone un trigger globale per aprire il modale da qualunque punto (menu/CTA)
-  useEffect(() => {
-    window.__openInstallModal = () => {
-      if (isStandalone()) return;         // già installata
-      if (!canShowAgain()) return;        // rispettare snooze
-      if (isIOS()) {
-        setMode("ios");
-        setShow(true);
-      } else if (deferredPrompt) {
-        setMode("android");
-        setShow(true);
-      } else {
-        // Nessun beforeinstallprompt disponibile: mostra fallback generico
-        setMode("ios");
-        setShow(true);
-      }
-    };
-    return () => {
-      if (window.__openInstallModal) delete window.__openInstallModal;
-    };
-  }, [deferredPrompt]);
-
-  // Autoproponi (soft) dopo la 2ª visita o ad evento beforeinstallprompt
   useEffect(() => {
     if (isStandalone()) return;
 
-    const handler = (e) => {
-      // Android/desktop: intercetta l’evento e blocca il prompt nativo
+    const onBIP = (e) => {
       e.preventDefault();
-      setDeferredPrompt(e);
-      if (canShowAgain() && !show && !isIOS()) {
-        setMode("android");
-        setShow(true);
-      }
+      setDeferred(e);
     };
-    window.addEventListener("beforeinstallprompt", handler);
+    window.addEventListener("beforeinstallprompt", onBIP);
 
-    // iOS: se non abbiamo mai chiesto e si può, mostra istruzioni
-    if (isIOS() && canShowAgain()) {
-      setMode("ios");
-      setShow(true);
+    // per il bottone "Scarica app" nel menu
+    window.__openInstallModal = () => setOpen(true);
+
+    // auto-apri dopo 6s se è tempo
+    const nextAt = Number(localStorage.getItem(LS_NEXT) || 0);
+    if (Date.now() >= nextAt) {
+      const t = setTimeout(() => setOpen(true), 6000);
+      return () => {
+        clearTimeout(t);
+        window.removeEventListener("beforeinstallprompt", onBIP);
+      };
+    }
+    return () => window.removeEventListener("beforeinstallprompt", onBIP);
+  }, []);
+
+  function scheduleNext() {
+    const step = Number(localStorage.getItem(LS_STEP) || 0);
+    const nextStep = Math.min(step + 1, STEPS_DAYS.length - 1);
+    localStorage.setItem(LS_STEP, String(nextStep));
+    const days = STEPS_DAYS[nextStep] ?? 3;
+    localStorage.setItem(LS_NEXT, String(Date.now() + days * DAY));
+  }
+
+  async function onInstallNow() {
+    // Chrome/Android: prompt nativo
+    if (deferred) {
+      try {
+        deferred.prompt();
+        const choice = await deferred.userChoice;
+        setDeferred(null);
+        if (choice?.outcome === "accepted") {
+          // non riproporre per un anno
+          localStorage.setItem(LS_STEP, String(STEPS_DAYS.length - 1));
+          localStorage.setItem(LS_NEXT, String(Date.now() + 365 * DAY));
+          setOpen(false);
+          return;
+        }
+      } catch {}
+      scheduleNext();
+      setOpen(false);
+      return;
     }
 
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, [show]);
-
-  const onInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    setDeferredPrompt(null);
-    if (outcome === "accepted") {
-      setShow(false);
-      // niente snooze: installata
-    } else {
-      // rifiutata: rispetta utente
-      close();
+    // iOS / altri browser: non esiste prompt nativo
+    if (isIOS()) {
+      alert('Su iPhone: apri "Condividi" → "Aggiungi a Home".');
     }
-  };
+    scheduleNext();
+    setOpen(false);
+  }
 
-  if (!show) return null;
+  function onLater() {
+    scheduleNext();
+    setOpen(false);
+  }
+
+  if (!open || isStandalone()) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40">
-      <div className="w-full sm:w-[520px] mx-3 sm:mx-0 rounded-2xl bg-white shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center gap-3 p-4 border-b">
-          <img src="/icons/icon-192.png" alt="" className="w-10 h-10 rounded-xl" />
-          <div className="flex-1">
-            <div className="font-semibold text-lg">Installa “Il Borghista”</div>
-            <div className="text-sm text-gray-500">
-              Accesso rapido, esperienza a schermo intero e notifiche (in arrivo).
-            </div>
+    <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center bg-black/40 p-3 sm:p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl ring-1 ring-black/10">
+        <div className="p-5 text-center">
+          <div className="text-base font-extrabold text-[#6B271A]">
+            Installa l’app “Il Borghista”
           </div>
-          <button onClick={close} className="text-gray-500 hover:text-gray-700 px-2 py-1">✕</button>
         </div>
-
-        {/* Body */}
-        <div className="p-4 space-y-3">
-          {mode === "android" ? (
-            <>
-              <p className="text-sm text-gray-700">
-                Installa l’app per averla nella schermata Home e aprirla come un’app nativa.
-              </p>
-              <button
-                onClick={onInstallClick}
-                className="w-full rounded-xl px-4 py-3 font-medium text-white bg-[#0b3a53] hover:opacity-90"
-              >
-                Installa ora
-              </button>
-              <p className="text-xs text-gray-500 text-center">
-                Se non vedi il prompt, apri il menu ⋮ del browser e scegli “Installa app”.
-              </p>
-            </>
-          ) : (
-            <>
-              <ol className="list-decimal pl-5 text-sm text-gray-700 space-y-1">
-                <li>Su iPhone/iPad apri il menu <span className="font-medium">Condividi</span> (Qadrato con freccia).</li>
-                <li>Tocca <span className="font-medium">Aggiungi a schermata Home</span>.</li>
-                <li>Conferma il nome <span className="font-medium">Il Borghista</span> e tocca <span className="font-medium">Aggiungi</span>.</li>
-              </ol>
-              <a
-                href="https://support.apple.com/it-it/HT208982"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex justify-center w-full rounded-xl px-4 py-3 font-medium text-white bg-[#0b3a53] hover:opacity-90"
-              >
-                Vedi istruzioni ufficiali Apple
-              </a>
-            </>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="p-3 flex justify-end gap-2 border-t">
+        <div className="p-4 pt-0 flex items-center justify-end gap-2">
           <button
-            onClick={close}
-            className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm"
+            onClick={onLater}
+            className="px-3 py-2 rounded-lg border text-sm font-semibold hover:bg-neutral-50"
           >
-            Non ora
+            Più tardi
+          </button>
+          <button
+            onClick={onInstallNow}
+            className="px-3 py-2 rounded-lg bg-[#D54E30] text-white text-sm font-semibold hover:opacity-95"
+          >
+            Installa ora
           </button>
         </div>
       </div>

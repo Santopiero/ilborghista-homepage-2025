@@ -1,25 +1,30 @@
 // src/lib/store.js
 // ============================================================================
-// STORE PRINCIPALE
+// STORE PRINCIPALE (frontend, local-first)
 // Gestisce utenti, borghi, attività (POI), creators, video (YouTube o file) e chat
+// + sincronizzazione opzionale da API (/api/...) — utile con MSW o backend reale
 // ============================================================================
 
-// -------------------------------- UTILS ------------------------------------
+/* ---------------------------------- UTILS --------------------------------- */
 function readFromLocalStorage(key, fallback) {
   try {
+    if (typeof localStorage === "undefined") return fallback;
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
   } catch {
     return fallback;
   }
 }
+
 function writeToLocalStorage(key, value) {
   try {
+    if (typeof localStorage === "undefined") return;
     localStorage.setItem(key, JSON.stringify(value));
   } catch (err) {
     console.error("Errore salvataggio localStorage", err);
   }
 }
+
 export function slugify(str = "") {
   return String(str)
     .toLowerCase()
@@ -29,36 +34,41 @@ export function slugify(str = "") {
     .replace(/(^-|-$)/g, "");
 }
 
-// ============================================================================
-// UTENTE
-// ============================================================================
+/* ---------------------------------- USER ---------------------------------- */
 const USER_KEY = "ib_user";
+
 export function getCurrentUser() {
   return readFromLocalStorage(USER_KEY, null);
 }
+
 export function setCurrentUser(user) {
   writeToLocalStorage(USER_KEY, user);
 }
+
 export function logoutUser() {
-  localStorage.removeItem(USER_KEY);
+  try {
+    if (typeof localStorage !== "undefined") localStorage.removeItem(USER_KEY);
+  } catch {}
 }
 
-// ============================================================================
-// CREATORS
-// ============================================================================
+/* -------------------------------- CREATORS -------------------------------- */
 const CREATORS_KEY = "ib_creators";
+
 export function listCreators() {
   return readFromLocalStorage(CREATORS_KEY, []);
 }
+
 export function getCreator(id) {
   return listCreators().find((c) => c.id === id) || null;
 }
+
 export function addCreator(creator) {
   const creators = listCreators();
   creators.push(creator);
   writeToLocalStorage(CREATORS_KEY, creators);
   return creator;
 }
+
 export function updateCreator(updated) {
   const creators = listCreators();
   const idx = creators.findIndex((c) => c.id === updated.id);
@@ -69,6 +79,7 @@ export function updateCreator(updated) {
   }
   return false;
 }
+
 export function getMyCreatorProfile() {
   const currentUser = getCurrentUser();
   if (!currentUser) return null;
@@ -76,45 +87,48 @@ export function getMyCreatorProfile() {
   return creators.find((c) => c.userId === currentUser.id) || null;
 }
 
-// ============================================================================
-// BORGHI
-// ============================================================================
+/* --------------------------------- BORGHI --------------------------------- */
 const BORGHI_KEY = "ib_borghi";
+
 export function listBorghi() {
   return readFromLocalStorage(BORGHI_KEY, []);
 }
+
 export function getBorgo(slug) {
   return listBorghi().find((b) => b.slug === slug) || null;
 }
+
 export const findBorgoBySlug = getBorgo;
+
 export function findBorgoByName(name) {
   const s = slugify(name);
   return (
-    listBorghi().find(
-      (b) => b.slug === s || slugify(b.name) === s
-    ) || null
+    listBorghi().find((b) => b.slug === s || slugify(b.name) === s) || null
   );
 }
 
-// ============================================================================
-// ATTIVITÀ / POI
-// ============================================================================
+/* ------------------------------- ATTIVITÀ/POI ----------------------------- */
 const ATTIVITA_KEY = "ib_attivita";
+
 export function listAttivita() {
   return readFromLocalStorage(ATTIVITA_KEY, []);
 }
+
 export function getAttivita(id) {
   return listAttivita().find((p) => p.id === id) || null;
 }
+
 export function listAttivitaByBorgo(borgoSlug) {
   return listAttivita().filter((p) => p.borgoSlug === borgoSlug);
 }
+
 export function addAttivita(item) {
   const items = listAttivita();
   items.push(item);
   writeToLocalStorage(ATTIVITA_KEY, items);
   return item;
 }
+
 export function updateAttivita(updated) {
   const items = listAttivita();
   const idx = items.findIndex((p) => p.id === updated.id);
@@ -125,18 +139,100 @@ export function updateAttivita(updated) {
   }
   return false;
 }
-// alias compatibilità
+
+// Alias per compatibilità col codice esistente
 export const listPoi = listAttivita;
 export const findPoiById = getAttivita;
 export const listPoiByBorgo = listAttivitaByBorgo;
 
-// ============================================================================
-// MEDIA (IndexedDB) — file video caricati localmente
-// ============================================================================
+/* ------------------------------- PREFERITI -------------------------------- */
+// Struttura: { poi: string[], video: string[], borgo: string[] }
+const FAV_KEY = "ib_favorites_v1";
+const FAV_TYPES = new Set(["poi", "video", "borgo"]);
+
+function _readFav() {
+  const base = { poi: [], video: [], borgo: [] };
+  const f = readFromLocalStorage(FAV_KEY, base);
+  return {
+    poi: Array.isArray(f?.poi) ? f.poi : [],
+    video: Array.isArray(f?.video) ? f.video : [],
+    borgo: Array.isArray(f?.borgo) ? f.borgo : [],
+  };
+}
+function _writeFav(obj) {
+  writeToLocalStorage(FAV_KEY, obj);
+  _notifyFavSubscribers(obj);
+}
+
+export function listFavorites(type) {
+  if (!FAV_TYPES.has(type)) return [];
+  const f = _readFav();
+  return Array.from(new Set(f[type]));
+}
+
+export function isFavorite(type, id) {
+  if (!id || !FAV_TYPES.has(type)) return false;
+  return listFavorites(type).includes(id);
+}
+
+export function setFavorite(type, id, value) {
+  if (!id || !FAV_TYPES.has(type)) return isFavorite(type, id);
+  const f = _readFav();
+  const arr = f[type];
+  const i = arr.indexOf(id);
+  if (value && i === -1) arr.push(id);
+  if (!value && i >= 0) arr.splice(i, 1);
+  _writeFav(f);
+  return arr.includes(id);
+}
+
+export function toggleFavorite(type, id) {
+  return setFavorite(type, id, !isFavorite(type, id));
+}
+
+// Wrapper comodi per POI (Esperienze/Attività)
+export const listFavoritePoi = () => listFavorites("poi");
+export const isPoiFavorite = (id) => isFavorite("poi", id);
+export const togglePoiFavorite = (id) => toggleFavorite("poi", id);
+export const setPoiFavorite = (id, value) => setFavorite("poi", id, value);
+
+// Semplice pub/sub per reagire ai cambi (intra-tab + cross-tab via storage)
+const _favSubscribers = new Set();
+function _notifyFavSubscribers(snapshot = null) {
+  const snap = snapshot || _readFav();
+  _favSubscribers.forEach((cb) => {
+    try { cb(snap); } catch {}
+  });
+}
+export function onFavoritesChange(cb) {
+  if (typeof cb !== "function") return () => {};
+  _favSubscribers.add(cb);
+  // restituisce l'unsubscribe
+  return () => _favSubscribers.delete(cb);
+}
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === FAV_KEY) _notifyFavSubscribers();
+  });
+}
+
+/* ---------------------------------- MEDIA --------------------------------- */
+// File video locali salvati su IndexedDB
 const MEDIA_DB = "ib_media";
 const MEDIA_STORE = "videos";
 
+function hasIndexedDB() {
+  try {
+    return typeof indexedDB !== "undefined" && !!indexedDB.open;
+  } catch {
+    return false;
+  }
+}
+
 function openMediaDB() {
+  if (!hasIndexedDB()) {
+    return Promise.reject(new Error("IndexedDB non disponibile"));
+  }
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(MEDIA_DB, 1);
     req.onupgradeneeded = () => {
@@ -198,19 +294,19 @@ export async function deleteVideoFile(mediaId) {
   db.close?.();
 }
 
-// ============================================================================
-// VIDEO (YouTube o File salvato su IndexedDB)
-// v = {
+/* ---------------------------------- VIDEO --------------------------------- */
+// Struttura: {
 //   id, title, borgoSlug, poiId?, creatorId, createdAt,
 //   uploadType: "embed" | "file",
 //   youtubeUrl?: string,
 //   localMediaId?: string
 // }
-// ============================================================================
 const VIDEOS_KEY = "ib_videos";
+
 export function readVideos() {
   return readFromLocalStorage(VIDEOS_KEY, []);
 }
+
 export function saveVideos(videos) {
   writeToLocalStorage(VIDEOS_KEY, videos);
 }
@@ -225,15 +321,16 @@ export function addVideo(video) {
     id: video.id || "vid_" + Date.now(),
     title: video.title || "Video",
     borgoSlug,
-    poiId: video.poiId || null, // se valorizzato → visibile anche sulla scheda attività
+    poiId: video.poiId || null,
     creatorId: video.creatorId || null,
     createdAt: video.createdAt || new Date().toISOString(),
     uploadType: localMediaId ? "file" : "embed",
     youtubeUrl: youtubeUrl || null,
     localMediaId: localMediaId || null,
   };
+
   const videos = readVideos();
-  videos.unshift(v); // ultimo in cima
+  videos.unshift(v); // ultimo inserito in cima
   saveVideos(videos);
   return v;
 }
@@ -241,16 +338,21 @@ export function addVideo(video) {
 export function listLatestVideos(limit = 6) {
   return readVideos().slice(0, limit);
 }
+
 export function listCreatorVideos(creatorId) {
   return readVideos().filter((v) => v.creatorId === creatorId);
 }
+
 export const listVideosByCreator = listCreatorVideos;
+
 export function listVideosByBorgo(borgoSlug) {
   return readVideos().filter((v) => v.borgoSlug === borgoSlug);
 }
+
 export function getVideosByBorgo(slug) {
   return listVideosByBorgo(slug);
 }
+
 export function getVideosByPoi(poiId) {
   const all = readVideos();
   return all.filter(
@@ -258,9 +360,7 @@ export function getVideosByPoi(poiId) {
   );
 }
 
-// ============================================================================
-// RICERCA → decide se andare a borgo o poi
-// ============================================================================
+/* ------------------------------- RICERCA NAV ------------------------------- */
 export function searchNavigateTarget(input) {
   if (!input || !input.trim()) return { type: null };
   const text = input.trim();
@@ -279,9 +379,8 @@ export function searchNavigateTarget(input) {
   return { type: null };
 }
 
-// ============================================================================
-// DEV SEED: borghi + attività di esempio (idempotente)
-// ============================================================================
+/* ------------------------- SEED DI ESEMPIO (DEV) -------------------------- */
+// Esegue un seed idempotente per avere dati minimi in sviluppo
 const DEMO_SEED_FLAG = "ib_demo_seed_v1";
 
 export function ensureDemoSeed() {
@@ -315,38 +414,13 @@ export function ensureDemoSeed() {
     writeToLocalStorage(BORGHI_KEY, sampleBorghi);
   }
 
-  // Attività demo collegate
+  // Attività demo
   const samplePoi = [
-    {
-      id: "poi_vig_rist1",
-      name: "Ristorante del Centro",
-      type: "ristorante",
-      borgoSlug: "viggiano",
-    },
-    {
-      id: "poi_vig_bar1",
-      name: "Enoteca l’Arpa",
-      type: "bar",
-      borgoSlug: "viggiano",
-    },
-    {
-      id: "poi_vig_bb1",
-      name: "B&B Aurora",
-      type: "bb",
-      borgoSlug: "viggiano",
-    },
-    {
-      id: "poi_arn_loc1",
-      name: "Sala Pro Loco",
-      type: "location",
-      borgoSlug: "arnad",
-    },
-    {
-      id: "poi_otr_exp1",
-      name: "Tour in barca",
-      type: "esperienza",
-      borgoSlug: "otranto",
-    },
+    { id: "poi_vig_rist1", name: "Ristorante del Centro", type: "ristorante", borgoSlug: "viggiano" },
+    { id: "poi_vig_bar1",  name: "Enoteca l’Arpa",        type: "bar",        borgoSlug: "viggiano" },
+    { id: "poi_vig_bb1",   name: "B&B Aurora",            type: "bb",         borgoSlug: "viggiano" },
+    { id: "poi_arn_loc1",  name: "Sala Pro Loco",         type: "location",   borgoSlug: "arnad" },
+    { id: "poi_otr_exp1",  name: "Tour in barca",         type: "esperienza", borgoSlug: "otranto" },
   ];
   if (listAttivita().length === 0) {
     writeToLocalStorage(ATTIVITA_KEY, samplePoi);
@@ -355,12 +429,81 @@ export function ensureDemoSeed() {
   writeToLocalStorage(DEMO_SEED_FLAG, true);
 }
 
-// Esegui il seed una sola volta in dev
+// Seed automatico in dev (non fa nulla se già seedato)
 ensureDemoSeed();
 
-// ============================================================================
-// CHAT re-export
-// ============================================================================
+/* ------------------------ SYNC DA API / MSW (BUNDLE) ---------------------- */
+// Sincronizza dati dal backend (reale o mockato da MSW) e li fonde nel localStorage.
+// Endpoint previsti:
+//  - GET /api/borghi/:slug/bundle   -> { borgo, poi:[], videos:[] }
+//  - fallback:
+//      GET /api/borghi/:slug
+//      GET /api/borghi/:slug/poi
+//      GET /api/borghi/:slug/videos
+export async function syncBorgoBundle(slug) {
+  if (!slug) return { borgo: null, poi: null, videos: null };
+
+  const enc = encodeURIComponent;
+
+  const getJson = async (url) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  };
+
+  let borgo = null, poi = null, videos = null;
+
+  // 1) tenta il bundle unico
+  const bundle = await getJson(`/api/borghi/${enc(slug)}/bundle`);
+  if (bundle) {
+    borgo  = bundle.borgo  || null;
+    poi    = Array.isArray(bundle.poi)    ? bundle.poi    : null;
+    videos = Array.isArray(bundle.videos) ? bundle.videos : null;
+  } else {
+    // 2) fallback su chiamate separate
+    borgo  = await getJson(`/api/borghi/${enc(slug)}`);
+    poi    = await getJson(`/api/borghi/${enc(slug)}/poi`);
+    videos = await getJson(`/api/borghi/${enc(slug)}/videos`);
+  }
+
+  // --- merge BORGO ---
+  if (borgo && borgo.slug) {
+    const borghi = listBorghi();
+    const i = borghi.findIndex((b) => b.slug === borgo.slug);
+    if (i >= 0) borghi[i] = { ...borghi[i], ...borgo };
+    else borghi.push(borgo);
+    writeToLocalStorage(BORGHI_KEY, borghi);
+  }
+
+  // --- merge POI (sostituisce i POI del borgo) ---
+  if (Array.isArray(poi)) {
+    const all = listAttivita().filter((p) => p.borgoSlug !== slug);
+    const normalized = poi.map((p) => ({ ...p, borgoSlug: p.borgoSlug || slug }));
+    writeToLocalStorage(ATTIVITA_KEY, [...all, ...normalized]);
+  }
+
+  // --- merge VIDEOS (sostituisce i video del borgo) ---
+  if (Array.isArray(videos)) {
+    const existing = readVideos().filter((v) => v.borgoSlug !== slug);
+    const normalized = videos.map((v) => ({
+      ...v,
+      id: v.id || ("vid_" + Math.random().toString(36).slice(2)),
+      borgoSlug: v.borgoSlug || slug,
+      uploadType: v.uploadType || (v.localMediaId ? "file" : "embed"),
+      createdAt: v.createdAt || new Date().toISOString(),
+    }));
+    writeToLocalStorage(VIDEOS_KEY, [...existing, ...normalized]);
+  }
+
+  return { borgo, poi, videos };
+}
+
+/* ------------------------------- CHAT EXPORTS ------------------------------ */
+// Re-export delle API chat (se presenti nel progetto).
 export {
   createThread,
   getThread,

@@ -6,6 +6,7 @@ import {
   listPoiByBorgo,
   getVideosByBorgo,
   getVideosByPoi,
+  syncBorgoBundle,       // ⬅️ aggiunto
 } from "../lib/store";
 import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
 import {
@@ -666,7 +667,18 @@ function NewsletterCTA({ slug }) {
 export default function HomeBorgo() {
   const { slug } = useParams();
 
-  const borgo = useMemo(() => findBorgoBySlug(slug), [slug]);
+  // 🔄 trigger per rileggere i dati dopo la sync MSW
+  const [syncTick, setSyncTick] = useState(0);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try { await syncBorgoBundle(slug); }
+      finally { if (mounted) setSyncTick(Date.now()); }
+    })();
+    return () => { mounted = false; };
+  }, [slug]);
+
+  const borgo = useMemo(() => findBorgoBySlug(slug), [slug, syncTick]);
   const meta = BORGI_BY_SLUG?.[slug] || null;
 
   if (!borgo && !meta) {
@@ -690,10 +702,10 @@ export default function HomeBorgo() {
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
 
   // Video creator
-  const videos = useMemo(() => getVideosByBorgo(slug), [slug]);
+  const videos = useMemo(() => getVideosByBorgo(slug), [slug, syncTick]);
 
   // POI raccolte
-  const allPoi = useMemo(() => listPoiByBorgo(slug), [slug]);
+  const allPoi = useMemo(() => listPoiByBorgo(slug), [slug, syncTick]);
   const eatDrink = useMemo(() => allPoi.filter(isFoodDrink), [allPoi]);
   const sleep = useMemo(() => allPoi.filter(isSleep), [allPoi]);
   const artigiani = useMemo(() => allPoi.filter(isArtigiano), [allPoi]);

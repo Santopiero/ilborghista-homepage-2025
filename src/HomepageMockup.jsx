@@ -1,6 +1,6 @@
 // src/HomepageMockup.jsx
 import { useState, useRef, useEffect } from "react";
-import { MapPin, Clock, Search, Star, User, Car, Gift, Utensils } from "lucide-react";
+import { MapPin, Clock, Search, Star, User, Bell, X } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   getCurrentUser,
@@ -10,6 +10,7 @@ import {
   searchNavigateTarget,
 } from "./lib/store";
 import { BORGI_INDEX, BORGI_BY_SLUG } from "./data/borghi";
+import { enableNotifications } from "./lib/pushClient";
 
 export default function HomepageMockup() {
   const navigate = useNavigate();
@@ -25,6 +26,58 @@ export default function HomepageMockup() {
 
   const [query, setQuery] = useState("");
   const [signupSuccess, setSignupSuccess] = useState(false);
+
+  // ---------- PUSH UI state ----------
+  const supportsPush =
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window;
+
+  const [notifOn, setNotifOn] = useState(
+    supportsPush && Notification.permission === "granted"
+  );
+
+  const [showPushBar, setShowPushBar] = useState(false);
+
+  // ====== Forza popup via ?forcePushModal=1 (per test/demo) ======
+  const [forceModal] = useState(() => {
+    try {
+      const u = new URL(window.location.href);
+      return u.searchParams.get("forcePushModal") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      // init banner mobile solo se supportato, non già accettato, non già chiuso
+      const dismissed = localStorage.getItem("hidePushBar") === "1";
+      if (supportsPush && Notification.permission === "default" && !dismissed) {
+        setShowPushBar(true);
+      }
+    } catch {}
+  }, [supportsPush]);
+
+  async function onEnablePush() {
+    try {
+      await enableNotifications();
+      setNotifOn(true);
+      setShowPushBar(false);
+      setShowPushModal(false);
+      try {
+        localStorage.setItem("hidePushBar", "1");
+        // dopo attivazione non riproporre più (1 anno)
+        localStorage.setItem(MODAL_NEXT_KEY, String(Date.now() + 365 * DAY));
+        localStorage.setItem(MODAL_STAGE_KEY, String(INTERVALS.length - 1));
+      } catch {}
+      alert("Notifiche attivate ✔");
+    } catch (e) {
+      alert("Attivazione non riuscita: " + (e?.message || e));
+    }
+  }
+
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
@@ -48,6 +101,69 @@ export default function HomepageMockup() {
     const user = getCurrentUser();
     const thread = createThread({ creatorId, userId: user.id });
     navigate(`/chat/${thread.id}`);
+  }
+
+  /* ---------------- POPUP NOTIFICHE con schedule progressivo ---------------- */
+  const DAY = 24 * 60 * 60 * 1000;
+  // sequenza riproposizioni dopo "Più tardi": 3 giorni → 3 mesi → 6 mesi → 1 anno
+  const INTERVALS = [3 * DAY, 90 * DAY, 180 * DAY, 365 * DAY];
+  const MODAL_NEXT_KEY = "pushModalNextAt";
+  const MODAL_STAGE_KEY = "pushModalStage";
+
+  const [showPushModal, setShowPushModal] = useState(false);
+
+  // Mostra popup:
+  // - dopo 6s se supportato e permesso "default" e non rimandato
+  // - OPPURE sempre (dopo 100ms) se ?forcePushModal=1
+  useEffect(() => {
+    if (!supportsPush) return;
+
+    if (forceModal) {
+      const t = setTimeout(() => setShowPushModal(true), 100);
+      return () => clearTimeout(t);
+    }
+
+    if (Notification.permission !== "default") return;
+
+    const now = Date.now();
+    let nextAt = 0;
+    try {
+      nextAt = Number(localStorage.getItem(MODAL_NEXT_KEY) || 0);
+    } catch {}
+
+    if (now < nextAt) return;
+
+    const t = setTimeout(() => setShowPushModal(true), 6000);
+    return () => clearTimeout(t);
+  }, [supportsPush, forceModal]);
+
+  // se compare il popup, nascondo la barretta mobile per non duplicare
+  useEffect(() => {
+    if (showPushModal) setShowPushBar(false);
+  }, [showPushModal]);
+
+  function postponeModal() {
+    try {
+      const raw = localStorage.getItem(MODAL_STAGE_KEY);
+      // stage corrente (parte da 0). Se assente, 0.
+      let stage = Math.max(0, Number.isFinite(+raw) ? +raw : 0);
+      const idx = Math.min(stage, INTERVALS.length - 1);
+      const nextAt = Date.now() + INTERVALS[idx];
+      localStorage.setItem(MODAL_NEXT_KEY, String(nextAt));
+      // avanza stage, ma resta bloccato all'ultimo (1 anno)
+      stage = Math.min(stage + 1, INTERVALS.length - 1);
+      localStorage.setItem(MODAL_STAGE_KEY, String(stage));
+    } catch {}
+    setShowPushModal(false);
+  }
+
+  function neverShowModal() {
+    try {
+      // blocca per 1 anno (ultimo step) e imposta stage all'ultimo
+      localStorage.setItem(MODAL_NEXT_KEY, String(Date.now() + 365 * DAY));
+      localStorage.setItem(MODAL_STAGE_KEY, String(INTERVALS.length - 1));
+    } catch {}
+    setShowPushModal(false);
   }
 
   /* ---------- PRIMITIVE ---------- */
@@ -356,14 +472,57 @@ export default function HomepageMockup() {
         {/* TOP NAV */}
         <header className="bg-white/90 backdrop-blur border-b">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-            <Link to="/" className="text-xl font-extrabold text-[#6B271A]">il borghista</Link>
+            <Link to="/" className="text-xl font-extrabold text-[#6B271A]">Il Borghista</Link>
             <div className="flex items-center gap-3">
               <Link to="/creator" className="text-sm font-semibold underline text-[#6B271A]">Creators</Link>
+
+              {/* 🔔 Attiva notifiche nell'header (nascosta quando il popup è visibile) */}
+              {supportsPush && !(showPushModal && (Notification.permission === "default" || forceModal)) && (
+                <button
+                  type="button"
+                  onClick={onEnablePush}
+                  className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]"
+                >
+                  <Bell size={18} />
+                  {notifOn ? "Notifiche attive" : "Attiva notifiche"}
+                </button>
+              )}
+
               <Link to="/registrazione-comune" className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]">
                 <User size={18} /> Registrati
               </Link>
             </div>
           </div>
+
+          {/* Barretta mobile CTA notifiche */}
+          {supportsPush && showPushBar && (
+            <div className="md:hidden bg-amber-50 text-[#6B271A] border-t border-b border-amber-200">
+              <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-5 w-5" />
+                  <span className="text-sm">Attiva le notifiche per sagre ed eventi vicino a te</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={onEnablePush}
+                    className="text-sm font-semibold px-3 py-1 rounded-lg bg-[#D54E30] text-white"
+                  >
+                    Attiva
+                  </button>
+                  <button
+                    aria-label="Chiudi"
+                    onClick={() => {
+                      setShowPushBar(false);
+                      try { localStorage.setItem("hidePushBar", "1"); } catch {}
+                    }}
+                    className="p-1 rounded-lg hover:bg-amber-100"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </header>
 
         {signupSuccess && (
@@ -548,6 +707,53 @@ export default function HomepageMockup() {
           </div>
         </footer>
       </main>
+
+      {/* ======= POPUP NOTIFICHE ======= */}
+      {supportsPush && showPushModal && (Notification.permission === "default" || forceModal) && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Attiva notifiche">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4 sm:p-5 shadow-xl">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#6B271A]/10">
+                <Bell className="h-5 w-5 text-[#6B271A]" />
+              </span>
+              <div className="flex-1">
+                <h3 className="text-lg font-extrabold text-[#6B271A]">Vuoi ricevere le novità del tuo territorio?</h3>
+                <p className="mt-1 text-sm text-neutral-700">
+                  Ti avviseremo solo per <strong>sagre, eventi e offerte vicino a te</strong>. Zero spam, promesso.
+                </p>
+              </div>
+              <button
+                aria-label="Chiudi"
+                onClick={postponeModal}
+                className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-neutral-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:justify-end">
+              <button
+                onClick={onEnablePush}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white hover:opacity-95"
+              >
+                <Bell className="h-4 w-4" /> Attiva notifiche
+              </button>
+              <button
+                onClick={postponeModal}
+                className="inline-flex items-center justify-center rounded-xl border px-4 py-2 font-semibold text-[#6B271A] hover:bg-neutral-50"
+              >
+                Più tardi
+              </button>
+              <button
+                onClick={neverShowModal}
+                className="inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-50"
+              >
+                No, grazie
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

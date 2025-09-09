@@ -1,208 +1,268 @@
 // src/components/ModalInstallApp.jsx
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-const DAY = 24 * 60 * 60 * 1000;
-const KEY_STEP = "a2hs:step";
-const KEY_LAST = "a2hs:last";
+/* ===== Helpers ===== */
 const KEY_INSTALLED = "a2hs:installed";
+const KEY_PENDING   = "a2hs:pending";   // session flag: siamo arrivati qui per installare
+const KEY_NEXTAT    = "a2hs:nextAt";    // riproposta programmata
+const KEY_STAGE     = "a2hs:stage";     // 0→1→2→3→4 (6s, 3g, 3m, 6m, 12m)
 
-// step 0 = subito; poi 3 gg; 3 mesi; 6 mesi; 12 mesi
-const STEPS = [0, 3 * DAY, 90 * DAY, 180 * DAY, 365 * DAY];
-
-function getStep() {
-  const n = parseInt(localStorage.getItem(KEY_STEP) || "0", 10);
-  return Number.isFinite(n) ? Math.min(n, STEPS.length - 1) : 0;
-}
-function setStep(n) {
-  localStorage.setItem(KEY_STEP, String(Math.min(n, STEPS.length - 1)));
-}
-function setLastNow() {
-  localStorage.setItem(KEY_LAST, String(Date.now()));
-}
-function dueNow() {
-  const step = getStep();
-  const last = parseInt(localStorage.getItem(KEY_LAST) || "0", 10);
-  const wait = STEPS[step];
-  return last === 0 ? true : Date.now() - last >= wait;
-}
+const STAGES_MS = [
+  6000,                       // prima volta ~6s
+  3 * 24 * 60 * 60 * 1000,    // 3 giorni
+  90 * 24 * 60 * 60 * 1000,   // 3 mesi
+  180 * 24 * 60 * 60 * 1000,  // 6 mesi
+  365 * 24 * 60 * 60 * 1000,  // 12 mesi
+];
 
 function isStandalone() {
+  if (typeof window === "undefined") return false;
   return (
     window.matchMedia?.("(display-mode: standalone)")?.matches ||
-    // iOS PWA
-    (window.navigator as any)?.standalone === true
+    window.navigator.standalone === true
   );
 }
 
 function detectEnv() {
-  const ua = navigator.userAgent || "";
-  const isIOS = /iPad|iPhone|iPod/.test(ua);
-  const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
-  const isChrome = /Chrome/i.test(ua) && !/Edg|OPR/i.test(ua);
-  const isAndroid = /Android/i.test(ua);
-  return { isIOS, isSafari, isChrome, isAndroid };
+  const ua = (typeof navigator !== "undefined" ? navigator.userAgent : "").toLowerCase();
+  return {
+    isAndroid: /android/.test(ua),
+    isIOS: /iphone|ipad|ipod/.test(ua),
+    isChrome: /chrome|crios/.test(ua) && !/edge|edgios|opr/.test(ua),
+    isSafari: /^((?!chrome|android).)*safari/i.test(typeof navigator !== "undefined" ? navigator.userAgent : ""),
+    isEdge: /edg/i.test(typeof navigator !== "undefined" ? navigator.userAgent : ""),
+  };
 }
 
-export default function ModalInstallApp() {
-  const [open, setOpen] = useState(false);
-  const [manualMode, setManualMode] = useState(false); // iOS/nessun BIP
-  const deferredPromptRef = useRef<any>(null);
+function getStage() {
+  try { return Math.max(0, parseInt(localStorage.getItem(KEY_STAGE) || "0", 10)); } catch { return 0; }
+}
+function setStage(s) { try { localStorage.setItem(KEY_STAGE, String(s)); } catch {} }
+function scheduleNext(fromNowMs) {
+  try { localStorage.setItem(KEY_NEXTAT, String(Date.now() + fromNowMs)); } catch {}
+}
+function dueNow() {
+  try { return Date.now() >= parseInt(localStorage.getItem(KEY_NEXTAT) || "0", 10); } catch { return true; }
+}
 
+/* ===== Component ===== */
+export default function ModalInstallApp() {
+  const env = detectEnv();
+  const [open, setOpen] = useState(false);
+  const [manualMode, setManualMode] = useState(false); // true ⇒ istruzioni manuali
+  const deferredPromptRef = useRef(null);
+
+  // riproposta automatica (6s, 3g, 3m, 6m, 12m)
   useEffect(() => {
-    // già installata → non fare nulla
     if (isStandalone() || localStorage.getItem(KEY_INSTALLED) === "1") return;
 
-    const { isIOS, isSafari } = detectEnv();
+    // handler globale SEMPRE disponibile
+    window.__openInstallModal = () => {
+      const hasPrompt = !!deferredPromptRef.current;
+      setManualMode(!hasPrompt && !(env.isAndroid && env.isChrome));
+      setOpen(true);
+    };
 
-    function onBeforeInstallPrompt(e: any) {
-      // Chrome/Android, Edge, Desktop Chrome
+    // intercetta il prompt
+    function onBeforeInstallPrompt(e) {
       e.preventDefault();
       deferredPromptRef.current = e;
 
-      // mostriamo la nostra modale (6s) secondo cadenza
-      if (dueNow()) {
+      // se siamo arrivati qui con pending (da "Apri in Chrome") → apri subito e lancia prompt
+      const wantInstall =
+        (sessionStorage.getItem(KEY_PENDING) === "1") ||
+        new URL(window.location.href).searchParams.get("a2hs") === "1";
+
+      if (wantInstall) {
+        setManualMode(false);
+        setOpen(true);
+        // piccolo delay per sicurezza, poi prompt
+        setTimeout(() => onInstallNow(), 50);
+        // pulisci flag e URL
+        try { sessionStorage.removeItem(KEY_PENDING); } catch {}
+        const url = new URL(window.location.href);
+        url.searchParams.delete("a2hs");
+        window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+      } else if (dueNow()) {
+        // prima apertura automatica dopo 6s (solo se è “tempo”)
+        const stage = getStage();
         setTimeout(() => {
           setManualMode(false);
           setOpen(true);
-        }, 6000);
+        }, STAGES_MS[Math.min(stage, STAGES_MS.length - 1)]);
       }
-      // funzione globale per il menu
-      (window as any).__openInstallModal = () => {
-        setManualMode(false);
-        setOpen(true);
-      };
     }
 
-    // iOS Safari non emette BIP: attiviamo fallback se dovuto
-    if (isIOS && isSafari) {
-      (window as any).__openInstallModal = () => {
-        setManualMode(true);
-        setOpen(true);
-      };
-      if (dueNow()) {
-        setTimeout(() => {
-          setManualMode(true);
-          setOpen(true);
-        }, 6000);
-      }
+    function onAppInstalled() {
+      localStorage.setItem(KEY_INSTALLED, "1");
+      setOpen(false);
     }
 
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-    window.addEventListener("appinstalled", () => {
-      localStorage.setItem(KEY_INSTALLED, "1");
-      setOpen(false);
-    });
+    window.addEventListener("appinstalled", onAppInstalled);
+
+    // se non arriverà BIP (iOS/desktop non compatibili): fallback programmato
+    if (dueNow() && !(env.isAndroid && env.isChrome)) {
+      const stage = getStage();
+      setTimeout(() => {
+        setManualMode(true);
+        setOpen(true);
+      }, STAGES_MS[Math.min(stage, STAGES_MS.length - 1)]);
+    }
+
+    // auto-apertura post-redirect (se non è ancora arrivato BIP): attendi max 8s, poi fallback
+    const wantInstall =
+      (sessionStorage.getItem(KEY_PENDING) === "1") ||
+      new URL(window.location.href).searchParams.get("a2hs") === "1";
+    if (wantInstall && !deferredPromptRef.current) {
+      setOpen(true);
+      setManualMode(false); // proviamo a credere che arrivi
+      const t = setTimeout(() => {
+        // niente BIP: vai di fallback manuale
+        setManualMode(true);
+        try { sessionStorage.removeItem(KEY_PENDING); } catch {}
+      }, 8000);
+      return () => clearTimeout(t);
+    }
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-      (window as any).__openInstallModal = undefined;
+      window.removeEventListener("appinstalled", onAppInstalled);
+      // non rimuovo __openInstallModal per lasciarlo riutilizzabile
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // blocca scrolling sotto la modale
-  useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [open]);
-
+  // “Installa ora”
   async function onInstallNow() {
-    try {
-      if (manualMode || !deferredPromptRef.current) {
-        // nessun prompt disponibile: istruzioni
-        // (la UI già mostra i passaggi; qui chiudiamo)
-        setOpen(false);
-        return;
-      }
-      const ev = deferredPromptRef.current;
-      deferredPromptRef.current = null;
-      ev.prompt();
-      const choice = await ev.userChoice;
+    const e = deferredPromptRef.current;
+    if (e?.prompt) {
+      const choice = await e.prompt();
+      // risultato può essere { outcome: "accepted" | "dismissed" }
       if (choice?.outcome === "accepted") {
         localStorage.setItem(KEY_INSTALLED, "1");
         setOpen(false);
       } else {
-        // rimanda: programma il prossimo step
-        const step = getStep();
-        setStep(step + 1);
-        setLastNow();
+        // rimanda al prossimo step della curva
+        bumpSnooze();
         setOpen(false);
       }
-    } catch {
-      // in caso di errore consideriamo come "rimandato"
-      const step = getStep();
-      setStep(step + 1);
-      setLastNow();
-      setOpen(false);
+    } else {
+      // nessun prompt disponibile ⇒ fallback manuale (istruzioni)
+      setManualMode(true);
     }
   }
 
+  // “Più tardi”
   function onLater() {
-    const step = getStep();
-    setStep(step + 1);
-    setLastNow();
+    bumpSnooze();
     setOpen(false);
+  }
+
+  function bumpSnooze() {
+    const current = getStage();
+    const nextStage = Math.min(current + 1, STAGES_MS.length - 1);
+    setStage(nextStage);
+    scheduleNext(STAGES_MS[nextStage]);
+  }
+
+  // Escamotage: apri in Chrome con intent + flag per auto-prompt
+  function openInChrome() {
+    try { sessionStorage.setItem(KEY_PENDING, "1"); } catch {}
+    const loc = window.location;
+    const here = new URL(loc.href);
+    here.searchParams.set("a2hs", "1");
+
+    // Se siamo in http://localhost non tutti i device gestiscono gli intent.
+    // In quel caso faccio solo window.location = stessa URL (mostrerà il chooser)
+    const useIntent = here.protocol === "https:";
+
+    if (useIntent) {
+      const scheme = here.protocol.replace(":", "");
+      const intent =
+        `intent://${here.host}${here.pathname}${here.search}${here.hash}` +
+        `#Intent;scheme=${scheme};package=com.android.chrome;end`;
+      window.location.href = intent;
+    } else {
+      // dev fallback: apri chooser; l’utente seleziona Chrome
+      window.location.href = here.toString();
+    }
   }
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[70]">
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={onLater}
-        aria-hidden
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Installa l'app Il Borghista"
-        className="absolute left-1/2 top-1/2 w-[92vw] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden"
-      >
-        {/* Header minimale */}
-        <div className="px-5 py-4 border-b flex items-center justify-between">
-          <div className="text-[#6B271A] font-extrabold">Installa l’app</div>
-          <button
-            onClick={onLater}
-            aria-label="Chiudi"
-            className="w-9 h-9 rounded-full border grid place-items-center"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24">
-              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" />
-            </svg>
-          </button>
+    <div className="fixed inset-0 z-[1000]" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/40" onClick={onLater} />
+
+      <div className="absolute inset-x-4 top-20 mx-auto max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+        {/* Header compatto */}
+        <div className="flex items-center gap-3 px-4 pt-4">
+          <img
+            src="/icons/maskable-192.png"
+            alt=""
+            className="w-10 h-10 rounded-xl ring-1 ring-black/10"
+          />
+          <div className="min-w-0">
+            <div className="text-base font-extrabold text-[#6B271A] truncate">
+              Installa l’app Il Borghista
+            </div>
+            {!manualMode && (
+              <div className="text-xs text-neutral-600">Aggiungi alla schermata Home</div>
+            )}
+          </div>
         </div>
 
-        {/* Corpo super semplice */}
-        <div className="px-5 pt-4 pb-5">
-          <div className="text-lg font-semibold text-[#6B271A]">
-            Installa l’app <span className="whitespace-nowrap">Il Borghista</span>
-          </div>
+        {/* Body super semplice */}
+        <div className="px-4 pb-4 pt-3">
           {manualMode ? (
-            <p className="mt-2 text-sm text-neutral-700">
-              Su iPhone/iPad: tocca <b>Condividi</b> (⬆️) e poi <b>Aggiungi a Home</b>.
-            </p>
-          ) : (
-            <p className="mt-2 text-sm text-neutral-700">
-              Aggiungila alla schermata Home per un’esperienza più veloce.
-            </p>
-          )}
+            <div className="space-y-3">
+              {/* Android non-Chrome: apri in Chrome per l’install nativa */}
+              {env.isAndroid && !env.isChrome ? (
+                <button
+                  onClick={openInChrome}
+                  className="w-full inline-flex items-center justify-center h-11 rounded-xl bg-[#0b3a53] text-white font-semibold"
+                >
+                  Apri in Chrome
+                </button>
+              ) : null}
 
-          <div className="mt-4 flex items-center gap-2">
-            <button
-              onClick={onInstallNow}
-              className="flex-1 rounded-xl bg-[#D54E30] text-white font-semibold px-4 py-2"
-            >
-              Installa ora
-            </button>
-            <button
-              onClick={onLater}
-              className="flex-1 rounded-xl border bg-white text-[#6B271A] font-semibold px-4 py-2"
-            >
-              Più tardi
-            </button>
-          </div>
+              {/* iOS / Safari: istruzioni minime */}
+              {env.isIOS ? (
+                <div className="text-sm text-neutral-700">
+                  Apri con <b>Safari</b>, tocca{" "}
+                  <span aria-label="Condividi">Condividi</span> → <b>Aggiungi a Home</b>.
+                </div>
+              ) : null}
+
+              {/* Fallback generico */}
+              {!env.isIOS && (env.isChrome || !env.isAndroid) ? (
+                <div className="text-sm text-neutral-700">
+                  Se non vedi il popup di installazione, aggiorna la pagina e riprova.
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="text-sm text-neutral-700">
+              Installala per un accesso rapido a eventi ed esperienze.
+            </div>
+          )}
+        </div>
+
+        {/* Footer con 2 azioni */}
+        <div className="flex items-center gap-2 px-4 pb-4">
+          <button
+            onClick={onInstallNow}
+            className="flex-1 inline-flex items-center justify-center h-11 rounded-xl bg-[#D54E30] text-white font-semibold"
+          >
+            Installa ora
+          </button>
+          <button
+            onClick={onLater}
+            className="inline-flex h-11 items-center justify-center px-3 rounded-xl text-[#6B271A] font-semibold"
+          >
+            Più tardi
+          </button>
         </div>
       </div>
     </div>

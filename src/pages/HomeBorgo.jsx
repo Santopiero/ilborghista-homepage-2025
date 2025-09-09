@@ -6,7 +6,10 @@ import {
   listPoiByBorgo,
   getVideosByBorgo,
   getVideosByPoi,
-  syncBorgoBundle,       // ⬅️ aggiunto
+  syncBorgoBundle,
+  isFavorite,
+  toggleFavorite,
+  slugify,
 } from "../lib/store";
 import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
 import {
@@ -53,6 +56,29 @@ function getYouTubeId(url = "") {
 }
 const getYouTubeThumb = (url = "") =>
   getYouTubeId(url) ? `https://i.ytimg.com/vi/${getYouTubeId(url)}/hqdefault.jpg` : "";
+
+/* ================= Small Favorite Hook ================= */
+function useFavorite(type, id, data) {
+  const [fav, setFav] = useState(() => {
+    try { return isFavorite?.(type, id) ?? false; } catch { return false; }
+  });
+  const onToggle = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    try {
+      const next = toggleFavorite?.(type, id, data);
+      // se toggleFavorite ritorna boolean, usalo; altrimenti optimistico
+      if (typeof next === "boolean") setFav(next);
+      else setFav((v) => !v);
+    } catch {
+      setFav((v) => !v);
+    }
+  };
+  useEffect(() => {
+    try { setFav(isFavorite?.(type, id) ?? false); } catch {}
+  }, [type, id]);
+  return [fav, onToggle];
+}
 
 /* ================= TopBar ================= */
 function TopBar({ slug }) {
@@ -177,7 +203,7 @@ function TopBar({ slug }) {
                 </Link>
               </li>
 
-              {/* Installa l’app: SOLO mobile (sm:hidden) e solo se non già installata */}
+              {/* Installa l’app: SOLO mobile e se non già installata */}
               {typeof window !== "undefined" && !isStandalone() && (
                 <li className="mt-1 sm:hidden">
                   <button
@@ -239,7 +265,7 @@ function HScrollWithArrows({ children, className = "" }) {
       <div
         ref={ref}
         role="list"
-        className="scrollbar-none -mx-1 flex snap-x snap-mandatory gap-5 overflow-x-auto px-1 md:snap-none"
+        className="scrollbar-none -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 md:snap-none"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         {children}
@@ -266,11 +292,14 @@ function HeroOverlay({ mapsUrl }) {
 }
 
 /* ================= Hero Gallery ================= */
-function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras = null }) {
+function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras = null, favType, favId, favData }) {
   const [i, setI] = useState(0);
   const n = gallery?.length || 0;
   const hasMany = n > 1;
   const current = n ? gallery[i] : { src: fallback, name: title };
+
+  // Preferiti del borgo
+  const [isFav, onFavToggle] = useFavorite(favType, favId, favData);
 
   // Swipe mobile
   const t = useRef({ x: 0, t: 0 });
@@ -309,8 +338,12 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
           <button aria-label="Condividi" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#6B271A] shadow ring-1 ring-black/5">
             <Share2 className="h-5 w-5" />
           </button>
-          <button aria-label="Salva" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#6B271A] shadow ring-1 ring-black/5">
-            <Heart className="h-5 w-5" />
+          <button
+            aria-label={isFav ? "Rimuovi dai preferiti" : "Salva nei preferiti"}
+            onClick={onFavToggle}
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-full shadow ring-1 ring-black/5 ${isFav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
+          >
+            <Heart className="h-5 w-5" fill={isFav ? "currentColor" : "none"} />
           </button>
         </div>
 
@@ -338,8 +371,11 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
             <button className="inline-flex h-10 items-center gap-2 rounded-xl border bg-white/90 px-3 text-[#6B271A] hover:bg-white">
               <Share2 className="h-4 w-4" /> Condividi
             </button>
-            <button className="inline-flex h-10 items-center gap-2 rounded-xl border bg-white/90 px-3 text-[#6B271A] hover:bg-white">
-              <Heart className="h-4 w-4" /> Salva
+            <button
+              onClick={onFavToggle}
+              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 hover:bg-white ${isFav ? "bg-[#D54E30] text-white border-[#D54E30]" : "bg-white/90 text-[#6B271A]"}`}
+            >
+              <Heart className="h-4 w-4" fill={isFav ? "currentColor" : "none"} /> {isFav ? "Salvato" : "Salva"}
             </button>
           </div>
         </div>
@@ -380,10 +416,10 @@ function NavTileMobile({ to, label, icon: Icon, bg, color, gradient }) {
     <Link
       to={to}
       aria-label={label}
-      className="flex items-center gap-3 rounded-2xl border bg-white p-2.5 shadow-sm hover:shadow ring-1 ring-transparent hover:ring-[#6B271A]/20 active:scale-[0.99] transition"
+      className="flex items-center gap-2 rounded-2xl border bg-white p-2 shadow-sm hover:shadow ring-1 ring-transparent hover:ring-[#6B271A]/20 active:scale-[0.99] transition"
     >
       <span
-        className="relative inline-flex h-12 w-12 items-center justify-center rounded-full shadow ring-1 ring-black/5"
+        className="relative inline-flex h-11 w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5"
         style={{ background: gradient ? undefined : bg, color }}
       >
         {gradient ? <span className="absolute inset-0 rounded-full" style={{ background: colors.esperienze.bg }} /> : null}
@@ -395,7 +431,7 @@ function NavTileMobile({ to, label, icon: Icon, bg, color, gradient }) {
     </Link>
   );
 }
-const Divider = () => <span className="mx-1.5 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
+const Divider = () => <span className="mx-1 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
 
 /* ================= Descrizione & In breve ================= */
 function DescriptionBlock({ text, slug }) {
@@ -408,7 +444,7 @@ function DescriptionBlock({ text, slug }) {
   }, [expanded]);
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
+    <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
       <div className={`relative leading-relaxed text-gray-800 ${expanded ? "" : "max-h-28 overflow-hidden"}`}>
         <p>{text}</p>
         {!expanded && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white via-white/90 to-transparent" />}
@@ -445,7 +481,7 @@ function InBreve({ meta, borgo, slug }) {
   const provincia = borgo?.provincia || meta?.provincia || meta?.province;
   const short = meta?.shortInfo || null;
   return (
-    <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+    <section className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
       <div className="rounded-2xl border bg-[#FAF5E0] p-4">
         <h3 className="text-sm font-bold text-[#6B271A]">In breve</h3>
         <ul className="mt-2 space-y-1 text-sm text-gray-700">
@@ -465,6 +501,9 @@ function InBreve({ meta, borgo, slug }) {
 function CreatorCardHM({ v, borgoName }) {
   const th = v.thumbnail || getYouTubeThumb(v.youtubeUrl || v.url);
   const name = v.creatorName || v.author || v.owner || v.channel || (v.title ? String(v.title).split("–")[0].trim() : "Creator");
+  const [fav, toggleFav] = useFavorite("video", v.id, {
+    id: v.id, title: v.title, thumbnail: th, url: v.youtubeUrl || v.url, borgoName
+  });
   return (
     <article className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
       <a href={v.youtubeUrl || v.url} target="_blank" rel="noreferrer" className="block">
@@ -476,14 +515,14 @@ function CreatorCardHM({ v, borgoName }) {
               <PlayCircle className="h-10 w-10" />
             </div>
           )}
-          {/* tasto "minus" in alto dx */}
+          {/* cuore in alto dx (rimpiazza il "minus") */}
           <button
             type="button"
-            aria-label="Opzioni"
-            className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#6B271A] shadow ring-1 ring-black/10"
-            onClick={(e) => e.preventDefault()}
+            aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+            className={`absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
+            onClick={toggleFav}
           >
-            <Minus className="h-4 w-4" />
+            <Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} />
           </button>
         </div>
         <div className="p-4">
@@ -504,6 +543,7 @@ function CreatorCardHM({ v, borgoName }) {
 
 /* 2) Borghi da scoprire (nearby) */
 function DiscoverBorgoCardHM({ b }) {
+  const [fav, toggleFav] = useFavorite("borgo", b.slug, { slug: b.slug, name: b.name, hero: b.hero });
   return (
     <Link
       to={`/borghi/${b.slug}`}
@@ -514,6 +554,13 @@ function DiscoverBorgoCardHM({ b }) {
         <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-[#5B2A1F] shadow ring-1 ring-black/5">
           {b.name}
         </span>
+        <button
+          aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+          onClick={toggleFav}
+          className={`absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
+        >
+          <Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} />
+        </button>
       </div>
       <div className="p-4">
         <h3 className="font-extrabold text-[#5B2A1F]">Scopri {b.name}</h3>
@@ -531,6 +578,8 @@ function DiscoverBorgoCardHM({ b }) {
 
 /* 3) Prossimi eventi – locandina verticale */
 function HMEventPosterCard({ ev }) {
+  const eventId = ev.id || slugify(ev.title + (ev.date || ""));
+  const [fav, toggleFav] = useFavorite("evento", eventId, { id: eventId, title: ev.title, img: ev.img, date: ev.date, place: ev.place });
   return (
     <article className="snap-center shrink-0 w-[68%] xs:w-[54%] sm:w-[38%] md:w-[28%] lg:w-[22%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
       {/* Locandina verticale 2:3 */}
@@ -543,10 +592,17 @@ function HMEventPosterCard({ ev }) {
           decoding="async"
         />
         {ev.tag && (
-          <span className="absolute right-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-extrabold text-[#5B2A1F] shadow ring-1 ring-black/5">
+          <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-extrabold text-[#5B2A1F] shadow ring-1 ring-black/5">
             {ev.tag}
           </span>
         )}
+        <button
+          aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+          onClick={toggleFav}
+          className={`absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
+        >
+          <Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} />
+        </button>
       </div>
 
       <div className="p-4">
@@ -566,6 +622,8 @@ function HMEventPosterCard({ ev }) {
 
 /* 4) Prodotti tipici */
 function HMProductCard({ p }) {
+  const prodId = p.id || slugify(p.title);
+  const [fav, toggleFav] = useFavorite("prodotto", prodId, { id: prodId, title: p.title, img: p.img, location: p.location, priceFrom: p.priceFrom });
   return (
     <article className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
       <div className="relative aspect-[16/9] w-full overflow-hidden rounded-3xl rounded-b-none">
@@ -575,6 +633,13 @@ function HMProductCard({ p }) {
             da {fmtPrice(p.priceFrom).replace(/\s?EUR?/, "").trim()}
           </span>
         )}
+        <button
+          aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+          onClick={toggleFav}
+          className={`absolute left-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
+        >
+          <Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} />
+        </button>
       </div>
       <div className="p-4">
         <h3 className="font-extrabold text-[#5B2A1F]">{p.title}</h3>
@@ -590,8 +655,8 @@ function HMProductCard({ p }) {
 /* ================= Section wrapper ================= */
 function SectionHM({ title, linkTo, children }) {
   return (
-    <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      <div className="mb-3 flex items-center justify-between">
+    <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+      <div className="mb-2 flex items-center justify-between">
         <h2 className="text-xl font-extrabold text-[#5B2A1F]">{title}</h2>
         {linkTo && (
           <Link to={linkTo} className="text-sm font-semibold underline">
@@ -635,7 +700,7 @@ function NewsletterCTA({ slug }) {
   };
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <div className="rounded-2xl border bg-white p-4 sm:p-5">
         <div className="flex items-start gap-3">
           <span className="hidden sm:inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#6B271A]/10">
@@ -717,12 +782,6 @@ export default function HomeBorgo() {
     { title: "Sapori in Piazza", img: "https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?q=80&w=1500&auto=format&fit=crop", tag: "SAGRA", date: "15 agosto 2025", place: "Viggiano (PZ) · Centro storico", meta: "Ingresso libero" },
     { title: "Concerto d’estate", img: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1500&auto=format&fit=crop", tag: "", date: "22 agosto 2025", place: "Viggiano (PZ) · Arena", meta: "Ore 21:30" },
   ];
-  const homeExperiences = [
-    { title: "Volo in mongolfiera all’alba", img: "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1500&auto=format&fit=crop", partner: "GetYourGuide", priceFrom: 245, url: "https://example.com/gyg" },
-    { title: "E-bike tra i borghi",          img: "https://images.unsplash.com/photo-1520974735194-6c1f1c1d0b35?q=80&w=1500&auto=format&fit=crop", partner: "Viator",        priceFrom: 59,  url: "https://example.com/viator" },
-    { title: "Tour centro storico guidato",  img: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1500&auto=format&fit=crop", partner: "Musement",      priceFrom: 18,  url: "https://example.com/musement" },
-    { title: "Degustazione prodotti tipici", img: "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1500&auto=format&fit=crop", partner: "Freedome",      priceFrom: 35,  url: "https://example.com/freedome" },
-  ];
   const prodottiTipici = [
     { title: "Formaggio di malga", img: "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=1500&auto=format&fit=crop", priceFrom: 7, location: "Asiago (VI) | Veneto" },
     { title: "Salumi tipici",      img: "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1500&auto=format&fit=crop", priceFrom: 9, location: "Norcia (PG) | Umbria" },
@@ -768,16 +827,19 @@ export default function HomeBorgo() {
               </Link>
             </>
           }
+          favType="borgo"
+          favId={slug}
+          favData={{ slug, name: title, hero: gallery?.[0]?.src || "" }}
         />
 
         {/* NAV – mobile griglia / desktop fila compatta */}
-        <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:hidden">
+        <section className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
+          <div className="grid grid-cols-2 gap-2 sm:hidden">
             {navBase.map((n) => (
               <NavTileMobile key={n.key} to={n.to} label={n.label} icon={n.icon} bg={n.bg} color={n.color} gradient={n.gradient} />
             ))}
           </div>
-          <div className="hidden items-center gap-2 overflow-x-auto pb-1 sm:flex" style={{ WebkitOverflowScrolling: "touch" }}>
+          <div className="hidden items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex" style={{ WebkitOverflowScrolling: "touch" }}>
             {navBase.map((n, i) => (
               <React.Fragment key={n.key}>
                 <NavBall to={n.to} label={n.label} icon={n.icon} bg={n.gradient ? undefined : n.bg} color={n.color} />
@@ -791,7 +853,7 @@ export default function HomeBorgo() {
         <DescriptionBlock text={descr} slug={slug} />
         <InBreve meta={meta} borgo={borgo} slug={slug} />
 
-        {/* ======= SEZIONI IN STILE HM (identiche) ======= */}
+        {/* ======= SEZIONI IN STILE HM ======= */}
 
         {/* Video dei creator */}
         <SectionHM title="Video dei creator" linkTo={`/borghi/${slug}/video`}>

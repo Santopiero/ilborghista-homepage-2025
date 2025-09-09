@@ -1,6 +1,18 @@
 // src/HomepageMockup.jsx
 import { useState, useRef, useEffect, useMemo } from "react";
-import { MapPin, Clock, Search, Star, User, Bell, X, Menu, Heart } from "lucide-react";
+import {
+  MapPin,
+  Clock,
+  Search,
+  Star,
+  User,
+  Bell,
+  X,
+  Menu,
+  Heart,
+  MessageCircle,   // <- aggiunto
+  Smartphone       // <- aggiunto
+} from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   getCurrentUser,

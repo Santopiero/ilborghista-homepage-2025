@@ -1,6 +1,6 @@
 // src/HomepageMockup.jsx
-import { useState, useRef, useEffect } from "react";
-import { MapPin, Clock, Search, Star, User, Bell, X } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { MapPin, Clock, Search, Star, User, Bell, X, Menu, Heart } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   getCurrentUser,
@@ -12,6 +12,180 @@ import {
 import { BORGI_INDEX, BORGI_BY_SLUG } from "./data/borghi";
 import { enableNotifications } from "./lib/pushClient";
 
+/* ======================== Preferiti (LocalStorage) ======================== */
+const FAV_KEY = "ilborghista:favorites:v1";
+function useFavorites() {
+  const [set, setSet] = useState(() => {
+    try {
+      const raw = localStorage.getItem(FAV_KEY);
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(FAV_KEY, JSON.stringify(Array.from(set)));
+    } catch {}
+  }, [set]);
+
+  const has = (id) => set.has(id);
+  const toggle = (id) =>
+    setSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  return { has, toggle };
+}
+
+function FavoriteButton({ id, className = "" }) {
+  const { has, toggle } = useFavorites();
+  const active = has(id);
+  return (
+    <button
+      type="button"
+      aria-label={active ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+      aria-pressed={active}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggle(id);
+      }}
+      className={
+        "inline-flex items-center justify-center rounded-full bg-white/95 text-[#D54E30] shadow ring-1 ring-black/10 hover:bg-white w-9 h-9 " +
+        className
+      }
+    >
+      <Heart className="w-5 h-5" fill={active ? "currentColor" : "none"} />
+    </button>
+  );
+}
+
+/* ======================== Notifiche (badge + pannello) ======================== */
+const NOTIF_KEY = "ilborghista:notifs:v1";
+function loadNotifs() {
+  try {
+    const raw = localStorage.getItem(NOTIF_KEY);
+    return Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+function saveNotifs(list) {
+  try {
+    localStorage.setItem(NOTIF_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+function NotificationsBell() {
+  const [open, setOpen] = useState(false);
+  const [list, setList] = useState(() => loadNotifs());
+
+  useEffect(() => {
+    // piccolo hook: consente di iniettare test da console
+    window.__ilb_addNotif = (title = "Nuova notifica", body = "Prova") => {
+      const n = { id: Date.now(), title, body, ts: new Date().toISOString() };
+      setList((prev) => {
+        const next = [n, ...prev].slice(0, 50);
+        saveNotifs(next);
+        return next;
+      });
+    };
+  }, []);
+
+  const unread = list.length;
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Le tue notifiche"
+        className="relative inline-flex items-center justify-center w-10 h-10 rounded-full border bg-white"
+        onClick={() => setOpen(true)}
+      >
+        <Bell className="w-5 h-5" />
+        {unread > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 grid place-items-center text-[11px] rounded-full bg-[#D54E30] text-white">
+            {unread > 99 ? "99+" : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} />
+          <div className="absolute right-4 top-4 w-[92vw] max-w-md rounded-2xl bg-white shadow-xl ring-1 ring-black/10">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div className="font-extrabold text-[#6B271A]">Le tue notifiche</div>
+              <button
+                className="inline-flex w-8 h-8 items-center justify-center rounded-full border"
+                aria-label="Chiudi"
+                onClick={() => setOpen(false)}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="max-h-[60vh] overflow-auto">
+              {list.length === 0 ? (
+                <div className="px-4 py-6 text-sm text-neutral-600">
+                  Nessuna notifica al momento.
+                </div>
+              ) : (
+                <ul className="divide-y">
+                  {list.map((n) => (
+                    <li key={n.id} className="px-4 py-3">
+                      <div className="font-semibold text-[#5B2A1F]">{n.title}</div>
+                      {n.body ? (
+                        <div className="text-sm text-neutral-700 mt-0.5">{n.body}</div>
+                      ) : null}
+                      <div className="text-xs text-neutral-500 mt-1">
+                        {new Date(n.ts).toLocaleString("it-IT")}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <button
+                onClick={() => {
+                  setList([]);
+                  saveNotifs([]);
+                }}
+                className="text-sm underline text-neutral-700"
+              >
+                Segna tutto come letto
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    // test rapido
+                    window.__ilb_addNotif?.("Nuova sagra vicino a te", "Domenica ore 19");
+                  }}
+                  className="text-sm bg-[#FAF5E0] px-3 py-1.5 rounded-lg border border-[#E1B671]"
+                >
+                  Aggiungi test
+                </button>
+                <button
+                  className="text-sm bg-[#D54E30] text-white px-3 py-1.5 rounded-lg"
+                  onClick={() => setOpen(false)}
+                >
+                  Chiudi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ======================== Component ======================== */
 export default function HomepageMockup() {
   const navigate = useNavigate();
 
@@ -27,56 +201,15 @@ export default function HomepageMockup() {
   const [query, setQuery] = useState("");
   const [signupSuccess, setSignupSuccess] = useState(false);
 
-  // ---------- PUSH UI state ----------
+  // ---------- PUSH capability ----------
   const supportsPush =
     typeof window !== "undefined" &&
     "serviceWorker" in navigator &&
     "PushManager" in window &&
     "Notification" in window;
 
-  const [notifOn, setNotifOn] = useState(
-    supportsPush && Notification.permission === "granted"
-  );
-
-  const [showPushBar, setShowPushBar] = useState(false);
-
-  // ====== Forza popup via ?forcePushModal=1 (per test/demo) ======
-  const [forceModal] = useState(() => {
-    try {
-      const u = new URL(window.location.href);
-      return u.searchParams.get("forcePushModal") === "1";
-    } catch {
-      return false;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      // init banner mobile solo se supportato, non già accettato, non già chiuso
-      const dismissed = localStorage.getItem("hidePushBar") === "1";
-      if (supportsPush && Notification.permission === "default" && !dismissed) {
-        setShowPushBar(true);
-      }
-    } catch {}
-  }, [supportsPush]);
-
-  async function onEnablePush() {
-    try {
-      await enableNotifications();
-      setNotifOn(true);
-      setShowPushBar(false);
-      setShowPushModal(false);
-      try {
-        localStorage.setItem("hidePushBar", "1");
-        // dopo attivazione non riproporre più (1 anno)
-        localStorage.setItem(MODAL_NEXT_KEY, String(Date.now() + 365 * DAY));
-        localStorage.setItem(MODAL_STAGE_KEY, String(INTERVALS.length - 1));
-      } catch {}
-      alert("Notifiche attivate ✔");
-    } catch (e) {
-      alert("Attivazione non riuscita: " + (e?.message || e));
-    }
-  }
+  // Hamburger state
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -103,73 +236,11 @@ export default function HomepageMockup() {
     navigate(`/chat/${thread.id}`);
   }
 
-  /* ---------------- POPUP NOTIFICHE con schedule progressivo ---------------- */
-  const DAY = 24 * 60 * 60 * 1000;
-  // sequenza riproposizioni dopo "Più tardi": 3 giorni → 3 mesi → 6 mesi → 1 anno
-  const INTERVALS = [3 * DAY, 90 * DAY, 180 * DAY, 365 * DAY];
-  const MODAL_NEXT_KEY = "pushModalNextAt";
-  const MODAL_STAGE_KEY = "pushModalStage";
-
-  const [showPushModal, setShowPushModal] = useState(false);
-
-  // Mostra popup:
-  // - dopo 6s se supportato e permesso "default" e non rimandato
-  // - OPPURE sempre (dopo 100ms) se ?forcePushModal=1
-  useEffect(() => {
-    if (!supportsPush) return;
-
-    if (forceModal) {
-      const t = setTimeout(() => setShowPushModal(true), 100);
-      return () => clearTimeout(t);
-    }
-
-    if (Notification.permission !== "default") return;
-
-    const now = Date.now();
-    let nextAt = 0;
-    try {
-      nextAt = Number(localStorage.getItem(MODAL_NEXT_KEY) || 0);
-    } catch {}
-
-    if (now < nextAt) return;
-
-    const t = setTimeout(() => setShowPushModal(true), 6000);
-    return () => clearTimeout(t);
-  }, [supportsPush, forceModal]);
-
-  // se compare il popup, nascondo la barretta mobile per non duplicare
-  useEffect(() => {
-    if (showPushModal) setShowPushBar(false);
-  }, [showPushModal]);
-
-  function postponeModal() {
-    try {
-      const raw = localStorage.getItem(MODAL_STAGE_KEY);
-      // stage corrente (parte da 0). Se assente, 0.
-      let stage = Math.max(0, Number.isFinite(+raw) ? +raw : 0);
-      const idx = Math.min(stage, INTERVALS.length - 1);
-      const nextAt = Date.now() + INTERVALS[idx];
-      localStorage.setItem(MODAL_NEXT_KEY, String(nextAt));
-      // avanza stage, ma resta bloccato all'ultimo (1 anno)
-      stage = Math.min(stage + 1, INTERVALS.length - 1);
-      localStorage.setItem(MODAL_STAGE_KEY, String(stage));
-    } catch {}
-    setShowPushModal(false);
-  }
-
-  function neverShowModal() {
-    try {
-      // blocca per 1 anno (ultimo step) e imposta stage all'ultimo
-      localStorage.setItem(MODAL_NEXT_KEY, String(Date.now() + 365 * DAY));
-      localStorage.setItem(MODAL_STAGE_KEY, String(INTERVALS.length - 1));
-    } catch {}
-    setShowPushModal(false);
-  }
-
   /* ---------- PRIMITIVE ---------- */
   function Carousel({ images = [], heightClass = "h-40", rounded = "rounded-2xl" }) {
     const [idx, setIdx] = useState(0);
-    const startX = useRef(0), endX = useRef(0);
+    const startX = useRef(0),
+      endX = useRef(0);
     const clamp = (n) => (n < 0 ? images.length - 1 : n >= images.length ? 0 : n);
     const go = (n) => setIdx(clamp(n));
     return (
@@ -187,7 +258,14 @@ export default function HomepageMockup() {
           style={{ transform: `translateX(-${idx * 100}%)` }}
         >
           {images.map((src, i) => (
-            <img key={i} loading="lazy" src={src} alt="" className={`w-full ${heightClass} object-cover flex-shrink-0`} onError={onImgErr}/>
+            <img
+              key={i}
+              loading="lazy"
+              src={src}
+              alt=""
+              className={`w-full ${heightClass} object-cover flex-shrink-0`}
+              onError={onImgErr}
+            />
           ))}
         </div>
         {images.length > 1 && (
@@ -197,7 +275,9 @@ export default function HomepageMockup() {
                 key={i}
                 onClick={() => setIdx(i)}
                 aria-label={`Vai alla foto ${i + 1}`}
-                className={`w-2.5 h-2.5 rounded-full transition ${i === idx ? "bg-white shadow ring-1 ring-black/10" : "bg-white/60 hover:bg-white"}`}
+                className={`w-2.5 h-2.5 rounded-full transition ${
+                  i === idx ? "bg-white shadow ring-1 ring-black/10" : "bg-white/60 hover:bg-white"
+                }`}
               />
             ))}
           </div>
@@ -208,17 +288,32 @@ export default function HomepageMockup() {
 
   /* ---------- SERVIZI: solo testo centrato ---------- */
   const ServiceTile = ({ img, label, href = "#" }) => (
-    <Link to={href} className="group relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition ring-1 ring-[#E1B671]/70 bg-white" aria-label={label}>
-      <img loading="lazy" src={img} alt={label} className="absolute inset-0 w-full h-full object-cover duration-300 group-hover:scale-105" onError={onImgErr}/>
+    <Link
+      to={href}
+      className="group relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition ring-1 ring-[#E1B671]/70 bg-white"
+      aria-label={label}
+    >
+      <img
+        loading="lazy"
+        src={img}
+        alt={label}
+        className="absolute inset-0 w-full h-full object-cover duration-300 group-hover:scale-105"
+        onError={onImgErr}
+      />
       <div className="absolute inset-0 bg-black/30" />
       <div className="relative grid place-items-center h-48 sm:h-56 p-6">
-        <h3 className="text-2xl sm:text-3xl font-extrabold text-white drop-shadow text-center">{label}</h3>
+        <h3 className="text-2xl sm:text-3xl font-extrabold text-white drop-shadow text-center">
+          {label}
+        </h3>
       </div>
     </Link>
   );
 
   /* ---------- BORGO CARD ---------- */
-  const formatIt = (n, d = 1) => (typeof n === "number" ? n.toLocaleString("it-IT", { minimumFractionDigits: d, maximumFractionDigits: d }) : n);
+  const formatIt = (n, d = 1) =>
+    typeof n === "number"
+      ? n.toLocaleString("it-IT", { minimumFractionDigits: d, maximumFractionDigits: d })
+      : n;
   const BORGI_EXTRA = {
     viggiano: {
       borgoName: "Viggiano",
@@ -234,20 +329,38 @@ export default function HomepageMockup() {
     const name = extra.borgoName || b.name;
     const title = extra.title || b.title || b.tagline || `Scopri ${name}`;
     const currentEvent = extra.currentEvent;
-    const hasRating = typeof extra.ratingAvg === "number" && typeof extra.ratingCount === "number" && extra.ratingCount > 0;
+    const hasRating =
+      typeof extra.ratingAvg === "number" &&
+      typeof extra.ratingCount === "number" &&
+      extra.ratingCount > 0;
 
     return (
-      <Link to={`/borghi/${b.slug}`} className="group overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition min-w-[280px] max-w-[280px] snap-start" aria-label={`Apri ${name}`}>
+      <Link
+        to={`/borghi/${b.slug}`}
+        className="group overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition min-w-[280px] max-w-[280px] snap-start relative"
+        aria-label={`Apri ${name}`}
+      >
         <div className="relative aspect-[16/9] overflow-hidden">
-          <img loading="lazy" src={b.hero || FALLBACK_IMG} alt={`Veduta di ${name}`} className="w-full h-full object-cover" onError={onImgErr}/>
+          <img
+            loading="lazy"
+            src={b.hero || FALLBACK_IMG}
+            alt={`Veduta di ${name}`}
+            className="w-full h-full object-cover"
+            onError={onImgErr}
+          />
           <div className="absolute top-2 left-2 max-w-[82%] px-2.5 py-1 rounded-lg bg-white text-[#6B271A] text-sm font-semibold shadow">
             <span className="block truncate">{name}</span>
           </div>
+
+          <FavoriteButton id={`borgo:${b.slug}`} className="absolute top-2 right-2" />
         </div>
         <div className="p-4 space-y-2">
           <h3 className="text-base font-bold text-[#6B271A] leading-snug line-clamp-2">{title}</h3>
           {currentEvent && (
-            <Link to={`/borghi/${b.slug}/eventi`} className="flex items-center gap-2 text-sm text-gray-700 hover:underline">
+            <Link
+              to={`/borghi/${b.slug}/eventi`}
+              className="flex items-center gap-2 text-sm text-gray-700 hover:underline"
+            >
               <Clock size={16} className="text-[#6B271A]" aria-hidden="true" />
               <span>{currentEvent} – in corso</span>
             </Link>
@@ -274,42 +387,72 @@ export default function HomepageMockup() {
     type,
     href = "#",
     fixedWidth = true,
-  }) => (
-    <a
-      href={href}
-      className={`group overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition ${fixedWidth ? "min-w-[85%] max-w-[85%]" : "w-full"}`}
-      aria-label={title}
-    >
-      <div className="relative aspect-[3/4] overflow-hidden">
-        <img loading="lazy" src={poster || FALLBACK_IMG} alt={title} className="w-full h-full object-cover object-center" onError={onImgErr}/>
-        {type && (
-          <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-white/95 text-[#6B271A] border border-[#E1B671] shadow">
-            {type}
-          </span>
-        )}
-      </div>
-      <div className="p-4 space-y-2">
-        <h3 className="text-base font-extrabold text-[#6B271A] leading-snug line-clamp-2">{title}</h3>
-        {dateText && <div className="text-sm text-gray-700">{dateText}</div>}
-        {placeText && (
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <MapPin size={16} className="text-[#D54E30]" /> {placeText}
-          </div>
-        )}
-        {detailsText && <div className="text-sm text-gray-600">{detailsText}</div>}
-      </div>
-    </a>
-  );
+  }) => {
+    const favId = `event:${title}`;
+    return (
+      <a
+        href={href}
+        className={`group overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition ${
+          fixedWidth ? "min-w-[85%] max-w-[85%]" : "w-full"
+        } relative`}
+        aria-label={title}
+      >
+        <div className="relative aspect-[3/4] overflow-hidden">
+          <img
+            loading="lazy"
+            src={poster || FALLBACK_IMG}
+            alt={title}
+            className="w-full h-full object-cover object-center"
+            onError={onImgErr}
+          />
+          {type && (
+            <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-white/95 text-[#6B271A] border border-[#E1B671] shadow">
+              {type}
+            </span>
+          )}
+          <FavoriteButton id={favId} className="absolute top-2 right-2" />
+        </div>
+        <div className="p-4 space-y-2">
+          <h3 className="text-base font-extrabold text-[#6B271A] leading-snug line-clamp-2">{title}</h3>
+          {dateText && <div className="text-sm text-gray-700">{dateText}</div>}
+          {placeText && (
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <MapPin size={16} className="text-[#D54E30]" /> {placeText}
+            </div>
+          )}
+          {detailsText && <div className="text-sm text-gray-600">{detailsText}</div>}
+        </div>
+      </a>
+    );
+  };
 
   /* ---------- ESPERIENZA & PRODOTTO ---------- */
-  const ExperienceCard = ({ images, title, location, region, meta, priceFrom, fixedWidth = true }) => (
-    <article className={`overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white ${fixedWidth ? "min-w-[300px] max-w-[300px]" : "w-full"}`}>
+  const ExperienceCard = ({
+    id,
+    images,
+    title,
+    location,
+    region,
+    meta,
+    priceFrom,
+    fixedWidth = true,
+  }) => (
+    <article
+      className={`overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white ${
+        fixedWidth ? "min-w-[300px] max-w-[300px]" : "w-full"
+      } relative`}
+    >
       <div className="relative">
         <Carousel images={images} />
-        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">da {priceFrom}</span>
+        <FavoriteButton id={`exp:${id || title}`} className="absolute top-2 left-2" />
+        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">
+          da {priceFrom}
+        </span>
       </div>
       <div className="p-4 text-left space-y-2">
-        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">Esperienza</span>
+        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671]">
+          Esperienza
+        </span>
         <h3 className="text-base font-extrabold text-[#6B271A] leading-snug">{title}</h3>
         <div className="flex items-center text-sm text-gray-600 gap-2">
           <MapPin size={16} className="text-[#D54E30]" /> {location} | {region}
@@ -324,9 +467,16 @@ export default function HomepageMockup() {
   );
 
   const ProductCard = ({ img, title, origin, priceFrom }) => (
-    <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white min-w-[280px] max-w-[280px]">
+    <article className="overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white min-w-[280px] max-w-[280px] relative">
       <div className="relative h-40 w-full">
-        <img loading="lazy" src={img} alt={title} className="h-40 w-full object-cover" onError={onImgErr}/>
+        <img
+          loading="lazy"
+          src={img}
+          alt={title}
+          className="h-40 w-full object-cover"
+          onError={onImgErr}
+        />
+        <FavoriteButton id={`prod:${title}`} className="absolute top-2 left-2" />
         <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#D54E30] text-white border border-[#6B271A] whitespace-nowrap">
           da {priceFrom}
         </span>
@@ -345,19 +495,33 @@ export default function HomepageMockup() {
   /* ---------------- HERO ---------------- */
   const HeroHeader = () => (
     <section className="relative">
-      <img src={HERO_IMAGE_URL} alt="Hero Il Borghista" className="absolute inset-0 w-full h-full object-cover" onError={onImgErr}/>
+      <img
+        src={HERO_IMAGE_URL}
+        alt="Hero Il Borghista"
+        className="absolute inset-0 w-full h-full object-cover"
+        onError={onImgErr}
+      />
       <div className="absolute inset-0 bg-black/30" />
       <div className="relative max-w-6xl mx-auto px-6 pt-16 pb-20 text-center text-white">
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight drop-shadow-md">
           Trova cosa fare vicino a te
         </h1>
-        <p className="mt-3 text-base md:text-lg drop-shadow">Eventi, esperienze e borghi in tutta Italia. Cerca e parti.</p>
+        <p className="mt-3 text-base md:text-lg drop-shadow">
+          Eventi, esperienze e borghi in tutta Italia. Cerca e parti.
+        </p>
 
-        {/* === Barra con pillole RIPRISTINATA === */}
+        {/* === Barra con pillole === */}
         <div className="mt-6 bg-white/95 backdrop-blur rounded-2xl p-3 md:p-4 inline-block w-full md:w-auto shadow-lg text-left">
           {/* form */}
-          <form className="flex flex-col gap-3 md:flex-row md:items-center" onSubmit={handleSearch} aria-label="Ricerca">
-            <label className="flex items-center gap-2 border rounded-xl px-3 py-3 w-full md:w-96 bg-white" htmlFor="query">
+          <form
+            className="flex flex-col gap-3 md:flex-row md:items-center"
+            onSubmit={handleSearch}
+            aria-label="Ricerca"
+          >
+            <label
+              className="flex items-center gap-2 border rounded-xl px-3 py-3 w-full md:w-96 bg-white"
+              htmlFor="query"
+            >
               <Search size={18} className="text-[#6B271A]" />
               <input
                 id="query"
@@ -433,7 +597,8 @@ export default function HomepageMockup() {
   const latestVideos = listLatestVideos(24);
   const EVENTI_QA = [
     {
-      poster: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1200&auto=format&fit=crop",
+      poster:
+        "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1200&auto=format&fit=crop",
       title: "La festa della Madonna Nera",
       dateText: "9–10 agosto 2025",
       placeText: "Viggiano (PZ) · Santuario",
@@ -442,7 +607,8 @@ export default function HomepageMockup() {
       href: "#",
     },
     {
-      poster: "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop",
+      poster:
+        "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop",
       title: "Sapori in Piazza",
       dateText: "15 agosto 2025",
       placeText: "Viggiano (PZ) · Centro storico",
@@ -451,13 +617,64 @@ export default function HomepageMockup() {
       href: "#",
     },
     {
-      poster: "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop",
+      poster:
+        "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop",
       title: "Concerto d’estate",
       dateText: "22 agosto 2025",
       placeText: "Viggiano (PZ) · Arena",
       detailsText: "Ore 21:30",
       type: "",
       href: "#",
+    },
+  ];
+
+  // Esperienze (ripristino, mock coerenti con ExperienceCard)
+  const ESPERIENZE_QA = [
+    {
+      id: "balloon",
+      images: [
+        "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1500&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1500&auto=format&fit=crop",
+      ],
+      title: "Volo in mongolfiera all’alba",
+      location: "Piana dei borghi",
+      region: "Basilicata",
+      meta: "3 ore • Guida certificata",
+      priceFrom: "€245",
+    },
+    {
+      id: "ebike",
+      images: [
+        "https://images.unsplash.com/photo-1520974735194-6c1f1c1d0b35?q=80&w=1500&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1543352634-8730a9c79dc5?q=80&w=1500&auto=format&fit=crop",
+      ],
+      title: "E-bike tra i borghi",
+      location: "Val d’Agri",
+      region: "Basilicata",
+      meta: "1/2 giornata • Noleggio incluso",
+      priceFrom: "€59",
+    },
+    {
+      id: "centrostorico",
+      images: [
+        "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1500&auto=format&fit=crop",
+      ],
+      title: "Tour centro storico guidato",
+      location: "Borgo antico",
+      region: "Basilicata",
+      meta: "2 ore • Gruppi piccoli",
+      priceFrom: "€18",
+    },
+    {
+      id: "degustazione",
+      images: [
+        "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1500&auto=format&fit=crop",
+      ],
+      title: "Degustazione prodotti tipici",
+      location: "Cantina locale",
+      region: "Basilicata",
+      meta: "1h 30’ • 5 calici",
+      priceFrom: "€35",
     },
   ];
 
@@ -470,64 +687,127 @@ export default function HomepageMockup() {
 
       <main className="space-y-12">
         {/* TOP NAV */}
-        <header className="bg-white/90 backdrop-blur border-b">
+        <header className="bg-white/90 backdrop-blur border-b sticky top-0 z-40">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <Link to="/" className="text-xl font-extrabold text-[#6B271A]">Il Borghista</Link>
-            <div className="flex items-center gap-3">
-              <Link to="/creator" className="text-sm font-semibold underline text-[#6B271A]">Creators</Link>
 
-              {/* 🔔 Attiva notifiche nell'header (nascosta quando il popup è visibile) */}
-              {supportsPush && !(showPushModal && (Notification.permission === "default" || forceModal)) && (
-                <button
-                  type="button"
-                  onClick={onEnablePush}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]"
-                >
-                  <Bell size={18} />
-                  {notifOn ? "Notifiche attive" : "Attiva notifiche"}
-                </button>
-              )}
+            <div className="flex items-center gap-2">
+              {/* Campanella con badge + pannello notifiche */}
+              <NotificationsBell />
 
-              <Link to="/registrazione-comune" className="inline-flex items-center gap-2 rounded-xl border border-[#E1B671] text-[#6B271A] px-3 py-2 font-semibold hover:bg-[#FAF5E0]">
-                <User size={18} /> Registrati
-              </Link>
+              {/* Hamburger */}
+              <button
+                aria-label="Apri il menu"
+                onClick={() => setMenuOpen(true)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
             </div>
           </div>
 
-          {/* Barretta mobile CTA notifiche */}
-          {supportsPush && showPushBar && (
-            <div className="md:hidden bg-amber-50 text-[#6B271A] border-t border-b border-amber-200">
-              <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Bell className="h-5 w-5" />
-                  <span className="text-sm">Attiva le notifiche per sagre ed eventi vicino a te</span>
-                </div>
-                <div className="flex items-center gap-2">
+          {/* Drawer menu */}
+          {menuOpen && (
+            <div className="fixed inset-0 z-50">
+              <div className="absolute inset-0 bg-black/30" onClick={() => setMenuOpen(false)} />
+              <nav
+                className="absolute right-0 top-0 h-full w-80 max-w-[85%] bg-white shadow-xl"
+                aria-label="Menu principale"
+              >
+                <div className="flex items-center justify-between border-b p-4">
+                  <span className="text-base font-bold text-[#6B271A]">Menu</span>
                   <button
-                    onClick={onEnablePush}
-                    className="text-sm font-semibold px-3 py-1 rounded-lg bg-[#D54E30] text-white"
+                    aria-label="Chiudi menu"
+                    onClick={() => setMenuOpen(false)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border"
                   >
-                    Attiva
-                  </button>
-                  <button
-                    aria-label="Chiudi"
-                    onClick={() => {
-                      setShowPushBar(false);
-                      try { localStorage.setItem("hidePushBar", "1"); } catch {}
-                    }}
-                    className="p-1 rounded-lg hover:bg-amber-100"
-                  >
-                    <X className="h-4 w-4" />
+                    <X className="h-5 w-5" />
                   </button>
                 </div>
-              </div>
+
+                <ul className="p-2">
+                  <li>
+                    <Link
+                      to="/registrazione-utente"
+                      className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <User className="h-4 w-4" /> Accedi / Registrati
+                    </Link>
+                  </li>
+
+                  {supportsPush && (
+                    <li>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await enableNotifications();
+                            window.__ilb_addNotif?.("Notifiche attivate", "Riceverai aggiornamenti sulle sagre");
+                          } catch (e) {
+                            alert(e?.message || e);
+                          } finally {
+                            setMenuOpen(false);
+                          }
+                        }}
+                        className="w-full flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50 text-left"
+                      >
+                        <Bell className="h-4 w-4" /> Attiva notifiche
+                      </button>
+                    </li>
+                  )}
+
+                  <li>
+                    <Link
+                      to="/creator"
+                      className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <Star className="h-4 w-4" /> Creators
+                    </Link>
+                  </li>
+
+                  <li>
+                    <Link
+                      to="/contatti"
+                      className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <MessageCircle className="h-4 w-4" /> Contattaci
+                    </Link>
+                  </li>
+
+                  <li className="sm:hidden">
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        window.__openInstallModal?.();
+                      }}
+                      className="w-full flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50 text-left"
+                    >
+                      <Smartphone className="h-4 w-4" /> Installa app
+                    </button>
+                  </li>
+
+                  <li className="mt-2 border-t pt-2">
+                    <Link
+                      to="/registrazione-creator"
+                      className="flex items-center justify-center rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      Diventa creator
+                    </Link>
+                  </li>
+                </ul>
+              </nav>
             </div>
           )}
         </header>
 
         {signupSuccess && (
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="rounded-xl bg-green-50 border border-green-200 text-green-800 px-4 py-3 text-sm">✅ Grazie! Iscrizione completata correttamente.</div>
+            <div className="rounded-xl bg-green-50 border border-green-200 text-green-800 px-4 py-3 text-sm">
+              ✅ Grazie! Iscrizione completata correttamente.
+            </div>
           </div>
         )}
 
@@ -538,21 +818,56 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Servizi</h2>
-            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
+            <a href="#" className="text-sm font-semibold underline">
+              Vedi tutti
+            </a>
           </div>
           <div className="mt-4 relative md:hidden">
             <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent rounded-l-2xl" />
             <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent rounded-r-2xl" />
-            <div className="flex gap-5 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
-              <div className="min-w-[66%]"><ServiceTile img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1400&auto=format&fit=crop" label="Esperienze" /></div>
-              <div className="min-w-[66%]"><ServiceTile img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1400&auto=format&fit=crop" label="Prodotti tipici" /></div>
-              <div className="min-w-[66%]"><ServiceTile img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1400&auto=format&fit=crop" label="Noleggio auto" /></div>
+            <div
+              className="flex gap-5 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
+              <div className="min-w-[66%]">
+                <ServiceTile
+                  img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1400&auto=format&fit=crop"
+                  label="Esperienze"
+                />
+              </div>
+              <div className="min-w-[66%]">
+                <ServiceTile
+                  img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1400&auto=format&fit=crop"
+                  label="Prodotti tipici"
+                />
+              </div>
+              <div className="min-w-[66%]">
+                <ServiceTile
+                  img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1400&auto=format&fit=crop"
+                  label="Noleggio auto"
+                />
+              </div>
             </div>
           </div>
           <div className="mt-5 hidden md:grid grid-cols-3 gap-6">
-            <div className="h-56"><ServiceTile img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1600&auto=format&fit=crop" label="Esperienze" /></div>
-            <div className="h-56"><ServiceTile img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1600&auto=format&fit=crop" label="Prodotti tipici" /></div>
-            <div className="h-56"><ServiceTile img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1600&auto=format&fit=crop" label="Noleggio auto" /></div>
+            <div className="h-56">
+              <ServiceTile
+                img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1600&auto=format&fit=crop"
+                label="Esperienze"
+              />
+            </div>
+            <div className="h-56">
+              <ServiceTile
+                img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1600&auto=format&fit=crop"
+                label="Prodotti tipici"
+              />
+            </div>
+            <div className="h-56">
+              <ServiceTile
+                img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1600&auto=format&fit=crop"
+                label="Noleggio auto"
+              />
+            </div>
           </div>
         </section>
 
@@ -560,10 +875,15 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Video dei creator</h2>
-            <Link to="/creator" className="text-sm font-semibold underline">Vedi tutti</Link>
+            <Link to="/creator" className="text-sm font-semibold underline">
+              Vedi tutti
+            </Link>
           </div>
           <div className="mt-4 md:hidden">
-            <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4" style={{ WebkitOverflowScrolling: "touch" }}>
+            <div
+              className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
               {listLatestVideos(24).map((v) => {
                 const c = getCreator(v.creatorId);
                 const name = v.creatorName || c?.name || "Creator";
@@ -571,14 +891,26 @@ export default function HomepageMockup() {
                 const idTo = v.creatorId || v.id;
                 const borgo = BORGI_BY_SLUG[v.borgoSlug];
                 return (
-                  <article key={v.id} className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition min-w-[300px] max-w-[300px] flex-shrink-0 snap-start">
-                    <div className="aspect-[16/9] overflow-hidden">
-                      <img src={v.thumbnail || v.cover || FALLBACK_IMG} alt={`Video di ${name}`} className="w-full h-full object-cover" loading="lazy" onError={onImgErr}/>
+                  <article
+                    key={v.id}
+                    className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition min-w-[300px] max-w-[300px] flex-shrink-0 snap-start relative"
+                  >
+                    <div className="aspect-[16/9] overflow-hidden relative">
+                      <img
+                        src={v.thumbnail || v.cover || FALLBACK_IMG}
+                        alt={`Video di ${name}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={onImgErr}
+                      />
+                      <FavoriteButton id={`vid:${v.id}`} className="absolute top-2 right-2" />
                     </div>
                     <div className="p-4">
                       <div className="flex items-center justify-between gap-2">
                         <h3 className="text-base font-extrabold text-[#6B271A] truncate">{name}</h3>
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] shrink-0">{level}</span>
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] shrink-0">
+                          {level}
+                        </span>
                       </div>
                       {borgo && (
                         <div className="mt-1 flex items-center gap-2 text-sm text-gray-700">
@@ -586,7 +918,11 @@ export default function HomepageMockup() {
                         </div>
                       )}
                       <div className="mt-3 flex items-center justify-end">
-                        <Link to={`/chat?to=${encodeURIComponent(idTo)}`} aria-label={`Contatta ${name}`} className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#D54E30] text-white">
+                        <Link
+                          to={`/chat?to=${encodeURIComponent(idTo)}`}
+                          aria-label={`Contatta ${name}`}
+                          className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#D54E30] text-white"
+                        >
                           <User size={18} />
                         </Link>
                       </div>
@@ -597,36 +933,54 @@ export default function HomepageMockup() {
             </div>
           </div>
           <div className="mt-4 hidden md:grid grid-cols-4 gap-5">
-            {listLatestVideos(24).slice(0, 4).map((v) => {
-              const c = getCreator(v.creatorId);
-              const name = v.creatorName || c?.name || "Creator";
-              const level = v.level || c?.level || "—";
-              const idTo = v.creatorId || v.id;
-              const borgo = BORGI_BY_SLUG[v.borgoSlug];
-              return (
-                <article key={v.id} className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition">
-                  <div className="aspect-[16/9] overflow-hidden">
-                    <img src={v.thumbnail || v.cover || FALLBACK_IMG} alt={`Video di ${name}`} className="w-full h-full object-cover" loading="lazy" onError={onImgErr}/>
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-base font-extrabold text-[#6B271A] truncate">{name}</h3>
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] shrink-0">{level}</span>
+            {listLatestVideos(24)
+              .slice(0, 4)
+              .map((v) => {
+                const c = getCreator(v.creatorId);
+                const name = v.creatorName || c?.name || "Creator";
+                const level = v.level || c?.level || "—";
+                const idTo = v.creatorId || v.id;
+                const borgo = BORGI_BY_SLUG[v.borgoSlug];
+                return (
+                  <article
+                    key={v.id}
+                    className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition relative"
+                  >
+                    <div className="aspect-[16/9] overflow-hidden relative">
+                      <img
+                        src={v.thumbnail || v.cover || FALLBACK_IMG}
+                        alt={`Video di ${name}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={onImgErr}
+                      />
+                      <FavoriteButton id={`vid:${v.id}`} className="absolute top-2 right-2" />
                     </div>
-                    {borgo && (
-                      <div className="mt-1 flex items-center gap-2 text-sm text-gray-700">
-                        <MapPin size={16} className="text-[#D54E30]" /> {borgo.name}
+                    <div className="p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-base font-extrabold text-[#6B271A] truncate">{name}</h3>
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] shrink-0">
+                          {level}
+                        </span>
                       </div>
-                    )}
-                    <div className="mt-3 flex items-center justify-end">
-                      <Link to={`/chat?to=${encodeURIComponent(idTo)}`} aria-label={`Contatta ${name}`} className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#D54E30] text-white">
-                        <User size={18} />
-                      </Link>
+                      {borgo && (
+                        <div className="mt-1 flex items-center gap-2 text-sm text-gray-700">
+                          <MapPin size={16} className="text-[#D54E30]" /> {borgo.name}
+                        </div>
+                      )}
+                      <div className="mt-3 flex items-center justify-end">
+                        <Link
+                          to={`/chat?to=${encodeURIComponent(idTo)}`}
+                          aria-label={`Contatta ${name}`}
+                          className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#D54E30] text-white"
+                        >
+                          <User size={18} />
+                        </Link>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              );
-            })}
+                  </article>
+                );
+              })}
           </div>
         </section>
 
@@ -634,9 +988,14 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Borghi da scoprire…</h2>
-            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
+            <a href="#" className="text-sm font-semibold underline">
+              Vedi tutti
+            </a>
           </div>
-          <div className="mt-3 flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
+          <div
+            className="mt-3 flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
             {BORGI_INDEX.map((b) => (
               <BorgoCard key={b.slug} b={b} />
             ))}
@@ -647,9 +1006,14 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Prossimi eventi</h2>
-            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
+            <a href="#" className="text-sm font-semibold underline">
+              Vedi tutti
+            </a>
           </div>
-          <div className="mt-4 md:hidden flex gap-4 overflow-x-auto no-scrollbar pb-4 snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
+          <div
+            className="mt-4 md:hidden flex gap-4 overflow-x-auto no-scrollbar pb-4 snap-x snap-mandatory"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
             {EVENTI_QA.map((e, i) => (
               <EventPosterCard key={i} fixedWidth {...e} />
             ))}
@@ -661,18 +1025,61 @@ export default function HomepageMockup() {
           </div>
         </section>
 
+        {/* ESPERIENZE (RIPRISTINATO) */}
+        <section className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-extrabold text-[#6B271A]">Esperienze</h2>
+            <Link to="/borghi/viggiano/esperienze" className="text-sm font-semibold underline">
+              Vedi tutte
+            </Link>
+          </div>
+          <div
+            className="mt-4 flex gap-5 overflow-x-auto pb-2 no-scrollbar snap-x snap-mandatory"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
+            {ESPERIENZE_QA.map((ex) => (
+              <ExperienceCard key={ex.id} {...ex} />
+            ))}
+          </div>
+        </section>
+
         {/* PRODOTTI TIPICI */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Prodotti tipici</h2>
-            <a href="#" className="text-sm font-semibold underline">Vedi tutti</a>
+            <a href="#" className="text-sm font-semibold underline">
+              Vedi tutti
+            </a>
           </div>
-          <div className="mt-4 flex gap-5 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
+          <div
+            className="mt-4 flex gap-5 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
             {[
-              { img: "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=1200&auto=format&fit=crop", title: "Formaggio di malga", origin: "Asiago (VI) | Veneto", priceFrom: "€7" },
-              { img: "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1200&auto=format&fit=crop", title: "Salumi tipici", origin: "Norcia (PG) | Umbria", priceFrom: "€9" },
-              { img: "https://images.unsplash.com/photo-1514515411904-65fa19574d07?q=80&w=1200&auto=format&fit=crop", title: "Olio EVO del Garda", origin: "Garda (VR) | Veneto", priceFrom: "€6" },
-              { img: "https://images.unsplash.com/photo-1543352634-8730a9c79dc5?q=80&w=1200&auto=format&fit=crop", title: "Vino Montepulciano", origin: "Montepulciano (SI) | Toscana", priceFrom: "€12" },
+              {
+                img: "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=1200&auto=format&fit=crop",
+                title: "Formaggio di malga",
+                origin: "Asiago (VI) | Veneto",
+                priceFrom: "€7",
+              },
+              {
+                img: "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1200&auto=format&fit=crop",
+                title: "Salumi tipici",
+                origin: "Norcia (PG) | Umbria",
+                priceFrom: "€9",
+              },
+              {
+                img: "https://images.unsplash.com/photo-1514515411904-65fa19574d07?q=80&w=1200&auto=format&fit=crop",
+                title: "Olio EVO del Garda",
+                origin: "Garda (VR) | Veneto",
+                priceFrom: "€6",
+              },
+              {
+                img: "https://images.unsplash.com/photo-1543352634-8730a9c79dc5?q=80&w=1200&auto=format&fit=crop",
+                title: "Vino Montepulciano",
+                origin: "Montepulciano (SI) | Toscana",
+                priceFrom: "€12",
+              },
             ].map((p, i) => (
               <ProductCard key={i} {...p} />
             ))}
@@ -690,8 +1097,14 @@ export default function HomepageMockup() {
               </div>
             </div>
             <form className="flex w-full md:w-auto gap-2" onSubmit={(e) => e.preventDefault()}>
-              <input className="flex-1 md:w-80 border rounded-xl px-3 py-2" placeholder="La tua email" aria-label="Email" />
-              <button className="px-4 py-2 rounded-xl bg-[#D54E30] text-white font-semibold">Iscrivimi</button>
+              <input
+                className="flex-1 md:w-80 border rounded-xl px-3 py-2"
+                placeholder="La tua email"
+                aria-label="Email"
+              />
+              <button className="px-4 py-2 rounded-xl bg-[#D54E30] text-white font-semibold">
+                Iscrivimi
+              </button>
             </form>
           </div>
         </section>
@@ -700,60 +1113,19 @@ export default function HomepageMockup() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 text-sm text-gray-600 flex flex-col md:flex-row gap-2 md:items-center md:justify-between">
             <div>© {new Date().getFullYear()} Il Borghista — Tutti i diritti riservati</div>
             <div className="flex gap-4">
-              <a href="#" className="hover:underline">Privacy</a>
-              <a href="#" className="hover:underline">Cookie</a>
-              <Link to="/creator" className="hover:underline">Creator</Link>
+              <a href="#" className="hover:underline">
+                Privacy
+              </a>
+              <a href="#" className="hover:underline">
+                Cookie
+              </a>
+              <Link to="/creator" className="hover:underline">
+                Creator
+              </Link>
             </div>
           </div>
         </footer>
       </main>
-
-      {/* ======= POPUP NOTIFICHE ======= */}
-      {supportsPush && showPushModal && (Notification.permission === "default" || forceModal) && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="Attiva notifiche">
-          <div className="w-full max-w-md rounded-2xl bg-white p-4 sm:p-5 shadow-xl">
-            <div className="flex items-start gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#6B271A]/10">
-                <Bell className="h-5 w-5 text-[#6B271A]" />
-              </span>
-              <div className="flex-1">
-                <h3 className="text-lg font-extrabold text-[#6B271A]">Vuoi ricevere le novità del tuo territorio?</h3>
-                <p className="mt-1 text-sm text-neutral-700">
-                  Ti avviseremo solo per <strong>sagre, eventi e offerte vicino a te</strong>. Zero spam, promesso.
-                </p>
-              </div>
-              <button
-                aria-label="Chiudi"
-                onClick={postponeModal}
-                className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-neutral-100"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:justify-end">
-              <button
-                onClick={onEnablePush}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white hover:opacity-95"
-              >
-                <Bell className="h-4 w-4" /> Attiva notifiche
-              </button>
-              <button
-                onClick={postponeModal}
-                className="inline-flex items-center justify-center rounded-xl border px-4 py-2 font-semibold text-[#6B271A] hover:bg-neutral-50"
-              >
-                Più tardi
-              </button>
-              <button
-                onClick={neverShowModal}
-                className="inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-50"
-              >
-                No, grazie
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

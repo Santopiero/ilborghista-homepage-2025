@@ -1,113 +1,157 @@
 // src/components/ModalInstallApp.jsx
-import { useEffect, useState } from "react";
-
-const DAY = 24 * 60 * 60 * 1000;
-const STEPS_DAYS = [0, 3, 90, 180, 365]; // 6s poi 3g, 3m, 6m, 12m
-const LS_STEP = "ib:a2hs:step";
-const LS_NEXT = "ib:a2hs:nextAt";
-
-const isStandalone = () =>
-  typeof window !== "undefined" &&
-  (window.matchMedia?.("(display-mode: standalone)")?.matches ||
-    window.navigator?.standalone === true);
-
-const isIOS = () =>
-  typeof navigator !== "undefined" &&
-  /iphone|ipad|ipod/i.test(navigator.userAgent || "");
+import { useEffect, useRef, useState } from "react";
+import { X, Smartphone } from "lucide-react";
 
 export default function ModalInstallApp() {
+  const APP_NAME = "Il Borghista";
   const [open, setOpen] = useState(false);
-  const [deferred, setDeferred] = useState(null);
+  const [canInstall, setCanInstall] = useState(false);
+  const bipRef = useRef(null);
+
+  // ---- ambiente
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+  const isStandalone =
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      window.navigator?.standalone === true);
+
+  const isAndroid = /Android/i.test(ua);
+  const isChrome =
+    /Chrome\/\d+/.test(ua) &&
+    !/Edg|OPR|SamsungBrowser|UCBrowser/i.test(ua) &&
+    (navigator.vendor || "").includes("Google");
+
+  // Intent per riaprire la stessa pagina in Chrome (solo Android non-Chrome)
+  const chromeIntent = isAndroid && !isChrome
+    ? `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=${location.protocol.replace(
+        ":",
+        ""
+      )};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(
+        location.href
+      )};end`
+    : null;
 
   useEffect(() => {
-    if (isStandalone()) return;
-
+    if (isStandalone) return;
     const onBIP = (e) => {
+      // intercetta il prompt e lo “deferra”
       e.preventDefault();
-      setDeferred(e);
+      bipRef.current = e;
+      setCanInstall(true);
     };
     window.addEventListener("beforeinstallprompt", onBIP);
 
-    // per il bottone "Scarica app" nel menu
+    // API globale per aprire la modale (es. da menu a panino)
     window.__openInstallModal = () => setOpen(true);
 
-    // auto-apri dopo 6s se è tempo
-    const nextAt = Number(localStorage.getItem(LS_NEXT) || 0);
-    if (Date.now() >= nextAt) {
-      const t = setTimeout(() => setOpen(true), 6000);
-      return () => {
-        clearTimeout(t);
-        window.removeEventListener("beforeinstallprompt", onBIP);
-      };
-    }
-    return () => window.removeEventListener("beforeinstallprompt", onBIP);
-  }, []);
+    const onKey = (ev) => ev.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
 
-  function scheduleNext() {
-    const step = Number(localStorage.getItem(LS_STEP) || 0);
-    const nextStep = Math.min(step + 1, STEPS_DAYS.length - 1);
-    localStorage.setItem(LS_STEP, String(nextStep));
-    const days = STEPS_DAYS[nextStep] ?? 3;
-    localStorage.setItem(LS_NEXT, String(Date.now() + days * DAY));
-  }
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBIP);
+      window.removeEventListener("keydown", onKey);
+      if (window.__openInstallModal) delete window.__openInstallModal;
+    };
+  }, [isStandalone]);
 
-  async function onInstallNow() {
-    // Chrome/Android: prompt nativo
-    if (deferred) {
-      try {
-        deferred.prompt();
-        const choice = await deferred.userChoice;
-        setDeferred(null);
-        if (choice?.outcome === "accepted") {
-          // non riproporre per un anno
-          localStorage.setItem(LS_STEP, String(STEPS_DAYS.length - 1));
-          localStorage.setItem(LS_NEXT, String(Date.now() + 365 * DAY));
-          setOpen(false);
-          return;
-        }
-      } catch {}
-      scheduleNext();
+  const doInstall = async () => {
+    try {
+      const e = bipRef.current;
+      if (!e) {
+        setOpen(false);
+        return;
+      }
+      e.prompt();
+      await e.userChoice; // {outcome:'accepted'|'dismissed'}
+    } finally {
       setOpen(false);
-      return;
     }
+  };
 
-    // iOS / altri browser: non esiste prompt nativo
-    if (isIOS()) {
-      alert('Su iPhone: apri "Condividi" → "Aggiungi a Home".');
-    }
-    scheduleNext();
-    setOpen(false);
-  }
-
-  function onLater() {
-    scheduleNext();
-    setOpen(false);
-  }
-
-  if (!open || isStandalone()) return null;
+  if (isStandalone) return null;
+  if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center bg-black/40 p-3 sm:p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl ring-1 ring-black/10">
-        <div className="p-5 text-center">
-          <div className="text-base font-extrabold text-[#6B271A]">
-            Installa l’app “Il Borghista”
+    <div className="fixed inset-0 z-50">
+      {/* backdrop */}
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+        onClick={() => setOpen(false)}
+      />
+
+      {/* dialog */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="install-title"
+        className="absolute left-1/2 top-1/2 w-[92vw] max-w-sm -translate-x-1/2 -translate-y-1/2
+                   overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/10"
+      >
+        {/* header “hero” minimal */}
+        <div className="relative h-28 bg-gradient-to-r from-[#6B271A] via-[#8a4a3a] to-[#D54E30]">
+          <button
+            aria-label="Chiudi"
+            onClick={() => setOpen(false)}
+            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[#6B271A] shadow"
+          >
+            <X className="h-4 w-4" />
+          </button>
+
+          <div className="absolute left-4 bottom-4 flex items-center gap-3">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-[#6B271A] shadow ring-1 ring-black/10">
+              <Smartphone className="h-6 w-6" />
+            </span>
+            <div className="text-white">
+              <div id="install-title" className="text-lg font-extrabold leading-tight drop-shadow">
+                Installa l’app {APP_NAME}
+              </div>
+              {/* sottotitolo super breve, resta discreto */}
+              <div className="text-xs/5 opacity-90">Tocca e sei pronto.</div>
+            </div>
           </div>
         </div>
-        <div className="p-4 pt-0 flex items-center justify-end gap-2">
+
+        {/* footer azioni */}
+        <div className="flex items-center justify-end gap-2 p-3">
           <button
-            onClick={onLater}
-            className="px-3 py-2 rounded-lg border text-sm font-semibold hover:bg-neutral-50"
+            onClick={() => setOpen(false)}
+            className="rounded-xl border px-3 py-2 text-sm font-medium text-[#6B271A] hover:bg-neutral-50"
           >
             Più tardi
           </button>
-          <button
-            onClick={onInstallNow}
-            className="px-3 py-2 rounded-lg bg-[#D54E30] text-white text-sm font-semibold hover:opacity-95"
-          >
-            Installa ora
-          </button>
+
+          {isAndroid && !isChrome ? (
+            <a
+              href={chromeIntent}
+              rel="noopener"
+              className="rounded-xl bg-[#D54E30] px-3 py-2 text-sm font-semibold text-white hover:opacity-95"
+            >
+              Apri in Chrome
+            </a>
+          ) : canInstall ? (
+            <button
+              onClick={doInstall}
+              className="rounded-xl bg-[#D54E30] px-3 py-2 text-sm font-semibold text-white hover:opacity-95"
+            >
+              Installa ora
+            </button>
+          ) : (
+            // Fallback ultra-minimal quando il BIP non è ancora disponibile
+            <button
+              onClick={() => setOpen(false)}
+              className="rounded-xl bg-[#D54E30] px-3 py-2 text-sm font-semibold text-white hover:opacity-95"
+            >
+              OK
+            </button>
+          )}
         </div>
+
+        {/* hint piccolo e non invadente */}
+        {!canInstall && isAndroid && isChrome ? (
+          <div className="px-4 pb-4 text-center text-[11px] text-neutral-500">
+            Se non vedi il bottone, menu ⋮ → <b>Installa app</b>.
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -75,7 +75,11 @@ export default function App() {
           <Route path="/" element={<RouteErrorBoundary><HomepageMockup /></RouteErrorBoundary>} />
 
           {/* Registrazioni principali */}
+          {/* NEW: alias che aprono SEMPRE la scelta profilo (4 modalità) */}
+          <Route path="/registrazione" element={<RouteErrorBoundary><Registrazione /></RouteErrorBoundary>} />
+          <Route path="/registrati" element={<RouteErrorBoundary><Registrazione /></RouteErrorBoundary>} />
           <Route path="/registrazione-comune" element={<RouteErrorBoundary><Registrazione /></RouteErrorBoundary>} />
+
           <Route path="/registrazione-borgo" element={<RouteErrorBoundary><RegistrazioneBorgo /></RouteErrorBoundary>} />
           <Route path="/registrazione-utente" element={<RouteErrorBoundary><RegistrazioneUtente /></RouteErrorBoundary>} />
           <Route path="/registrazione-attivita" element={<RouteErrorBoundary><RegistrazioneAttivita /></RouteErrorBoundary>} />

@@ -2,31 +2,28 @@
 import { useEffect, useRef, useState } from "react";
 import { X, Smartphone } from "lucide-react";
 
-/* ==== cadenza (come prima) =================================== */
+/* === Cadenza identica a prima ===================================== */
 const DAY = 24 * 60 * 60 * 1000;
 const STEPS = [0, 3 * DAY, 90 * DAY, 180 * DAY, 365 * DAY];
 const KEY_STEP = "a2hs:step";
 const KEY_LAST = "a2hs:last";
 const KEY_INSTALLED = "a2hs:installed";
-const KEY_PENDING = "a2hs:pending"; // per auto-prompt dopo il chooser
+const KEY_PENDING = "a2hs:pending"; // avvia auto-prompt al rientro
 
-function getStep() {
+const getStep = () => {
   const n = parseInt(localStorage.getItem(KEY_STEP) || "0", 10);
   return Number.isFinite(n) ? Math.min(n, STEPS.length - 1) : 0;
-}
-function setStep(n) {
+};
+const setStep = (n) =>
   localStorage.setItem(KEY_STEP, String(Math.min(n, STEPS.length - 1)));
-}
-function setLastNow() {
-  localStorage.setItem(KEY_LAST, String(Date.now()));
-}
-function dueNow() {
+const setLastNow = () => localStorage.setItem(KEY_LAST, String(Date.now()));
+const dueNow = () => {
   const step = getStep();
   const last = parseInt(localStorage.getItem(KEY_LAST) || "0", 10);
   const wait = STEPS[step];
   return last === 0 ? true : Date.now() - last >= wait;
-}
-/* ============================================================= */
+};
+/* ================================================================== */
 
 export default function ModalInstallApp() {
   const APP_NAME = "Il Borghista";
@@ -42,25 +39,8 @@ export default function ModalInstallApp() {
       window.navigator?.standalone === true);
 
   const isAndroid = /Android/i.test(ua);
-  const isChrome =
-    /Chrome\/\d+/.test(ua) &&
-    !/Edg|OPR|SamsungBrowser|UCBrowser/i.test(ua) &&
-    (navigator.vendor || "").includes("Google");
 
-  // chooser: intent GENERICO (nessun package) → l’utente sceglie il browser
-  function openChooser() {
-    if (!isAndroid) return false;
-    try {
-      sessionStorage.setItem(KEY_PENDING, "1");
-    } catch {}
-    const scheme = location.protocol.replace(":", "");
-    const intent =
-      `intent://${location.host}${location.pathname}${location.search}${location.hash}` +
-      `#Intent;scheme=${scheme};action=android.intent.action.VIEW;end`;
-    location.href = intent;
-    return true;
-  }
-
+  // 1) intercetta il BIP, lo deferra e abilita l’auto-prompt se rientri dal chooser
   useEffect(() => {
     if (isStandalone) return;
 
@@ -69,31 +49,32 @@ export default function ModalInstallApp() {
       bipRef.current = e;
       setCanInstall(true);
 
-      // rientro dal chooser: auto-prompt
+      // se arrivo qui dopo aver aperto il chooser → autoprompt immediato
       const pending = sessionStorage.getItem(KEY_PENDING) === "1";
       if (pending) {
-        try { sessionStorage.removeItem(KEY_PENDING); } catch {}
-        setOpen(true);
-        // piccolo delay per sicurezza
-        setTimeout(() => doInstall(), 50);
+        try {
+          sessionStorage.removeItem(KEY_PENDING);
+        } catch {}
+        // mostro subito il prompt (senza secondo tap)
+        setTimeout(() => doInstall(), 30);
       }
     };
 
     window.addEventListener("beforeinstallprompt", onBIP);
 
-    // mostra popup secondo cadenza (prima volta dopo ~6s)
+    // cadenza: prima volta 6s, poi 3g/3m/6m/12m
     if (dueNow()) {
       setTimeout(() => setOpen(true), 6000);
     }
 
-    // API globale per aprire la modale (menu a panino)
+    // API globale (menu a panino)
     window.__openInstallModal = () => setOpen(true);
 
-    // chiusura via ESC
+    // chiudi con ESC
     const onKey = (ev) => ev.key === "Escape" && onLater();
     window.addEventListener("keydown", onKey);
 
-    // app installata
+    // installazione completata
     window.addEventListener("appinstalled", () => {
       localStorage.setItem(KEY_INSTALLED, "1");
       setOpen(false);
@@ -106,19 +87,36 @@ export default function ModalInstallApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStandalone]);
 
+  // 2) forza SEMPRE il selettore di browser (chooser) su Android
+  function openChooserAlways() {
+    if (!isAndroid) return false;
+    try {
+      sessionStorage.setItem(KEY_PENDING, "1");
+    } catch {}
+    // intent GENERICO senza package + chooser_title
+    // → Android mostra il selettore anche se esiste un browser predefinito (quando possibile)
+    const scheme = location.protocol.replace(":", "");
+    const intent =
+      `intent://${location.host}${location.pathname}${location.search}${location.hash}` +
+      `#Intent;scheme=${scheme};action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;` +
+      `chooser_title=Seleziona%20browser;end`;
+    location.href = intent;
+    return true;
+  }
+
+  // 3) mostra il prompt (se già disponibile)
   async function doInstall() {
     const e = bipRef.current;
     if (!e) {
-      // niente prompt disponibile: su Android provo il chooser, altrimenti chiudo
-      if (isAndroid) {
-        openChooser();
-      }
+      // se ancora non ho il prompt, apro il chooser e attendo il rientro
+      openChooserAlways();
       return;
     }
     try {
       e.prompt();
-      const choice = await e.userChoice;
-      if (choice?.outcome !== "accepted") {
+      const res = await e.userChoice;
+      if (res?.outcome !== "accepted") {
+        // rimandato: programma il prossimo giro
         const step = getStep();
         setStep(step + 1);
         setLastNow();
@@ -147,12 +145,9 @@ export default function ModalInstallApp() {
   return (
     <div className="fixed inset-0 z-50">
       {/* backdrop */}
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
-        onClick={onLater}
-      />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onLater} />
 
-      {/* dialog */}
+      {/* dialog – GRAFICA INVARIATA */}
       <div
         role="dialog"
         aria-modal="true"
@@ -160,7 +155,6 @@ export default function ModalInstallApp() {
         className="absolute left-1/2 top-1/2 w-[92vw] max-w-sm -translate-x-1/2 -translate-y-1/2
                    overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/10"
       >
-        {/* header gradient – grafica invariata */}
         <div className="relative h-28 bg-gradient-to-r from-[#6B271A] via-[#8a4a3a] to-[#D54E30]">
           <button
             aria-label="Chiudi"
@@ -183,7 +177,7 @@ export default function ModalInstallApp() {
           </div>
         </div>
 
-        {/* footer azioni – grafica invariata */}
+        {/* footer azioni – GRAFICA INVARIATA */}
         <div className="flex items-center justify-end gap-2 p-3">
           <button
             onClick={onLater}
@@ -192,19 +186,19 @@ export default function ModalInstallApp() {
             Più tardi
           </button>
 
-          {/* SEMPRE “Installa ora”: se ho il prompt lo mostro, altrimenti apro il chooser */}
+          {/* Sempre “Installa ora”: se ho già il prompt lo mostro, altrimenti apro SEMPRE il chooser */}
           <button
-            onClick={() => (canInstall ? doInstall() : (isAndroid ? openChooser() : onLater()))}
+            onClick={() => (canInstall ? doInstall() : openChooserAlways())}
             className="rounded-xl bg-[#D54E30] px-3 py-2 text-sm font-semibold text-white hover:opacity-95"
           >
             Installa ora
           </button>
         </div>
 
-        {/* hint opzionale quando non ho ancora il prompt in Chrome */}
-        {!canInstall && isAndroid && isChrome ? (
+        {/* suggerimento piccolo quando il BIP non è ancora arrivato */}
+        {!canInstall && isAndroid ? (
           <div className="px-4 pb-4 text-center text-[11px] text-neutral-500">
-            Se non vedi il bottone di installazione, apri il menu ⋮ e scegli <b>Installa app</b>.
+            Scegli un browser dall’elenco. Al rientro l’installazione partirà automaticamente.
           </div>
         ) : null}
       </div>

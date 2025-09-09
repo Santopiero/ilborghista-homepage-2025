@@ -1,5 +1,5 @@
 // src/HomepageMockup.jsx
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MapPin,
   Clock,
@@ -25,9 +25,9 @@ import {
 import { BORGI_INDEX, BORGI_BY_SLUG } from "./data/borghi";
 import { enableNotifications } from "./lib/pushClient";
 
-/* =====================================================================================
+/* =============================================================================
    UTILS
-===================================================================================== */
+============================================================================= */
 const FALLBACK_IMG =
   "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1600&auto=format&fit=crop";
 
@@ -41,9 +41,18 @@ const formatIt = (n, d = 1) =>
     ? n.toLocaleString("it-IT", { minimumFractionDigits: d, maximumFractionDigits: d })
     : n;
 
-/* =====================================================================================
+function useBodyLock(locked) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    if (locked) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    return () => (document.body.style.overflow = prev || "");
+  }, [locked]);
+}
+
+/* =============================================================================
    FAVORITES (LocalStorage)
-===================================================================================== */
+============================================================================= */
 const FAV_KEY = "ilborghista:favorites:v1";
 function getFavSet() {
   try {
@@ -59,7 +68,6 @@ function saveFavSet(set) {
     localStorage.setItem(FAV_KEY, JSON.stringify(Array.from(set)));
   } catch {}
 }
-
 function useFavorites() {
   const [favSet, setFavSet] = useState(() => getFavSet());
   useEffect(() => saveFavSet(favSet), [favSet]);
@@ -74,7 +82,6 @@ function useFavorites() {
 
   return { has, toggle };
 }
-
 function FavoriteButton({ id, className = "" }) {
   const { has, toggle } = useFavorites();
   const active = has(id);
@@ -95,9 +102,9 @@ function FavoriteButton({ id, className = "" }) {
   );
 }
 
-/* =====================================================================================
-   NOTIFICATIONS (badge + panel + Test notifica)
-===================================================================================== */
+/* =============================================================================
+   NOTIFICHE (badge + pannello con Test)
+============================================================================= */
 const NOTIF_KEY = "ilborghista:notifs:v1";
 const loadNotifs = () => {
   try {
@@ -117,8 +124,9 @@ const saveNotifs = (list) => {
 function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const [list, setList] = useState(() => loadNotifs());
+  useBodyLock(open);
 
-  // Expose helper for console tests
+  // helper globale per test da console
   useEffect(() => {
     window.__ilb_addNotif = (title = "Nuova notifica", body = "Prova") => {
       const n = { id: Date.now(), title, body, ts: new Date().toISOString() };
@@ -159,7 +167,6 @@ function NotificationsBell() {
       }
     } catch {}
   }
-
   function onTestNotif() {
     const n = {
       id: Date.now(),
@@ -192,8 +199,8 @@ function NotificationsBell() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
           <div className="absolute right-4 top-4 w-[92vw] max-w-md rounded-2xl bg-white shadow-xl ring-1 ring-black/10 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b">
               <div className="font-extrabold text-[#6B271A]">Le tue notifiche</div>
@@ -259,9 +266,9 @@ function NotificationsBell() {
   );
 }
 
-/* =====================================================================================
+/* =============================================================================
    PRIMITIVES
-===================================================================================== */
+============================================================================= */
 function Carousel({ images = [], heightClass = "h-40", rounded = "rounded-2xl" }) {
   const [idx, setIdx] = useState(0);
   const startX = useRef(0);
@@ -334,18 +341,27 @@ const ServiceTile = ({ img, label, href = "#" }) => (
   </Link>
 );
 
-/* =====================================================================================
+/* =============================================================================
    PAGE
-===================================================================================== */
+============================================================================= */
 export default function HomepageMockup() {
   const navigate = useNavigate();
 
-  /* ---------- State ---------- */
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
 
-  /* ---------- Effects ---------- */
+  // lock scroll quando il drawer è aperto
+  useBodyLock(menuOpen);
+
+  // supporto push
+  const supportsPush =
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window;
+
+  // handle query param "grazie"
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
@@ -357,20 +373,11 @@ export default function HomepageMockup() {
     } catch {}
   }, []);
 
-  useEffect(() => {
-    document.body.style.overflow = menuOpen ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [menuOpen]);
-
-  /* ---------- Handlers ---------- */
   function handleSearch(e) {
     e?.preventDefault?.();
     const target = searchNavigateTarget(query);
     if (target.type === "borgo") navigate(`/borghi/${target.slug}`);
-    else if (target.type === "poi")
-      navigate(`/borghi/${target.slug}/poi/${target.poiId}`);
+    else if (target.type === "poi") navigate(`/borghi/${target.slug}/poi/${target.poiId}`);
     else navigate(`/cerca?q=${encodeURIComponent(query)}`);
   }
 
@@ -380,7 +387,7 @@ export default function HomepageMockup() {
     navigate(`/chat/${thread.id}`);
   }
 
-  /* ---------- Mock data ---------- */
+  /* ---- dati mock ---- */
   const HERO_IMAGE_URL =
     "https://media.istockphoto.com/id/176523127/it/foto/bellissima-citt%C3%A0-in-toscana-pitigliano-provincia-di-grosseto.jpg?s=2048x2048&w=is&k=20&c=Xn6bDbmcSuIol1Lqn59AyOEuSUrTYqzMcoF5KUSnQxI=";
 
@@ -476,7 +483,7 @@ export default function HomepageMockup() {
     },
   ];
 
-  /* ---------- Subcomponents needing local mocks ---------- */
+  /* ---- sottocomponenti ---- */
   const BorgoCard = ({ b }) => {
     const extra = BORGI_EXTRA[b.slug] || {};
     const name = extra.borgoName || b.name;
@@ -577,19 +584,10 @@ export default function HomepageMockup() {
     );
   };
 
-  const ExperienceCard = ({
-    id,
-    images,
-    title,
-    location,
-    region,
-    meta,
-    priceFrom,
-    fixedWidth = true,
-  }) => (
+  const ExperienceCard = ({ id, images, title, location, region, meta, priceFrom, fixedWidth }) => (
     <article
       className={`overflow-hidden shadow-xl rounded-2xl hover:shadow-2xl transition bg-white ${
-        fixedWidth ? "min-w-[300px] max-w-[300px]" : "w-full"
+        fixedWidth !== false ? "min-w-[300px] max-w-[300px]" : "w-full"
       } relative`}
     >
       <div className="relative">
@@ -616,7 +614,7 @@ export default function HomepageMockup() {
     </article>
   );
 
-  /* ---------- Hero ---------- */
+  /* ---- HERO ---- */
   const HeroHeader = () => (
     <section className="relative">
       <img
@@ -634,13 +632,9 @@ export default function HomepageMockup() {
           Eventi, esperienze e borghi in tutta Italia. Cerca e parti.
         </p>
 
-        {/* Barra di ricerca */}
+        {/* barra di ricerca */}
         <div className="mt-6 bg-white/95 backdrop-blur rounded-2xl p-3 md:p-4 inline-block w-full md:w-auto shadow-lg text-left">
-          <form
-            className="flex flex-col gap-3 md:flex-row md:items-center"
-            onSubmit={handleSearch}
-            aria-label="Ricerca"
-          >
+          <form className="flex flex-col gap-3 md:flex-row md:items-center" onSubmit={handleSearch}>
             <label
               className="flex items-center gap-2 border rounded-xl px-3 py-3 w-full md:w-96 bg-white"
               htmlFor="query"
@@ -665,35 +659,30 @@ export default function HomepageMockup() {
             <button
               className="px-3 py-1.5 rounded-full bg-[#D54E30] text-white text-sm font-semibold whitespace-nowrap"
               onClick={() => setQuery("weekend")}
-              aria-label="Filtra per questo weekend"
             >
               Questo weekend
             </button>
             <button
               className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap"
               onClick={() => setQuery("vicino a me")}
-              aria-label="Filtra per vicino a me"
             >
               Vicino a me
             </button>
             <button
               className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap"
               onClick={() => setQuery("bambini")}
-              aria-label="Filtra per con bambini"
             >
               Con bambini
             </button>
             <button
               className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap"
               onClick={() => setQuery("food and wine")}
-              aria-label="Filtra per Food & Wine"
             >
               Food & Wine
             </button>
             <button
               className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap"
               onClick={() => setQuery("outdoor")}
-              aria-label="Filtra per Outdoor"
             >
               Outdoor
             </button>
@@ -716,7 +705,7 @@ export default function HomepageMockup() {
     </section>
   );
 
-  /* ---------- RENDER ---------- */
+  /* ============================= RENDER =================================== */
   return (
     <>
       <style>{`
@@ -726,7 +715,7 @@ export default function HomepageMockup() {
 
       <main className="space-y-12">
         {/* HEADER */}
-        <header className="bg-white/90 backdrop-blur border-b sticky top-0 z-40">
+        <header className="bg-white/90 backdrop-blur border-b sticky top-0 z-[50]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <Link to="/" className="text-xl font-extrabold text-[#6B271A]">
               Il Borghista
@@ -743,38 +732,40 @@ export default function HomepageMockup() {
               </button>
             </div>
           </div>
+        </header>
 
-          {/* Drawer menu */}
-          {menuOpen && (
-            <div className="fixed inset-0 z-50">
-              <div className="absolute inset-0 bg-black/30" onClick={() => setMenuOpen(false)} />
-              <nav
-                className="absolute right-0 top-0 h-full w-80 max-w-[85%] bg-white shadow-xl flex flex-col"
-                aria-label="Menu principale"
-              >
-                <div className="flex items-center justify-between border-b p-4">
-                  <span className="text-base font-bold text-[#6B271A]">Menu</span>
-                  <button
-                    aria-label="Chiudi menu"
-                    onClick={() => setMenuOpen(false)}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
+        {/* Drawer menu — montato FUORI dal <header> per evitare clipping */}
+        {menuOpen && (
+          <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Menu">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
+            <aside
+              className="absolute right-0 top-0 h-full w-[min(85vw,22rem)] bg-white shadow-2xl ring-1 ring-black/10
+                         flex flex-col"
+            >
+              <div className="flex items-center justify-between border-b p-4">
+                <span className="text-base font-bold text-[#6B271A]">Menu</span>
+                <button
+                  aria-label="Chiudi menu"
+                  onClick={() => setMenuOpen(false)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
 
-                <div className="flex-1 overflow-auto">
-                  <ul className="p-2">
-                    <li>
-                      <Link
-                        to="/registrazione-utente"
-                        className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        <User className="h-4 w-4" /> Accedi / Registrati
-                      </Link>
-                    </li>
+              <nav className="flex-1 overflow-y-auto">
+                <ul className="py-2">
+                  <li>
+                    <Link
+                      to="/registrazione-utente"
+                      className="flex items-center gap-2 rounded-lg px-4 py-3 hover:bg-neutral-50"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <User className="h-4 w-4" /> Accedi / Registrati
+                    </Link>
+                  </li>
 
+                  {supportsPush && (
                     <li>
                       <button
                         onClick={async () => {
@@ -790,61 +781,61 @@ export default function HomepageMockup() {
                             setMenuOpen(false);
                           }
                         }}
-                        className="w-full flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50 text-left"
+                        className="w-full text-left flex items-center gap-2 rounded-lg px-4 py-3 hover:bg-neutral-50"
                       >
                         <Bell className="h-4 w-4" /> Attiva notifiche
                       </button>
                     </li>
+                  )}
 
-                    <li>
-                      <Link
-                        to="/creator"
-                        className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        <Star className="h-4 w-4" /> Creators
-                      </Link>
-                    </li>
+                  <li>
+                    <Link
+                      to="/creator"
+                      className="flex items-center gap-2 rounded-lg px-4 py-3 hover:bg-neutral-50"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <Star className="h-4 w-4" /> Creators
+                    </Link>
+                  </li>
 
-                    <li>
-                      <Link
-                        to="/contatti"
-                        className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        <MessageCircle className="h-4 w-4" /> Contattaci
-                      </Link>
-                    </li>
+                  <li>
+                    <Link
+                      to="/contatti"
+                      className="flex items-center gap-2 rounded-lg px-4 py-3 hover:bg-neutral-50"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <MessageCircle className="h-4 w-4" /> Contattaci
+                    </Link>
+                  </li>
 
-                    <li className="sm:hidden">
-                      <button
-                        onClick={() => {
-                          setMenuOpen(false);
-                          window.__openInstallModal?.();
-                        }}
-                        className="w-full flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50 text-left"
-                      >
-                        <Smartphone className="h-4 w-4" /> Installa app
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="border-t p-3">
-                  <Link
-                    to="/registrazione-creator"
-                    className="flex items-center justify-center rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Diventa creator
-                  </Link>
-                </div>
+                  <li className="sm:hidden">
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        window.__openInstallModal?.();
+                      }}
+                      className="w-full text-left flex items-center gap-2 rounded-lg px-4 py-3 hover:bg-neutral-50"
+                    >
+                      <Smartphone className="h-4 w-4" /> Installa app
+                    </button>
+                  </li>
+                </ul>
               </nav>
-            </div>
-          )}
-        </header>
 
-        {/* Post-signup toast */}
+              <div className="border-t p-3 mt-auto">
+                <Link
+                  to="/registrazione-creator"
+                  className="flex items-center justify-center rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Diventa creator
+                </Link>
+              </div>
+            </aside>
+          </div>
+        )}
+
+        {/* POST-SIGNUP TOAST */}
         {signupSuccess && (
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="rounded-xl bg-green-50 border border-green-200 text-green-800 px-4 py-3 text-sm">
@@ -1170,11 +1161,7 @@ export default function HomepageMockup() {
               </div>
             </div>
             <form className="flex w-full md:w-auto gap-2" onSubmit={(e) => e.preventDefault()}>
-              <input
-                className="flex-1 md:w-80 border rounded-xl px-3 py-2"
-                placeholder="La tua email"
-                aria-label="Email"
-              />
+              <input className="flex-1 md:w-80 border rounded-xl px-3 py-2" placeholder="La tua email" />
               <button className="px-4 py-2 rounded-xl bg-[#D54E30] text-white font-semibold">
                 Iscrivimi
               </button>

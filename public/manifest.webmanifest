@@ -1,14 +1,14 @@
 {
   "name": "Il Borghista",
-  "short_name": "Il Borghista",
+  "short_name": "Borghista",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#6B271A",
   "icons": [
-    { "src": "/icons/maskable-192.png",  "sizes": "192x192",  "type": "image/png", "purpose": "maskable any" },
-    { "src": "/icons/maskable-512.png",  "sizes": "512x512",  "type": "image/png", "purpose": "maskable any" },
-    { "src": "/icons/maskable-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "maskable any" },
+    { "src": "/icons/maskable-192.png",  "sizes": "192x192",  "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/maskable-512.png",  "sizes": "512x512",  "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/maskable-1024.png", "sizes": "1024x1024","type": "image/png", "purpose": "any maskable" },
 
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }

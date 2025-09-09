@@ -382,7 +382,7 @@ export default function HomepageMockup() {
 
   /* ---------- Mock data ---------- */
   const HERO_IMAGE_URL =
-    "https://images.unsplash.com/photo-1520974735194-6c1f1c1d0b35?q=80&w=1600&auto=format&fit=crop";
+    "https://media.istockphoto.com/id/176523127/it/foto/bellissima-citt%C3%A0-in-toscana-pitigliano-provincia-di-grosseto.jpg?s=2048x2048&w=is&k=20&c=Xn6bDbmcSuIol1Lqn59AyOEuSUrTYqzMcoF5KUSnQxI=";
 
   const BORGI_EXTRA = {
     viggiano: {

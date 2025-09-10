@@ -52,12 +52,12 @@ export default function Registrazione() {
       {/* Intro (frase ridotta, termini in bold) */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-4">
         <p className="text-gray-700 text-sm md:text-base">
-          Scegli il profilo con cui vuoi registrarti su{" "}
-          <span className="font-semibold text-[#6B271A]">Il Borghista</span>: promuovi il tuo{" "}
-          <span className="font-semibold">borgo</span>, fai crescere la tua{" "}
-          <span className="font-semibold">attività</span>, pubblica come{" "}
+          {" "}
+          <span className="font-semibold text-[#6B271A]"></span>Promuovi il tuo{" "}
+          <span className="font-semibold">Borgo</span>, fai crescere la tua{" "}
+          <span className="font-semibold">Attività</span>, pubblica come{" "}
           <span className="font-semibold">Creator</span> o esplora da{" "}
-          <span className="font-semibold">utente</span> salvando esperienze, eventi e feedback.
+          <span className="font-semibold">Borghista</span>.
         </p>
       </section>
 
@@ -78,19 +78,21 @@ export default function Registrazione() {
                 data-card
                 className="min-w-[260px] sm:min-w-[320px] md:min-w-[360px] max-w-[90%] md:max-w-[360px] snap-start rounded-3xl overflow-hidden shadow-xl bg-white ring-1 ring-[#E1B671]/60 cursor-pointer hover:shadow-2xl transition-shadow"
               >
-                <div className="w-full overflow-hidden h-40 sm:h-48 md:h-56">
+                <div className="relative w-full overflow-hidden h-40 sm:h-48 md:h-56">
                   <img
                     src="https://media.istockphoto.com/id/1454275264/it/foto/arcidosso.jpg?s=2048x2048&w=is&k=20&c=b9Px_El6XNdGbNSgZ4VT36yYiQzHQrvIdTCvjb8Ptsk="
                     alt="Borgo italiano"
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <div className="flex items-center gap-2 text-white font-extrabold text-2xl">
+                      <Building2 size={40} />
+                      <span>BORGO</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="p-4 sm:p-5 md:p-6">
-                  <div className="flex items-center justify-center gap-2 text-[#6B271A] font-extrabold text-base sm:text-lg">
-                    <Building2 size={20} />
-                    <span>BORGO</span>
-                  </div>
                   <p className="mt-2 text-gray-700 text-sm sm:text-base text-center">
                     Dai visibilità al tuo comune con un portale turistico dedicato e completo.
                   </p>
@@ -108,19 +110,21 @@ export default function Registrazione() {
                 data-card
                 className="min-w-[260px] sm:min-w-[320px] md:min-w-[360px] max-w-[90%] md:max-w-[360px] snap-start rounded-3xl overflow-hidden shadow-xl bg-white ring-1 ring-[#E1B671]/60 cursor-pointer hover:shadow-2xl transition-shadow"
               >
-                <div className="w-full overflow-hidden h-40 sm:h-48 md:h-56">
+                <div className="relative w-full overflow-hidden h-40 sm:h-48 md:h-56">
                   <img
                     src="https://images.unsplash.com/photo-1534650075489-3baecec1e8b1?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
                     alt="Attività locale"
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <div className="flex items-center gap-2 text-white font-extrabold text-2xl">
+                      <Store size={40} />
+                      <span>ATTIVITÀ</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="p-4 sm:p-5 md:p-6">
-                  <div className="flex items-center justify-center gap-2 text-[#6B271A] font-extrabold text-base sm:text-lg">
-                    <Store size={20} />
-                    <span>ATTIVITÀ</span>
-                  </div>
                   <p className="mt-2 text-gray-700 text-sm sm:text-base text-center">
                     Promuovi la tua attività locale e raggiungi nuovi clienti nel tuo borgo.
                   </p>
@@ -138,19 +142,21 @@ export default function Registrazione() {
                 data-card
                 className="min-w-[260px] sm:min-w-[320px] md:min-w-[360px] max-w-[90%] md:max-w-[360px] snap-start rounded-3xl overflow-hidden shadow-xl bg-white ring-1 ring-[#E1B671]/60 cursor-pointer hover:shadow-2xl transition-shadow"
               >
-                <div className="w-full overflow-hidden h-40 sm:h-48 md:h-56">
+                <div className="relative w-full overflow-hidden h-40 sm:h-48 md:h-56">
                   <img
                     src="https://images.unsplash.com/photo-1673767296863-c00f139e4be8?q=80&w=1171&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
                     alt="Creator che realizza un video"
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <div className="flex items-center gap-2 text-white font-extrabold text-2xl">
+                      <Video size={40} />
+                      <span>CREATOR</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="p-4 sm:p-5 md:p-6">
-                  <div className="flex items-center justify-center gap-2 text-[#6B271A] font-extrabold text-base sm:text-lg">
-                    <Video size={20} />
-                    <span>CREATOR</span>
-                  </div>
                   <p className="mt-2 text-gray-700 text-sm sm:text-base text-center">
                     Pubblica video e contenuti dei borghi, guadagna visibilità e punti sulla piattaforma.
                   </p>
@@ -168,19 +174,21 @@ export default function Registrazione() {
                 data-card
                 className="min-w-[260px] sm:min-w-[320px] md:min-w-[360px] max-w-[90%] md:max-w-[360px] snap-start rounded-3xl overflow-hidden shadow-xl bg-white ring-1 ring-[#E1B671]/60 cursor-pointer hover:shadow-2xl transition-shadow"
               >
-                <div className="w-full overflow-hidden h-40 sm:h-48 md:h-56">
+                <div className="relative w-full overflow-hidden h-40 sm:h-48 md:h-56">
                   <img
                     src="https://media.istockphoto.com/id/1346146237/it/foto/ragazza-adolescente-madre-e-nonna-stanno-visitando-la-bellissima-citt%C3%A0-di-valldemossa-maiorca.jpg?s=2048x2048&w=is&k=20&c=ZJLmMy8do469viYOxDPxLMWvC-zK813omrP4juZ1u48="
                     alt="Coppia che pianifica un viaggio"
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <div className="flex items-center gap-2 text-white font-extrabold text-2xl">
+                      <Users size={40} />
+                      <span>BORGHISTA</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="p-4 sm:p-5 md:p-6">
-                  <div className="flex items-center justify-center gap-2 text-[#6B271A] font-extrabold text-base sm:text-lg">
-                    <Users size={20} />
-                    <span>UTENTE</span>
-                  </div>
                   <p className="mt-2 text-gray-700 text-sm sm:text-base text-center">
                     Scopri borghi, eventi ed esperienze uniche. Organizza il tuo viaggio perfetto.
                   </p>

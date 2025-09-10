@@ -1,5 +1,5 @@
 // src/HomepageMockup.jsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapPin,
   Clock,
@@ -12,6 +12,7 @@ import {
   Heart,
   Smartphone,
   MessageCircle,
+  Crosshair,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -103,7 +104,7 @@ function FavoriteButton({ id, className = "" }) {
 }
 
 /* =============================================================================
-   NOTIFICHE (badge + pannello con Test)
+   NOTIFICHE (badge + pannello)
 ============================================================================= */
 const NOTIF_KEY = "ilborghista:notifs:v1";
 const loadNotifs = () => {
@@ -126,7 +127,6 @@ function NotificationsBell() {
   const [list, setList] = useState(() => loadNotifs());
   useBodyLock(open);
 
-  // helper globale per test da console
   useEffect(() => {
     window.__ilb_addNotif = (title = "Nuova notifica", body = "Prova") => {
       const n = { id: Date.now(), title, body, ts: new Date().toISOString() };
@@ -342,54 +342,184 @@ const ServiceTile = ({ img, label, href = "#" }) => (
 );
 
 /* =============================================================================
+   CONSTANTS (Regioni)
+============================================================================= */
+const REGIONS = [
+  { slug: "abruzzo", label: "Abruzzo" },
+  { slug: "basilicata", label: "Basilicata" },
+  { slug: "calabria", label: "Calabria" },
+  { slug: "campania", label: "Campania" },
+  { slug: "emilia-romagna", label: "Emilia-Romagna" },
+  { slug: "friuli-venezia-giulia", label: "Friuli-Venezia Giulia" },
+  { slug: "lazio", label: "Lazio" },
+  { slug: "liguria", label: "Liguria" },
+  { slug: "lombardia", label: "Lombardia" },
+  { slug: "marche", label: "Marche" },
+  { slug: "molise", label: "Molise" },
+  { slug: "piemonte", label: "Piemonte" },
+  { slug: "puglia", label: "Puglia" },
+  { slug: "sardegna", label: "Sardegna" },
+  { slug: "sicilia", label: "Sicilia" },
+  { slug: "toscana", label: "Toscana" },
+  { slug: "trentino-alto-adige", label: "Trentino-Alto Adige" },
+  { slug: "umbria", label: "Umbria" },
+  { slug: "valle-d-aosta", label: "Valle d’Aosta" },
+  { slug: "veneto", label: "Veneto" },
+];
+
+/* =============================================================================
    PAGE
 ============================================================================= */
 export default function HomepageMockup() {
   const navigate = useNavigate();
 
+  // ---------------- Topbar Search Overlay ----------------
+  const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const debounceTimer = useRef(null);
+
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => setDebounced(query.trim()), 300);
+    return () => debounceTimer.current && clearTimeout(debounceTimer.current);
+  }, [query]);
+
+  const suggestions = useMemo(() => {
+    if (!debounced) return [];
+    const q = debounced.toLowerCase();
+    // Semplici suggerimenti: borghi che matchano
+    return BORGI_INDEX.filter(
+      (b) => b.name?.toLowerCase().includes(q) || b.slug?.toLowerCase().includes(q)
+    ).slice(0, 8);
+  }, [debounced]);
+
+  function handleSearchSubmit(e) {
+    e?.preventDefault?.();
+    if (!query.trim()) return;
+    const target = searchNavigateTarget(query);
+    if (target.type === "borgo") navigate(`/borghi/${target.slug}`);
+    else if (target.type === "poi") navigate(`/borghi/${target.slug}/poi/${target.poiId}`);
+    else navigate(`/cerca?q=${encodeURIComponent(query)}`);
+    setSearchOpen(false);
+  }
+
+  // ---------------- Menu ----------------
   const [menuOpen, setMenuOpen] = useState(false);
+  useBodyLock(menuOpen || searchOpen);
+
+  // ---------------- Signup toast ----------------
   const [signupSuccess, setSignupSuccess] = useState(false);
-
-  // lock scroll quando il drawer è aperto
-  useBodyLock(menuOpen);
-
-  // supporto push
-  const supportsPush =
-    typeof window !== "undefined" &&
-    "serviceWorker" in navigator &&
-    "PushManager" in window &&
-    "Notification" in window;
-
-  // handle query param "grazie"
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
       if (url.searchParams.get("grazie") === "1") {
         setSignupSuccess(true);
         url.searchParams.delete("grazie");
-        window.history.replaceState({}, "", url.pathname + url.hash);
+        window.history.replaceState({}, "", url.pathname + url.search + url.hash);
       }
     } catch {}
   }, []);
 
-  function handleSearch(e) {
-    e?.preventDefault?.();
-    const target = searchNavigateTarget(query);
-    if (target.type === "borgo") navigate(`/borghi/${target.slug}`);
-    else if (target.type === "poi") navigate(`/borghi/${target.slug}/poi/${target.poiId}`);
-    else navigate(`/cerca?q=${encodeURIComponent(query)}`);
+  // ---------------- Geolocalizzazione ----------------
+  const LOC_KEY = "ilborghista:userLoc:v1";
+  const [userLoc, setUserLoc] = useState(() => {
+    try {
+      const raw = localStorage.getItem(LOC_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [geoToast, setGeoToast] = useState("");
+
+  const DEFAULT_RADIUS_KM = 50;
+  function saveLoc(loc) {
+    try {
+      localStorage.setItem(LOC_KEY, JSON.stringify(loc));
+    } catch {}
+  }
+  async function handleGeolocate() {
+    // usa localStorage se disponibile
+    if (userLoc?.lat && userLoc?.lng) {
+      // toggle: se già presente, ri-applica e chiude eventuali toast
+      setGeoToast("");
+      return;
+    }
+    if (!("geolocation" in navigator)) {
+      setGeoToast(
+        "Geolocalizzazione non disponibile sul dispositivo. Abilita il GPS o inserisci manualmente la località."
+      );
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = {
+          lat: Number(pos.coords.latitude.toFixed(6)),
+          lng: Number(pos.coords.longitude.toFixed(6)),
+          radiusKm: DEFAULT_RADIUS_KM,
+          ts: Date.now(),
+        };
+        setUserLoc(loc);
+        saveLoc(loc);
+        setGeoToast("");
+        // Qui potresti attivare un refresh dei blocchi ordinati per distanza
+        window.__ilb_addNotif?.("Posizione attivata", `Raggio impostato a ${DEFAULT_RADIUS_KM} km`);
+      },
+      (err) => {
+        console.warn("Geolocation error", err);
+        setGeoToast(
+          "Permesso negato. Per attivare la posizione, abilita i permessi del browser (Impostazioni → Privacy/Posizione) e riprova."
+        );
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+    );
+  }
+  function clearLocation() {
+    setUserLoc(null);
+    try {
+      localStorage.removeItem(LOC_KEY);
+    } catch {}
   }
 
-  function startChat(creatorId) {
-    const user = getCurrentUser();
-    const thread = createThread({ creatorId, userId: user.id });
-    navigate(`/chat/${thread.id}`);
+  // ---------------- Region Filter (URL + localStorage) ----------------
+  const REG_KEY = "ilborghista:regionFilter:v1";
+  const [activeRegion, setActiveRegion] = useState(() => {
+    try {
+      const url = new URL(window.location.href);
+      const fromUrl = url.searchParams.get("reg");
+      if (fromUrl) return fromUrl;
+      const raw = localStorage.getItem(REG_KEY);
+      return raw || "";
+    } catch {
+      return "";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (activeRegion) url.searchParams.set("reg", activeRegion);
+      else url.searchParams.delete("reg");
+      window.history.replaceState({}, "", url.pathname + "?" + url.searchParams.toString());
+      localStorage.setItem(REG_KEY, activeRegion || "");
+    } catch {}
+  }, [activeRegion]);
+
+  function toggleRegion(slug) {
+    setActiveRegion((prev) => (prev === slug ? "" : slug));
   }
 
-  /* ---- dati mock ---- */
+  // ---------------- Supporto Push ----------------
+  const supportsPush =
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window;
+
+  // ---------------- Dati mock UI ----------------
   const HERO_IMAGE_URL =
-    "https://media.istockphoto.com/id/176523127/it/foto/bellissima-citt%C3%A0-in-toscana-pitigliano-provincia-di-grosseto.jpg?s=2048x2048&w=is&k=20&c=Xn6bDbmcSuIol1Lqn59AyOEuSUrTYqzMcoF5KUSnQxI=";
+    "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1500&auto=format&fit=crop";
 
   const BORGI_EXTRA = {
     viggiano: {
@@ -403,8 +533,7 @@ export default function HomepageMockup() {
 
   const EVENTI_QA = [
     {
-      poster:
-        "https://www.ilborghista.it/immaginiutente/borgo_eventi/493.png",
+      poster: "https://www.ilborghista.it/immaginiutente/borgo_eventi/493.png",
       title: "La festa della Madonna Nera",
       dateText: "9–10 agosto 2025",
       placeText: "Viggiano (PZ) · Santuario",
@@ -413,8 +542,7 @@ export default function HomepageMockup() {
       href: "#",
     },
     {
-      poster:
-        "https://www.ilborghista.it/immaginiutente/borgo_eventi/421.jpg",
+      poster: "https://www.ilborghista.it/immaginiutente/borgo_eventi/421.jpg",
       title: "Sapori in Piazza",
       dateText: "15 agosto 2025",
       placeText: "Viggiano (PZ) · Centro storico",
@@ -423,8 +551,7 @@ export default function HomepageMockup() {
       href: "#",
     },
     {
-      poster:
-        "https://www.ilborghista.it/immaginiutente/borgo_eventi/4896.JPG",
+      poster: "https://www.ilborghista.it/immaginiutente/borgo_eventi/4896.JPG",
       title: "Concerto d’estate",
       dateText: "22 agosto 2025",
       placeText: "Viggiano (PZ) · Arena",
@@ -483,7 +610,7 @@ export default function HomepageMockup() {
     },
   ];
 
-  /* ---- sottocomponenti ---- */
+  // ---------------- Subcomponents ----------------
   const BorgoCard = ({ b }) => {
     const extra = BORGI_EXTRA[b.slug] || {};
     const name = extra.borgoName || b.name;
@@ -493,6 +620,9 @@ export default function HomepageMockup() {
       typeof extra.ratingAvg === "number" &&
       typeof extra.ratingCount === "number" &&
       extra.ratingCount > 0;
+
+    // Filtra per regione se selezionata
+    if (activeRegion && b.regionSlug && b.regionSlug !== activeRegion) return null;
 
     return (
       <Link
@@ -508,7 +638,7 @@ export default function HomepageMockup() {
             className="w-full h-full object-cover"
             onError={onImgErr}
           />
-        <div className="absolute top-2 left-2 max-w-[82%] px-2.5 py-1 rounded-lg bg-white text-[#6B271A] text-sm font-semibold shadow">
+          <div className="absolute top-2 left-2 max-w-[82%] px-2.5 py-1 rounded-lg bg-white text-[#6B271A] text-sm font-semibold shadow">
             <span className="block truncate">{name}</span>
           </div>
           <FavoriteButton id={`borgo:${b.slug}`} className="absolute top-2 right-2" />
@@ -614,7 +744,7 @@ export default function HomepageMockup() {
     </article>
   );
 
-  /* ---- HERO ---- */
+  // ---------------- HERO ----------------
   const HeroHeader = () => (
     <section className="relative">
       <img
@@ -624,83 +754,13 @@ export default function HomepageMockup() {
         onError={onImgErr}
       />
       <div className="absolute inset-0 bg-black/30" />
-      <div className="relative max-w-6xl mx-auto px-6 pt-16 pb-20 text-center text-white">
+      <div className="relative max-w-6xl mx-auto px-6 pt-14 pb-20 text-center text-white">
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight drop-shadow-md">
-          Trova cosa fare vicino a te
+          Trova cosa fare nei borghi d’Italia
         </h1>
         <p className="mt-3 text-base md:text-lg drop-shadow">
-          Eventi, esperienze e borghi in tutta Italia. Cerca e parti.
+          Eventi, esperienze e luoghi autentici. Senza fronzoli.
         </p>
-
-        {/* barra di ricerca */}
-        <div className="mt-6 bg-white/95 backdrop-blur rounded-2xl p-3 md:p-4 inline-block w-full md:w-auto shadow-lg text-left">
-          <form className="flex flex-col gap-3 md:flex-row md:items-center" onSubmit={handleSearch}>
-            <label
-              className="flex items-center gap-2 border rounded-xl px-3 py-3 w-full md:w-96 bg-white"
-              htmlFor="query"
-            >
-              <SearchIcon size={18} className="text-[#6B271A]" />
-              <input
-                id="query"
-                className="w-full outline-none text-gray-900 placeholder:text-gray-500 caret-[#6B271A]"
-                placeholder="Cerca eventi, esperienze o borghi"
-                aria-label="Cosa cerchi"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </label>
-            <button className="ml-0 md:ml-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#D54E30] text-white font-semibold self-center md:self-auto">
-              <SearchIcon size={18} /> Cerca
-            </button>
-          </form>
-
-          {/* pillole */}
-          <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar md:flex-wrap md:overflow-visible">
-            <button
-              className="px-3 py-1.5 rounded-full bg-[#D54E30] text-white text-sm font-semibold whitespace-nowrap"
-              onClick={() => setQuery("weekend")}
-            >
-              Questo weekend
-            </button>
-            <button
-              className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap"
-              onClick={() => setQuery("vicino a me")}
-            >
-              Vicino a me
-            </button>
-            <button
-              className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap"
-              onClick={() => setQuery("bambini")}
-            >
-              Con bambini
-            </button>
-            <button
-              className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap"
-              onClick={() => setQuery("food and wine")}
-            >
-              Food & Wine
-            </button>
-            <button
-              className="px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] text-sm font-semibold border border-[#E1B671] whitespace-nowrap"
-              onClick={() => setQuery("outdoor")}
-            >
-              Outdoor
-            </button>
-          </div>
-
-          {/* links sotto */}
-          <div className="text-sm text-gray-700 mt-2 flex items-center gap-4 justify-center">
-            <span>
-              Sei un Comune?{" "}
-              <Link to="/registrazione-comune" className="font-semibold underline text-[#6B271A]">
-                Scopri i nostri servizi
-              </Link>
-            </span>
-            <Link to="/registrazione-creator" className="font-semibold underline text-[#6B271A]">
-              Diventa creator
-            </Link>
-          </div>
-        </div>
       </div>
     </section>
   );
@@ -714,27 +774,132 @@ export default function HomepageMockup() {
       `}</style>
 
       <main className="space-y-12">
-        {/* HEADER */}
-        <header className="bg-white/90 backdrop-blur border-b sticky top-0 z-[50]">
+        {/* TOP BAR (sticky) */}
+        <header className="bg-white/90 backdrop-blur border-b sticky top-0 z-[60]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-            <Link to="/" className="text-xl font-extrabold text-[#6B271A]">
+            {/* Logo */}
+            <Link to="/" className="text-xl font-extrabold text-[#6B271A]" aria-label="Home">
               Il Borghista
             </Link>
 
+            {/* Azioni centrali: lente (apre overlay) + geolocate */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Cerca"
+                onClick={() => setSearchOpen(true)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A]"
+              >
+                <SearchIcon className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Usa la mia posizione"
+                onClick={handleGeolocate}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A]"
+                title="Usa la mia posizione"
+              >
+                <Crosshair className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Lato destro: campanella + menu */}
             <div className="flex items-center gap-2">
               <NotificationsBell />
               <button
                 aria-label="Apri il menu"
                 onClick={() => setMenuOpen(true)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A]"
               >
                 <Menu className="h-5 w-5" />
               </button>
             </div>
           </div>
+
+          {/* Chip filtri attivi: Vicino a te */}
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {userLoc?.lat && userLoc?.lng && (
+                <span
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] text-sm"
+                  role="status"
+                  aria-label={`Filtro: vicino a te entro ${userLoc.radiusKm || DEFAULT_RADIUS_KM} km`}
+                >
+                  <Crosshair className="w-4 h-4" />
+                  <span>Vicino a te · {userLoc.radiusKm || DEFAULT_RADIUS_KM} km</span>
+                  <button
+                    className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full hover:bg-black/5"
+                    aria-label="Rimuovi filtro posizione"
+                    onClick={clearLocation}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              )}
+            </div>
+          </div>
         </header>
 
-        {/* Drawer menu — montato FUORI dal <header> per evitare clipping */}
+        {/* SEARCH OVERLAY (fascia ricerca) */}
+        {searchOpen && (
+          <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Ricerca">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setSearchOpen(false)} />
+            <div className="absolute left-1/2 -translate-x-1/2 top-6 w-[92vw] max-w-2xl bg-white rounded-2xl shadow-2xl ring-1 ring-black/10">
+              <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 p-3">
+                <SearchIcon className="w-5 h-5 text-[#6B271A]" aria-hidden="true" />
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Cerca eventi, esperienze o borghi"
+                  aria-label="Cosa cerchi"
+                  className="flex-1 outline-none text-gray-900 placeholder:text-gray-500 caret-[#6B271A]"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    aria-label="Svuota"
+                    onClick={() => setQuery("")}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-neutral-100"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 rounded-lg bg-[#D54E30] text-white font-semibold"
+                >
+                  Cerca
+                </button>
+              </form>
+
+              {/* Suggerimenti (debounce 300ms) — niente pillole predefinite */}
+              <div className="max-h-[50vh] overflow-auto border-t">
+                {debounced && suggestions.length === 0 && (
+                  <div className="p-4 text-sm text-neutral-600">Nessun risultato per “{debounced}”.</div>
+                )}
+                {suggestions.length > 0 && (
+                  <ul className="divide-y">
+                    {suggestions.map((b) => (
+                      <li key={b.slug}>
+                        <Link
+                          to={`/borghi/${b.slug}`}
+                          onClick={() => setSearchOpen(false)}
+                          className="flex items-center gap-3 px-4 py-3 hover:bg-neutral-50"
+                        >
+                          <MapPin className="w-4 h-4 text-[#D54E30]" />
+                          <span className="font-semibold text-[#6B271A]">{b.name}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Drawer menu — montato FUORI dal <header> */}
         {menuOpen && (
           <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Menu">
             <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
@@ -757,7 +922,7 @@ export default function HomepageMockup() {
                 <ul className="py-2">
                   <li>
                     <Link
-                      to="/registrazione"   // <— cambiato: ora apre la pagina con le 4 modalità
+                      to="/registrazione"
                       className="flex items-center gap-2 rounded-lg px-4 py-3 hover:bg-neutral-50"
                       onClick={() => setMenuOpen(false)}
                     >
@@ -822,6 +987,7 @@ export default function HomepageMockup() {
                 </ul>
               </nav>
 
+              {/* “Diventa Creator” SOLO qui */}
               <div className="border-t p-3 mt-auto">
                 <Link
                   to="/registrazione-creator"
@@ -832,6 +998,15 @@ export default function HomepageMockup() {
                 </Link>
               </div>
             </aside>
+          </div>
+        )}
+
+        {/* GEO Fallback toast */}
+        {geoToast && (
+          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <div className="rounded-xl bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 text-sm">
+              ⚠️ {geoToast}
+            </div>
           </div>
         )}
 
@@ -847,7 +1022,79 @@ export default function HomepageMockup() {
         {/* HERO */}
         <HeroHeader />
 
-        {/* SERVIZI */}
+        {/* SEZIONE REGIONI (tra Ricerca e Servizi) */}
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 -mt-6">
+          <h2 className="sr-only">Regioni</h2>
+          {/* Mobile: carosello orizzontale con snap */}
+          <div className="md:hidden relative">
+            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent rounded-l-2xl" />
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent rounded-r-2xl" />
+            <div
+              className="flex gap-2 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1"
+              style={{ WebkitOverflowScrolling: "touch" }}
+              role="toolbar"
+              aria-label="Filtra per Regione"
+            >
+              {REGIONS.map((r) => {
+                const active = activeRegion === r.slug;
+                return (
+                  <button
+                    key={r.slug}
+                    onClick={() => toggleRegion(r.slug)}
+                    aria-pressed={active}
+                    className={`snap-start px-3 py-1.5 rounded-full text-sm border focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A] ${
+                      active
+                        ? "bg-[#6B271A] text-white border-[#6B271A]"
+                        : "bg-white text-[#6B271A] border-[#E1B671]"
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {/* Desktop: griglia compatta */}
+          <div
+            className="hidden md:grid grid-cols-5 lg:grid-cols-6 gap-2"
+            role="toolbar"
+            aria-label="Filtra per Regione"
+          >
+            {REGIONS.map((r) => {
+              const active = activeRegion === r.slug;
+              return (
+                <button
+                  key={r.slug}
+                  onClick={() => toggleRegion(r.slug)}
+                  aria-pressed={active}
+                  className={`px-3 py-2 rounded-full text-sm border text-left truncate focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A] ${
+                    active
+                      ? "bg-[#6B271A] text-white border-[#6B271A]"
+                      : "bg-white text-[#6B271A] border-[#E1B671]"
+                  }`}
+                  title={r.label}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Azione per azzerare filtro (se attivo) */}
+          {activeRegion && (
+            <div className="mt-2">
+              <button
+                onClick={() => setActiveRegion("")}
+                className="text-sm underline text-neutral-700"
+                aria-label="Rimuovi filtro regione"
+              >
+                Rimuovi filtro regione
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* SERVIZI (invariata; il tuo store può adattare in base a posizione/regione) */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Servizi</h2>
@@ -864,19 +1111,19 @@ export default function HomepageMockup() {
             >
               <div className="min-w-[66%]">
                 <ServiceTile
-                  img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1400&auto=format&fit=crop"
+                  img="https://images.unsplash.com/photo-1675843894930-2b7f07d3f3e5?q=80&w=1074&auto=format&fit=crop&ixlib=rb-4.1.0"
                   label="Esperienze"
                 />
               </div>
               <div className="min-w-[66%]">
                 <ServiceTile
-                  img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1400&auto=format&fit=crop"
+                  img="https://images.unsplash.com/photo-1631379578550-7038263db699?q=80&w=1174&auto=format&fit=crop&ixlib=rb-4.1.0"
                   label="Prodotti tipici"
                 />
               </div>
               <div className="min-w-[66%]">
                 <ServiceTile
-                  img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1400&auto=format&fit=crop"
+                  img="https://plus.unsplash.com/premium_photo-1661288451211-b61d32db1d11?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0"
                   label="Noleggio auto"
                 />
               </div>
@@ -885,19 +1132,19 @@ export default function HomepageMockup() {
           <div className="mt-5 hidden md:grid grid-cols-3 gap-6">
             <div className="h-56">
               <ServiceTile
-                img="https://images.unsplash.com/photo-1532635224-4786e6e86e18?q=80&w=1600&auto=format&fit=crop"
+                img="https://images.unsplash.com/photo-1675843894930-2b7f07d3f3e5?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.1.0"
                 label="Esperienze"
               />
             </div>
             <div className="h-56">
               <ServiceTile
-                img="https://images.unsplash.com/photo-1615141982883-c7ad0f24f0ff?q=80&w=1600&auto=format&fit=crop"
+                img="https://images.unsplash.com/photo-1631379578550-7038263db699?q=80&w=1174&auto=format&fit=crop&ixlib=rb-4.1.0"
                 label="Prodotti tipici"
               />
             </div>
             <div className="h-56">
               <ServiceTile
-                img="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1600&auto=format&fit=crop"
+                img="https://plus.unsplash.com/premium_photo-1661288451211-b61d32db1d11?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0"
                 label="Noleggio auto"
               />
             </div>
@@ -1068,9 +1315,6 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Esperienze</h2>
-            <Link to="/borghi/viggiano/esperienze" className="text-sm font-semibold underline">
-              Vedi tutte
-            </Link>
           </div>
           <div
             className="mt-4 flex gap-5 overflow-x-auto pb-2 no-scrollbar snap-x snap-mandatory"

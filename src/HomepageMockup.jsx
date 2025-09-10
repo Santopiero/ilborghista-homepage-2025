@@ -404,7 +404,7 @@ export default function HomepageMockup() {
   const EVENTI_QA = [
     {
       poster:
-        "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1200&auto=format&fit=crop",
+        "https://www.ilborghista.it/immaginiutente/borgo_eventi/493.png",
       title: "La festa della Madonna Nera",
       dateText: "9–10 agosto 2025",
       placeText: "Viggiano (PZ) · Santuario",
@@ -414,7 +414,7 @@ export default function HomepageMockup() {
     },
     {
       poster:
-        "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?q=80&w=1200&auto=format&fit=crop",
+        "https://www.ilborghista.it/immaginiutente/borgo_eventi/421.jpg",
       title: "Sapori in Piazza",
       dateText: "15 agosto 2025",
       placeText: "Viggiano (PZ) · Centro storico",
@@ -424,7 +424,7 @@ export default function HomepageMockup() {
     },
     {
       poster:
-        "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop",
+        "https://www.ilborghista.it/immaginiutente/borgo_eventi/4896.JPG",
       title: "Concerto d’estate",
       dateText: "22 agosto 2025",
       placeText: "Viggiano (PZ) · Arena",

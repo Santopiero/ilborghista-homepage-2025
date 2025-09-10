@@ -378,6 +378,7 @@ export default function HomepageMockup() {
   const [searchOpen, setSearchOpen] = useState(false); // ONLY mobile
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
+  thead: null;
   const debounceTimer = useRef(null);
 
   useEffect(() => {
@@ -774,8 +775,18 @@ export default function HomepageMockup() {
   return (
     <>
       <style>{`
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Mobile: nascondi scrollbar dove usiamo .no-scrollbar */
+        @media (max-width: 767.98px){
+          .no-scrollbar::-webkit-scrollbar { display: none; }
+          .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        }
+        /* Desktop: mostra sempre una scrollbar sottile dove serve */
+        @media (min-width: 768px){
+          .show-scrollbar-desktop { scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: rgba(0,0,0,.3) transparent; }
+          .show-scrollbar-desktop::-webkit-scrollbar { height: 8px; }
+          .show-scrollbar-desktop::-webkit-scrollbar-thumb { background: rgba(0,0,0,.3); border-radius: 9999px; }
+          .show-scrollbar-desktop::-webkit-scrollbar-track { background: transparent; }
+        }
       `}</style>
 
       <main className="space-y-10">
@@ -891,7 +902,7 @@ export default function HomepageMockup() {
             </div>
           </div>
 
-          {/* MOBILE: barra ricerca “pulita” che appare sotto alla top bar quando si clicca la lente */}
+          {/* MOBILE: barra ricerca “pulita” */}
           {searchOpen && (
             <div className="md:hidden border-t bg-white">
               <form onSubmit={handleSearchSubmit} className="max-w-6xl mx-auto px-4 sm:px-6 py-3">
@@ -917,7 +928,7 @@ export default function HomepageMockup() {
                   )}
                 </label>
 
-                {/* Suggerimenti (debounce 300ms) */}
+                {/* Suggerimenti */}
                 <div className="max-h-[50vh] overflow-auto">
                   {debounced && suggestions.length === 0 && (
                     <div className="p-3 text-sm text-neutral-600">
@@ -946,13 +957,12 @@ export default function HomepageMockup() {
           )}
         </header>
 
-        {/* Drawer menu — montato FUORI dal <header> */}
+        {/* Drawer menu */}
         {menuOpen && (
           <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Menu">
             <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
             <aside
-              className="absolute right-0 top-0 h-full w-[min(85vw,22rem)] bg-white shadow-2xl ring-1 ring-black/10
-                         flex flex-col"
+              className="absolute right-0 top-0 h-full w-[min(85vw,22rem)] bg-white shadow-2xl ring-1 ring-black/10 flex flex-col"
             >
               <div className="flex items-center justify-between border-b p-4">
                 <span className="text-base font-bold text-[#6B271A]">Menu</span>
@@ -1078,9 +1088,7 @@ export default function HomepageMockup() {
         {/* HERO molto grande */}
         <HeroHeader />
 
-        {/* SEZIONE REGIONI (tra Ricerca e Servizi) — stile pillole come filtri Esperienze
-            Desktop: max 6 per riga (una riga scrollabile orizzontale con colonne ~16.66%)
-            Mobile: carosello orizzontale con snap */}
+        {/* REGIONS */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6 -mt-6">
           <h2 className="sr-only">Regioni</h2>
 
@@ -1101,7 +1109,7 @@ export default function HomepageMockup() {
                     key={r.slug}
                     onClick={() => toggleRegion(r.slug)}
                     aria-pressed={active}
-                    className={`snap-start px-3 py-1.5 rounded-full text-sm border focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A] ${
+                    className={`snap-start inline-flex items-center px-3 py-1.5 rounded-full text-sm border whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A] ${
                       active
                         ? "bg-[#6B271A] text-white border-[#6B271A]"
                         : "bg-white text-[#6B271A] border-[#E1B671]"
@@ -1114,9 +1122,9 @@ export default function HomepageMockup() {
             </div>
           </div>
 
-          {/* Desktop: singola riga scrollabile con larghezza di colonna ~ 1/6 */}
+          {/* Desktop: riga unica scrollabile, pillole adattive + scrollbar visibile */}
           <div
-            className="hidden md:grid grid-flow-col auto-cols-max gap-2 overflow-x-auto no-scrollbar pb-1"
+            className="hidden md:grid grid-flow-col auto-cols-max gap-2 overflow-x-auto show-scrollbar-desktop pb-1"
             role="toolbar"
             aria-label="Filtra per Regione"
           >
@@ -1127,7 +1135,7 @@ export default function HomepageMockup() {
                   key={r.slug}
                   onClick={() => toggleRegion(r.slug)}
                   aria-pressed={active}
-                  className={`px-3 py-2 rounded-full text-sm border text-left truncate focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A] ${
+                  className={`inline-flex items-center px-3 py-2 rounded-full text-sm border whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A] ${
                     active
                       ? "bg-[#6B271A] text-white border-[#6B271A]"
                       : "bg-white text-[#6B271A] border-[#E1B671]"
@@ -1153,7 +1161,7 @@ export default function HomepageMockup() {
           )}
         </section>
 
-        {/* SERVIZI — senza titolo “Servizi” per recuperare spazio */}
+        {/* SERVIZI — (titolo rimosso per recuperare spazio) */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           {/* Mobile carousel */}
           <div className="relative md:hidden">
@@ -1341,7 +1349,7 @@ export default function HomepageMockup() {
             </a>
           </div>
           <div
-            className="mt-3 flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory"
+            className="mt-3 flex gap-4 overflow-x-auto show-scrollbar-desktop snap-x snap-mandatory"
             style={{ WebkitOverflowScrolling: "touch" }}
           >
             {BORGI_INDEX.map((b) => (
@@ -1377,9 +1385,12 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Esperienze</h2>
+            <Link to="/esperienze" className="text-sm font-semibold underline">
+              Vedi tutte
+            </Link>
           </div>
           <div
-            className="mt-4 flex gap-5 overflow-x-auto pb-2 no-scrollbar snap-x snap-mandatory"
+            className="mt-4 flex gap-5 overflow-x-auto show-scrollbar-desktop pb-2 snap-x snap-mandatory"
             style={{ WebkitOverflowScrolling: "touch" }}
           >
             {ESPERIENZE_QA.map((ex) => (
@@ -1397,7 +1408,7 @@ export default function HomepageMockup() {
             </a>
           </div>
           <div
-            className="mt-4 flex gap-5 overflow-x-auto pb-4 no-scrollbar snap-x snap-mandatory"
+            className="mt-4 flex gap-5 overflow-x-auto show-scrollbar-desktop pb-4 snap-x snap-mandatory"
             style={{ WebkitOverflowScrolling: "touch" }}
           >
             {[

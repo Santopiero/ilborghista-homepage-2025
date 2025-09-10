@@ -516,7 +516,7 @@ export default function HomepageMockup() {
 
   // ---------------- Dati mock UI ----------------
   const HERO_IMAGE_URL =
-    "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=2000&auto=format&fit=crop";
+    "https://media.istockphoto.com/id/1018266964/it/foto/bellissime-spiagge-e-citt%C3%A0-della-calabria-scilla-vacanze-estive-italiane.jpg?s=2048x2048&w=is&k=20&c=tA7D595SPFMpvFSMGKvui-dkcPVT3pfyVV1ge0RtSr8=";
 
   const BORGI_EXTRA = {
     viggiano: {
@@ -1116,7 +1116,7 @@ export default function HomepageMockup() {
 
           {/* Desktop: singola riga scrollabile con larghezza di colonna ~ 1/6 */}
           <div
-            className="hidden md:grid auto-cols-[16.66%] grid-flow-col gap-2 overflow-x-auto no-scrollbar pb-1"
+            className="hidden md:grid grid-flow-col auto-cols-max gap-2 overflow-x-auto no-scrollbar pb-1"
             role="toolbar"
             aria-label="Filtra per Regione"
           >

@@ -13,6 +13,7 @@ import {
   Smartphone,
   MessageCircle,
   Crosshair,
+  LogOut,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -373,8 +374,8 @@ const REGIONS = [
 export default function HomepageMockup() {
   const navigate = useNavigate();
 
-  // ---------------- Topbar Search Overlay ----------------
-  const [searchOpen, setSearchOpen] = useState(false);
+  // ---------------- Search (mobile vs desktop) ----------------
+  const [searchOpen, setSearchOpen] = useState(false); // ONLY mobile
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const debounceTimer = useRef(null);
@@ -388,7 +389,6 @@ export default function HomepageMockup() {
   const suggestions = useMemo(() => {
     if (!debounced) return [];
     const q = debounced.toLowerCase();
-    // Semplici suggerimenti: borghi che matchano
     return BORGI_INDEX.filter(
       (b) => b.name?.toLowerCase().includes(q) || b.slug?.toLowerCase().includes(q)
     ).slice(0, 8);
@@ -406,7 +406,7 @@ export default function HomepageMockup() {
 
   // ---------------- Menu ----------------
   const [menuOpen, setMenuOpen] = useState(false);
-  useBodyLock(menuOpen || searchOpen);
+  useBodyLock(menuOpen);
 
   // ---------------- Signup toast ----------------
   const [signupSuccess, setSignupSuccess] = useState(false);
@@ -440,9 +440,7 @@ export default function HomepageMockup() {
     } catch {}
   }
   async function handleGeolocate() {
-    // usa localStorage se disponibile
     if (userLoc?.lat && userLoc?.lng) {
-      // toggle: se già presente, ri-applica e chiude eventuali toast
       setGeoToast("");
       return;
     }
@@ -463,13 +461,12 @@ export default function HomepageMockup() {
         setUserLoc(loc);
         saveLoc(loc);
         setGeoToast("");
-        // Qui potresti attivare un refresh dei blocchi ordinati per distanza
         window.__ilb_addNotif?.("Posizione attivata", `Raggio impostato a ${DEFAULT_RADIUS_KM} km`);
       },
       (err) => {
         console.warn("Geolocation error", err);
         setGeoToast(
-          "Permesso negato. Per attivare la posizione, abilita i permessi del browser (Impostazioni → Privacy/Posizione) e riprova."
+          "Permesso negato. Abilita i permessi del browser (Impostazioni → Privacy/Posizione) e riprova."
         );
       },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
@@ -519,7 +516,7 @@ export default function HomepageMockup() {
 
   // ---------------- Dati mock UI ----------------
   const HERO_IMAGE_URL =
-    "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1500&auto=format&fit=crop";
+    "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=2000&auto=format&fit=crop";
 
   const BORGI_EXTRA = {
     viggiano: {
@@ -621,7 +618,6 @@ export default function HomepageMockup() {
       typeof extra.ratingCount === "number" &&
       extra.ratingCount > 0;
 
-    // Filtra per regione se selezionata
     if (activeRegion && b.regionSlug && b.regionSlug !== activeRegion) return null;
 
     return (
@@ -746,24 +742,33 @@ export default function HomepageMockup() {
 
   // ---------------- HERO ----------------
   const HeroHeader = () => (
-    <section className="relative">
+    <section className="relative h-[58vh] md:h-[70vh]">
       <img
         src={HERO_IMAGE_URL}
-        alt="Hero Il Borghista"
+        alt="Veduta panoramica di un borgo italiano"
         className="absolute inset-0 w-full h-full object-cover"
         onError={onImgErr}
       />
       <div className="absolute inset-0 bg-black/30" />
-      <div className="relative max-w-6xl mx-auto px-6 pt-14 pb-20 text-center text-white">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight drop-shadow-md">
-          Trova cosa fare nei borghi d’Italia
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 h-full flex flex-col items-center justify-center text-center text-white">
+        <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold leading-tight drop-shadow-md">
+          Vivi i borghi d’Italia
         </h1>
-        <p className="mt-3 text-base md:text-lg drop-shadow">
+        <p className="mt-3 text-base md:text-xl drop-shadow">
           Eventi, esperienze e luoghi autentici. Senza fronzoli.
         </p>
       </div>
     </section>
   );
+
+  // ---------------- Logout ----------------
+  function doLogout() {
+    try {
+      localStorage.removeItem(import.meta.env.VITE_AUTH_TOKEN_KEY || "ilborghista_token");
+    } catch {}
+    navigate("/");
+    setMenuOpen(false);
+  }
 
   /* ============================= RENDER =================================== */
   return (
@@ -773,38 +778,85 @@ export default function HomepageMockup() {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      <main className="space-y-12">
+      <main className="space-y-10">
         {/* TOP BAR (sticky) */}
         <header className="bg-white/90 backdrop-blur border-b sticky top-0 z-[60]">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 grid grid-cols-[auto,1fr,auto] items-center gap-3">
             {/* Logo */}
             <Link to="/" className="text-xl font-extrabold text-[#6B271A]" aria-label="Home">
               Il Borghista
             </Link>
 
-            {/* Azioni centrali: lente (apre overlay) + geolocate */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
+            {/* DESKTOP: barra esplosa | MOBILE: icone */}
+            <div className="flex items-center justify-center">
+              {/* Desktop ≥ md: barra ricerca esplosa con placeholder */}
+              <form
+                onSubmit={handleSearchSubmit}
+                className="hidden md:flex items-center gap-2 w-full max-w-xl"
+                role="search"
                 aria-label="Cerca"
-                onClick={() => setSearchOpen(true)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A]"
               >
-                <SearchIcon className="h-5 w-5" />
-              </button>
-              <button
-                type="button"
-                aria-label="Usa la mia posizione"
-                onClick={handleGeolocate}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A]"
-                title="Usa la mia posizione"
-              >
-                <Crosshair className="h-5 w-5" />
-              </button>
+                <div className="flex items-center gap-2 border rounded-xl px-3 py-2 w-full bg-white">
+                  <SearchIcon className="w-5 h-5 text-[#6B271A]" aria-hidden="true" />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Cerca eventi, esperienze o borghi"
+                    aria-label="Cosa cerchi"
+                    className="flex-1 outline-none text-gray-900 placeholder:text-gray-500 caret-[#6B271A]"
+                  />
+                  {query && (
+                    <button
+                      type="button"
+                      aria-label="Svuota"
+                      onClick={() => setQuery("")}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-neutral-100"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  className="px-3 py-2 rounded-xl bg-[#D54E30] text-white font-semibold"
+                >
+                  Cerca
+                </button>
+                <button
+                  type="button"
+                  aria-label="Usa la mia posizione"
+                  onClick={handleGeolocate}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white ml-1 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A]"
+                  title="Usa la mia posizione"
+                >
+                  <Crosshair className="h-5 w-5" />
+                </button>
+              </form>
+
+              {/* Mobile: icone lente + geolocalizza */}
+              <div className="flex md:hidden items-center gap-2">
+                <button
+                  type="button"
+                  aria-label="Cerca"
+                  onClick={() => setSearchOpen((v) => !v)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A]"
+                >
+                  <SearchIcon className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Usa la mia posizione"
+                  onClick={handleGeolocate}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A]"
+                  title="Usa la mia posizione"
+                >
+                  <Crosshair className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
-            {/* Lato destro: campanella + menu */}
-            <div className="flex items-center gap-2">
+            {/* Destra: notifiche + menu */}
+            <div className="flex items-center justify-end gap-2">
               <NotificationsBell />
               <button
                 aria-label="Apri il menu"
@@ -838,66 +890,61 @@ export default function HomepageMockup() {
               )}
             </div>
           </div>
-        </header>
 
-        {/* SEARCH OVERLAY (fascia ricerca) */}
-        {searchOpen && (
-          <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Ricerca">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setSearchOpen(false)} />
-            <div className="absolute left-1/2 -translate-x-1/2 top-6 w-[92vw] max-w-2xl bg-white rounded-2xl shadow-2xl ring-1 ring-black/10">
-              <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 p-3">
-                <SearchIcon className="w-5 h-5 text-[#6B271A]" aria-hidden="true" />
-                <input
-                  autoFocus
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Cerca eventi, esperienze o borghi"
-                  aria-label="Cosa cerchi"
-                  className="flex-1 outline-none text-gray-900 placeholder:text-gray-500 caret-[#6B271A]"
-                />
-                {query && (
-                  <button
-                    type="button"
-                    aria-label="Svuota"
-                    onClick={() => setQuery("")}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-neutral-100"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 rounded-lg bg-[#D54E30] text-white font-semibold"
-                >
-                  Cerca
-                </button>
+          {/* MOBILE: barra ricerca “pulita” che appare sotto alla top bar quando si clicca la lente */}
+          {searchOpen && (
+            <div className="md:hidden border-t bg-white">
+              <form onSubmit={handleSearchSubmit} className="max-w-6xl mx-auto px-4 sm:px-6 py-3">
+                <label className="flex items-center gap-2 border rounded-xl px-3 py-2 w-full bg-white">
+                  <SearchIcon className="w-5 h-5 text-[#6B271A]" aria-hidden="true" />
+                  <input
+                    autoFocus
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Cerca eventi, esperienze o borghi"
+                    aria-label="Cosa cerchi"
+                    className="flex-1 outline-none text-gray-900 placeholder:text-gray-500 caret-[#6B271A]"
+                  />
+                  {query && (
+                    <button
+                      type="button"
+                      aria-label="Svuota"
+                      onClick={() => setQuery("")}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-neutral-100"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </label>
+
+                {/* Suggerimenti (debounce 300ms) */}
+                <div className="max-h-[50vh] overflow-auto">
+                  {debounced && suggestions.length === 0 && (
+                    <div className="p-3 text-sm text-neutral-600">
+                      Nessun risultato per “{debounced}”.
+                    </div>
+                  )}
+                  {suggestions.length > 0 && (
+                    <ul className="mt-2 divide-y rounded-xl border">
+                      {suggestions.map((b) => (
+                        <li key={b.slug}>
+                          <Link
+                            to={`/borghi/${b.slug}`}
+                            onClick={() => setSearchOpen(false)}
+                            className="flex items-center gap-3 px-3 py-2 hover:bg-neutral-50"
+                          >
+                            <MapPin className="w-4 h-4 text-[#D54E30]" />
+                            <span className="font-semibold text-[#6B271A]">{b.name}</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </form>
-
-              {/* Suggerimenti (debounce 300ms) — niente pillole predefinite */}
-              <div className="max-h-[50vh] overflow-auto border-t">
-                {debounced && suggestions.length === 0 && (
-                  <div className="p-4 text-sm text-neutral-600">Nessun risultato per “{debounced}”.</div>
-                )}
-                {suggestions.length > 0 && (
-                  <ul className="divide-y">
-                    {suggestions.map((b) => (
-                      <li key={b.slug}>
-                        <Link
-                          to={`/borghi/${b.slug}`}
-                          onClick={() => setSearchOpen(false)}
-                          className="flex items-center gap-3 px-4 py-3 hover:bg-neutral-50"
-                        >
-                          <MapPin className="w-4 h-4 text-[#D54E30]" />
-                          <span className="font-semibold text-[#6B271A]">{b.name}</span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
             </div>
-          </div>
-        )}
+          )}
+        </header>
 
         {/* Drawer menu — montato FUORI dal <header> */}
         {menuOpen && (
@@ -987,8 +1034,8 @@ export default function HomepageMockup() {
                 </ul>
               </nav>
 
-              {/* “Diventa Creator” SOLO qui */}
-              <div className="border-t p-3 mt-auto">
+              {/* CTA “Diventa Creator” + Esci se loggato */}
+              <div className="border-t p-3 mt-auto space-y-2">
                 <Link
                   to="/registrazione-creator"
                   className="flex items-center justify-center rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white"
@@ -996,6 +1043,15 @@ export default function HomepageMockup() {
                 >
                   Diventa creator
                 </Link>
+                {!!getCurrentUser() && (
+                  <button
+                    onClick={doLogout}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 font-semibold"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Esci
+                  </button>
+                )}
               </div>
             </aside>
           </div>
@@ -1003,7 +1059,7 @@ export default function HomepageMockup() {
 
         {/* GEO Fallback toast */}
         {geoToast && (
-          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 -mt-6">
             <div className="rounded-xl bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 text-sm">
               ⚠️ {geoToast}
             </div>
@@ -1012,20 +1068,23 @@ export default function HomepageMockup() {
 
         {/* POST-SIGNUP TOAST */}
         {signupSuccess && (
-          <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 -mt-6">
             <div className="rounded-xl bg-green-50 border border-green-200 text-green-800 px-4 py-3 text-sm">
               ✅ Grazie! Iscrizione completata correttamente.
             </div>
           </div>
         )}
 
-        {/* HERO */}
+        {/* HERO molto grande */}
         <HeroHeader />
 
-        {/* SEZIONE REGIONI (tra Ricerca e Servizi) */}
+        {/* SEZIONE REGIONI (tra Ricerca e Servizi) — stile pillole come filtri Esperienze
+            Desktop: max 6 per riga (una riga scrollabile orizzontale con colonne ~16.66%)
+            Mobile: carosello orizzontale con snap */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6 -mt-6">
           <h2 className="sr-only">Regioni</h2>
-          {/* Mobile: carosello orizzontale con snap */}
+
+          {/* Mobile */}
           <div className="md:hidden relative">
             <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent rounded-l-2xl" />
             <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent rounded-r-2xl" />
@@ -1054,9 +1113,10 @@ export default function HomepageMockup() {
               })}
             </div>
           </div>
-          {/* Desktop: griglia compatta */}
+
+          {/* Desktop: singola riga scrollabile con larghezza di colonna ~ 1/6 */}
           <div
-            className="hidden md:grid grid-cols-5 lg:grid-cols-6 gap-2"
+            className="hidden md:grid auto-cols-[16.66%] grid-flow-col gap-2 overflow-x-auto no-scrollbar pb-1"
             role="toolbar"
             aria-label="Filtra per Regione"
           >
@@ -1080,7 +1140,6 @@ export default function HomepageMockup() {
             })}
           </div>
 
-          {/* Azione per azzerare filtro (se attivo) */}
           {activeRegion && (
             <div className="mt-2">
               <button
@@ -1094,58 +1153,61 @@ export default function HomepageMockup() {
           )}
         </section>
 
-        {/* SERVIZI (invariata; il tuo store può adattare in base a posizione/regione) */}
+        {/* SERVIZI — senza titolo “Servizi” per recuperare spazio */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-extrabold text-[#6B271A]">Servizi</h2>
-            <a href="#" className="text-sm font-semibold underline">
-              Vedi tutti
-            </a>
-          </div>
-          <div className="mt-4 relative md:hidden">
+          {/* Mobile carousel */}
+          <div className="relative md:hidden">
             <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white to-transparent rounded-l-2xl" />
             <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent rounded-r-2xl" />
             <div
-              className="flex gap-5 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2"
+              className="mt-2 flex gap-5 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2"
               style={{ WebkitOverflowScrolling: "touch" }}
             >
               <div className="min-w-[66%]">
                 <ServiceTile
                   img="https://images.unsplash.com/photo-1675843894930-2b7f07d3f3e5?q=80&w=1074&auto=format&fit=crop&ixlib=rb-4.1.0"
                   label="Esperienze"
+                  href="/esperienze"
                 />
               </div>
               <div className="min-w-[66%]">
                 <ServiceTile
                   img="https://images.unsplash.com/photo-1631379578550-7038263db699?q=80&w=1174&auto=format&fit=crop&ixlib=rb-4.1.0"
                   label="Prodotti tipici"
+                  href="/prodotti-tipici"
                 />
               </div>
               <div className="min-w-[66%]">
                 <ServiceTile
                   img="https://plus.unsplash.com/premium_photo-1661288451211-b61d32db1d11?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0"
                   label="Noleggio auto"
+                  href="/noleggio-auto"
                 />
               </div>
             </div>
           </div>
-          <div className="mt-5 hidden md:grid grid-cols-3 gap-6">
+
+          {/* Desktop grid */}
+          <div className="mt-2 hidden md:grid grid-cols-3 gap-6">
             <div className="h-56">
               <ServiceTile
                 img="https://images.unsplash.com/photo-1675843894930-2b7f07d3f3e5?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.1.0"
                 label="Esperienze"
+                href="/esperienze"
               />
             </div>
             <div className="h-56">
               <ServiceTile
                 img="https://images.unsplash.com/photo-1631379578550-7038263db699?q=80&w=1174&auto=format&fit=crop&ixlib=rb-4.1.0"
                 label="Prodotti tipici"
+                href="/prodotti-tipici"
               />
             </div>
             <div className="h-56">
               <ServiceTile
                 img="https://plus.unsplash.com/premium_photo-1661288451211-b61d32db1d11?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0"
                 label="Noleggio auto"
+                href="/noleggio-auto"
               />
             </div>
           </div>

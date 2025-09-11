@@ -1,798 +1,682 @@
-// src/pages/Onboarding.jsx  (VERSIONE CREATOR con toggle Utente ⇄ Creator)
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+// src/pages/Dashboard.jsx
+import { useMemo, useState } from "react";
 import {
-  Menu, Search, LogOut, Upload as UploadIcon, Youtube, Image as ImageIcon,
-  MapPin, Landmark, Tag, Share2, Eye, Heart, CheckCircle2, Trophy, Film, Layers3, Settings, X, User as UserIcon
+  Menu, X, LogOut, Search, Heart, Bell, User as UserIcon,
+  Flag, MessageCircle, Camera, Film, Upload, Youtube,
+  BarChart2, Star, BadgeCheck, Clock, ChevronRight, Crown, List, Trophy
 } from "lucide-react";
 
-import {
-  getCurrentUser,
-  getMyCreatorProfile,
-  updateCreator,
-  listBorghi,
-  listPoiByBorgo,
-  listVideosByCreator,
-  addVideo,
-  saveVideoFile,
-  getVideoObjectURL,
-} from "../../lib/store";
-
-/* ======================
-   PALETTE (Creator)
-====================== */
-const brand = {
-  primary: "#0D4D4D",
-  accent: "#14B8A6",
-  bg: "#F0FDFA",
-  soft: "#ECFEFF",
-  sand: "#FFFDF7",
+/* =======================
+   PALETTE (Il Borghista)
+======================= */
+const C = {
+  primary: "#D54E30",
+  primaryDark: "#6B271A",
+  cream: "#FAF5E0",
+  light: "#F4F4F4",
+  gold: "#E1B671",
 };
 
-/* ======================
-   LIVELLI CREATOR
-====================== */
-const CREATOR_LEVELS = [
-  { name: "Creator", at: 0 },
-  { name: "Content Builder", at: 100 },
-  { name: "Story Architect", at: 250 },
-  { name: "Content Master", at: 500 },
-  { name: "Top Creator 🏆", at: 900 },
+/* =======================
+   MOCK (Borgo → POI → Attività)
+======================= */
+const BORGI = [
+  {
+    slug: "viggiano",
+    name: "Viggiano",
+    activities: ["Dormire", "Mangiare & Bere", "Cosa fare", "Artigiani", "Cammini", "Musei", "Natura"],
+    poi: [
+      { id: "remi", name: "Statua di Remì (Piazza del Popolo)" },
+      { id: "santuario", name: "Santuario della Madonna Nera" },
+      { id: "belvedere", name: "Belvedere del Sacro Monte" },
+    ],
+  },
+  {
+    slug: "castelmezzano",
+    name: "Castelmezzano",
+    activities: ["Dormire", "Mangiare & Bere", "Cosa fare", "Natura", "Cammini"],
+    poi: [
+      { id: "volo", name: "Volo dell'Angelo" },
+      { id: "roccia", name: "Le Dolomiti Lucane (Rocce)" },
+    ],
+  },
+  {
+    slug: "pietrapertosa",
+    name: "Pietrapertosa",
+    activities: ["Dormire", "Mangiare & Bere", "Cosa fare", "Artigiani"],
+    poi: [
+      { id: "arabat", name: "Quartiere Arabata" },
+      { id: "castello", name: "Castello Normanno" },
+    ],
+  },
 ];
 
-/* ======================
-   UTILS
-====================== */
-function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+/* =======================
+   GAMIFICATION (5 livelli)
+======================= */
+const LEVELS = [
+  { key: 1, name: "Curioso", min: 0,   max: 100 },
+  { key: 2, name: "Esploratore", min: 101, max: 250 },
+  { key: 3, name: "Viaggiatore", min: 251, max: 500 },
+  { key: 4, name: "Ambasciatore", min: 501, max: 900 },
+  { key: 5, name: "Il Borghista", min: 901, max: 999999 },
+];
+const POINTS = { checkin: 2, event: 5, feedback: 3, photo: 4, video: 20, like: 1 };
+const BADGE_RULES = [
+  { id: "fotografo_bronzo", label: "Fotografo • Bronzo", type: "photos", threshold: 3 },
+  { id: "recensore_bronzo", label: "Recensore • Bronzo", type: "feedback", threshold: 3 },
+  { id: "videomaker_bronzo", label: "Videomaker • Bronzo", type: "videos_published", threshold: 1 },
+];
+const FALLBACK_IMG =
+  "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop";
 
-function getYouTubeId(url) {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes("youtube.com")) return u.searchParams.get("v") || "";
-    if (u.hostname.includes("youtu.be")) return u.pathname.slice(1);
-  } catch {}
-  return "";
-}
-
-/* Embed YouTube sicuro */
-function YouTubeEmbed({ url, title }) {
-  const id = getYouTubeId(url || "");
-  if (!id) return null;
-  const src = `https://www.youtube-nocookie.com/embed/${id}`;
-  return (
-    <div className="aspect-video rounded-lg overflow-hidden bg-black/5">
-      <iframe
-        title={title || "YouTube video"}
-        src={src}
-        className="w-full h-full"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowFullScreen
-      />
-    </div>
+/* =======================
+   HOOK: livello
+======================= */
+function useLevel(points) {
+  const level = useMemo(
+    () => LEVELS.find((l) => points >= l.min && points <= l.max) || LEVELS[LEVELS.length - 1],
+    [points]
   );
+  const next = useMemo(() => LEVELS.find((l) => l.min > level.min) || null, [level]);
+  const span = level.max - level.min || 1;
+  const pct = Math.round(Math.min(100, Math.max(0, ((points - level.min) / span) * 100)));
+  const toNext = next ? Math.max(0, next.min - points) : 0;
+  return { level, next, pct, toNext };
 }
 
-function uid() { try { return crypto.randomUUID(); } catch { return Math.random().toString(36).slice(2); } }
+/* =======================
+   PAGE
+======================= */
+export default function Dashboard() {
+  const [menuOpen, setMenuOpen] = useState(false);
 
-function Toast({ msg, onClose }) {
-  useEffect(() => { const t = setTimeout(onClose, 2000); return () => clearTimeout(t); }, [onClose]);
-  return (
-    <div className="fixed left-1/2 -translate-x-1/2 bottom-6 z-[70]">
-      <div className="rounded-xl px-3.5 py-2 shadow-lg border text-sm bg-white"
-           style={{ borderColor: `${brand.accent}66`, color: brand.primary }}>
-        {msg}
-      </div>
-    </div>
-  );
-}
-
-function Progress({ value = 0, hint = "#E6FFFB", fill = brand.primary }) {
-  const pct = clamp(Math.round(value), 0, 100);
-  return (
-    <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: hint }}>
-      <div className="h-2 rounded-full transition-[width] duration-500" style={{ width: `${pct}%`, background: fill }} />
-    </div>
-  );
-}
-
-/* ======================
-   COMPONENT
-====================== */
-export default function Onboarding() {
-  const navigate = useNavigate();
-  const uploadRef = useRef(null);
-
-  // Auth
-  const [logged, setLogged] = useState(() => !!getCurrentUser());
-  const logout = () => { try { localStorage.removeItem("ib_token"); } catch {} setLogged(false); navigate("/"); };
-
-  // Toggle Utente ⇄ Creator (persistente)
-  const [role, setRole] = useState(() => localStorage.getItem("ib_role") || "creator");
-  const toggleRole = () => {
-    const next = role === "creator" ? "user" : "creator";
-    setRole(next);
-    try { localStorage.setItem("ib_role", next); } catch {}
-  };
-
-  // Profilo
-  const [profile, setProfile] = useState({
-    handle: "@creator",
-    bio: "Racconto la bellezza dei borghi.",
-    avatar: "",
-    links: { site: "", ig: "" },
-    notify: true,
+  // stato utente
+  const [user, setUser] = useState({
+    name: "Piero",
     points: 0,
+    photosUploaded: 0,
+    feedbackGiven: 0,
+    eventsReported: 0,
+    videosPublished: 0,
+    region: "Basilicata",
+    streakDays: 0,
+    isCreator: false, // diventa true quando attiva/pubb
   });
+  const { level, next, pct, toNext } = useLevel(user.points);
 
-  useEffect(() => {
-    (async () => {
-      const me = getCurrentUser();
-      const p = await getMyCreatorProfile().catch(() => null);
-      if (p) setProfile(prev => ({ ...prev, ...p }));
-    })();
-  }, []);
+  // preferiti
+  const [favorites, setFavorites] = useState([
+    { id: "b1", label: "Castelmezzano", thumb: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=800&auto=format&fit=crop" },
+    { id: "b2", label: "Pietrapertosa", thumb: "https://images.unsplash.com/photo-1501854140801-50d01698950b?q=80&w=800&auto=format&fit=crop" },
+  ]);
 
-  const saveProfile = async (patch) => {
-    const next = { ...profile, ...patch };
-    setProfile(next);
-    try { await updateCreator(next); } catch {}
-  };
+  // creator
+  const [creatorOpen, setCreatorOpen] = useState(false);
+  const [selectedBorgoSlug, setSelectedBorgoSlug] = useState("");
+  const selectedBorgo = useMemo(() => BORGI.find(b => b.slug === selectedBorgoSlug) || null, [selectedBorgoSlug]);
+  const [form, setForm] = useState({
+    title: "", description: "", poiId: "", activity: "", tags: "", url: "", fileName: "", thumbnail: FALLBACK_IMG
+  });
+  const [videos, setVideos] = useState({ drafts: [], scheduled: [], published: [] });
 
-  // Livelli
-  const levelIdx = useMemo(
-    () => CREATOR_LEVELS.reduce((acc, lv, i) => profile.points >= lv.at ? i : acc, 0),
-    [profile.points]
-  );
-  const level = CREATOR_LEVELS[levelIdx];
-  const nextLevel = CREATOR_LEVELS[levelIdx + 1] || CREATOR_LEVELS[CREATOR_LEVELS.length - 1];
-  const progress = ((profile.points - level.at) / Math.max(1, nextLevel.at - level.at)) * 100;
+  // classifiche (mock)
+  const leaderboardRegional = [
+    { name: "Paolo V.", level: "Ambasciatore", points: 740 },
+    { name: "Anna S.", level: "Viaggiatore", points: 520 },
+    { name: "Giorgio L.", level: "Esploratore", points: 300 },
+  ];
+  const leaderboardNational = [
+    { name: "Lucia R.", level: "Il Borghista", points: 1400 },
+    { name: "Marco D.", level: "Ambasciatore", points: 960 },
+    { name: "Ilaria F.", level: "Viaggiatore", points: 650 },
+  ];
 
-  // Video
-  const [videos, setVideos] = useState([]);
-  useEffect(() => {
-    (async () => {
-      const arr = await listVideosByCreator().catch(() => []);
-      setVideos(arr);
-    })();
-  }, []);
-
-  // Tabs
-  const TABS = ["Tutti", "Pubblicati", "Programmati", "Bozze", "In attesa"];
-  const [tab, setTab] = useState("Tutti");
-  const filtered = useMemo(() => {
-    if (tab === "Tutti") return videos;
-    if (tab === "Bozze") return videos.filter(v => v.status === "Bozza");
-    return videos.filter(v => v.status === tab);
-  }, [videos, tab]);
-
-  // Missions (auto)
-  const [missions, setMissions] = useState(() => ([
-    { id: "upload1",   t: "Carica 1 video",      goal: 1,   p: 0, reward: 40, unlocked: true,  done: false },
-    { id: "schedule1", t: "Programma 1 video",   goal: 1,   p: 0, reward: 20, unlocked: false, done: false },
-    { id: "pub3",      t: "Pubblica 3 video",    goal: 3,   p: 0, reward: 60, unlocked: false, done: false },
-    { id: "share1",    t: "Condividi 1 video",   goal: 1,   p: 0, reward: 20, unlocked: false, done: false },
-    { id: "views100",  t: "100 visual su 1 vid", goal: 100, p: 0, reward: 80, unlocked: false, done: false },
-  ]));
-
-  const award = (pts) => saveProfile({ points: (profile.points || 0) + pts });
-
-  const unlockNext = (id) => {
-    const order = ["upload1", "schedule1", "pub3", "share1", "views100"];
-    const idx = order.indexOf(id); const nextId = order[idx + 1];
-    return missions.map(m => m.id === nextId ? { ...m, unlocked: true } : m);
-  };
-
-  const tickMission = (id, inc = 1) => {
-    let next = missions.map(m => m.id === id ? { ...m, p: clamp(m.p + inc, 0, m.goal) } : m);
-    const m = next.find(x => x.id === id);
-    if (m && !m.done && m.p >= m.goal) {
-      m.done = true; award(m.reward);
-      next = unlockNext(id);
-    }
-    setMissions(next);
-  };
-
-  // Simula views
-  useEffect(() => {
-    const t = setInterval(() => {
-      setVideos(prev => {
-        const arr = prev.map(v => v.status === "Pubblicati"
-          ? { ...v, views: clamp((v.views || 0) + (Math.random() < 0.5 ? 1 : 0), 0, 99999) }
-          : v);
-        const maxViews = arr.reduce((mx, v) => Math.max(mx, v.views || 0), 0);
-        if (missions.find(m => m.id === "views100")?.unlocked) {
-          setMissions(cur => {
-            const n = cur.map(m => m.id === "views100" ? { ...m, p: clamp(maxViews, 0, m.goal) } : m);
-            const mv = n.find(x => x.id === "views100");
-            if (mv && !mv.done && mv.p >= mv.goal) { mv.done = true; award(mv.reward); }
-            return n;
-          });
-        }
-        const pubCount = arr.filter(v => v.status === "Pubblicati").length;
-        if (missions.find(m => m.id === "pub3")?.unlocked) {
-          setMissions(cur => {
-            const n = cur.map(m => m.id === "pub3" ? { ...m, p: clamp(pubCount, 0, m.goal) } : m);
-            const mp = n.find(x => x.id === "pub3");
-            if (mp && !mp.done && mp.p >= mp.goal) { mp.done = true; award(mp.reward); }
-            return n;
-          });
-        }
-        return arr;
-      });
-    }, 3500);
-    return () => clearInterval(t);
-  }, [missions]);
-
-  // Upload
-  const [mode, setMode] = useState("youtube"); // youtube | file
-  const [title, setTitle] = useState("");
-  const [desc, setDesc] = useState("");
-  const [borgo, setBorgo] = useState("");
-  const [poi, setPoi] = useState("");
-  const [tags, setTags] = useState("");
-  const [ytUrl, setYtUrl] = useState("");
-  const [file, setFile] = useState(null);
-  const ytid = useMemo(() => getYouTubeId(ytUrl), [ytUrl]);
-
-  const thumb = useMemo(() => {
-    if (mode === "youtube" && ytid) return `https://i.ytimg.com/vi/${ytid}/hqdefault.jpg`;
-    if (!file) return "";
-    const u = getVideoObjectURL?.(file);
-    return u || "";
-  }, [mode, ytid, file]);
-
-  // Autosave leggero (bozza upload)
-  useEffect(() => {
-    const t = setInterval(() => {
-      try {
-        const draft = { mode, title, desc, borgo, poi, tags, ytUrl };
-        localStorage.setItem("ib_creator_draft", JSON.stringify(draft));
-      } catch {}
-    }, 3000);
-    return () => clearInterval(t);
-  }, [mode, title, desc, borgo, poi, tags, ytUrl]);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("ib_creator_draft");
-      if (raw) {
-        const d = JSON.parse(raw);
-        setMode(d.mode || "youtube");
-        setTitle(d.title || ""); setDesc(d.desc || ""); setBorgo(d.borgo || "");
-        setPoi(d.poi || ""); setTags(d.tags || ""); setYtUrl(d.ytUrl || "");
-      }
-    } catch {}
-  }, []);
-
-  const onPick = (e) => { const f = e.target.files?.[0]; if (f) setFile(f); };
-
-  const canSubmit = useMemo(() => {
-    if (!title.trim() || !borgo.trim()) return false;
-    if (mode === "youtube") return !!ytid;
-    return !!file;
-  }, [title, borgo, mode, ytid, file]);
-
-  const quickAdd = async (status) => {
-    if (!canSubmit) return;
-    let source = null;
-    if (mode === "youtube") {
-      source = { type: "youtube", id: ytid, url: ytUrl.trim() };
-    } else {
-      const saved = await saveVideoFile(file).catch(() => null);
-      source = { type: "file", url: saved?.url || "" };
-    }
-    const v = {
-      id: uid(),
-      title: title.trim(),
-      desc: desc.trim(),
-      borgo: borgo.trim(),
-      poi: poi.trim(),
-      tags: tags.split(",").map(t => t.trim()).filter(Boolean),
-      status, // "Bozza" | "Programmati" | "Pubblicati" | "In attesa"
-      createdAt: Date.now(),
-      views: 0,
-      likes: 0,
-      thumb,
-      source,
+  // stats creator
+  const stats = useMemo(() => {
+    const all = [...videos.drafts, ...videos.scheduled, ...videos.published];
+    return {
+      total: all.length,
+      views: all.reduce((s, v) => s + (v.views || 0), 0),
+      likes: all.reduce((s, v) => s + (v.likes || 0), 0)
     };
-    const saved = await addVideo(v).catch(() => v);
-    setVideos(prev => [saved, ...prev]);
+  }, [videos]);
 
-    if (status === "Bozza" || status === "In attesa" || status === "Pubblicati") tickMission("upload1");
-    if (status === "Programmati") tickMission("schedule1");
-    award(status === "Pubblicati" ? 25 : status === "Programmati" ? 18 : 12);
-
-    setTitle(""); setDesc(""); setBorgo(""); setPoi(""); setTags("");
-    setYtUrl(""); setFile(null);
-    try { localStorage.removeItem("ib_creator_draft"); } catch {}
-
-    toast(status === "Bozza" ? "Salvato in Bozze"
-      : status === "Programmati" ? "Programmato"
-        : status === "Pubblicati" ? "Pubblicato"
-          : "Aggiunto");
+  // attività recente
+  const [recent, setRecent] = useState([]);
+  const pushActivity = (label, points) => {
+    setRecent(r => [{ label, points, ts: Date.now() }, ...r].slice(0, 8));
+    if (points) setUser(u => ({ ...u, points: u.points + points }));
   };
 
-  // Share / Like / Remove
-  const share = async (v) => {
-    try {
-      if (navigator.share && v.source?.url) {
-        await navigator.share({ title: v.title, url: v.source.url });
-      } else {
-        await navigator.clipboard.writeText(v.source?.url || window.location.href);
-      }
-      tickMission("share1");
-      toast("Link copiato");
-    } catch {}
+  // azioni rapide utente
+  const doCheckin = () => { setUser(u => ({ ...u, streakDays: u.streakDays + 1 })); pushActivity("Check-in giornaliero", POINTS.checkin); };
+  const doReportEvent = () => { setUser(u => ({ ...u, eventsReported: u.eventsReported + 1 })); pushActivity("Segnalazione evento", POINTS.event); };
+  const doFeedback = () => { setUser(u => ({ ...u, feedbackGiven: u.feedbackGiven + 1 })); pushActivity("Feedback lasciato", POINTS.feedback); };
+  const doPhoto = () => { setUser(u => ({ ...u, photosUploaded: u.photosUploaded + 1 })); pushActivity("Foto caricata", POINTS.photo); };
+
+  // badge + obiettivi
+  const unlockedBadges = useMemo(() => {
+    const out = [];
+    BADGE_RULES.forEach(r => {
+      if (r.type === "photos" && user.photosUploaded >= r.threshold) out.push(r);
+      if (r.type === "feedback" && user.feedbackGiven >= r.threshold) out.push(r);
+      if (r.type === "videos_published" && user.videosPublished >= r.threshold) out.push(r);
+    });
+    return out;
+  }, [user]);
+  const nextObjectives = useMemo(() => {
+    const items = [];
+    if (next) items.push({ label: `Passa a “${next.name}”`, needed: `${toNext} pt` });
+    if (user.photosUploaded < 3) items.push({ label: "Sblocca Fotografo • Bronzo", needed: `carica ${3 - user.photosUploaded} foto` });
+    if (user.feedbackGiven < 3) items.push({ label: "Sblocca Recensore • Bronzo", needed: `lascia ${3 - user.feedbackGiven} feedback` });
+    if (user.videosPublished < 1) items.push({ label: "Sblocca Videomaker • Bronzo", needed: "pubblica 1 video" });
+    return items.slice(0, 3);
+  }, [next, toNext, user]);
+
+  // creator helpers
+  const baseVideoFromForm = () => {
+    const borgo = selectedBorgo?.name || "";
+    const poiName = selectedBorgo?.poi.find(p => p.id === form.poiId)?.name || "";
+    return {
+      id: "v_" + Date.now(),
+      title: form.title.trim() || "Senza titolo",
+      description: form.description.trim(),
+      borgo, poiName,
+      activity: form.activity || "",
+      tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
+      url: form.url.trim(),
+      fileName: form.fileName,
+      thumbnail: form.thumbnail || FALLBACK_IMG,
+      views: Math.floor(Math.random() * 500),
+      likes: Math.floor(Math.random() * 50),
+    };
   };
-  const like = (vid) => setVideos(prev => prev.map(v => v.id === vid.id ? { ...v, likes: (v.likes || 0) + 1 } : v));
-  const remove = (vid) => setVideos(prev => prev.filter(v => v.id !== vid.id));
+  const resetForm = () => setForm({ title: "", description: "", poiId: "", activity: "", tags: "", url: "", fileName: "", thumbnail: FALLBACK_IMG });
+  const addAsDraft = () => { const v = baseVideoFromForm(); setVideos(vs => ({ ...vs, drafts: [v, ...vs.drafts] })); setUser(u => ({ ...u, isCreator: true })); pushActivity("Video salvato in bozza", 0); resetForm(); };
+  const addAsScheduled = () => { const v = baseVideoFromForm(); setVideos(vs => ({ ...vs, scheduled: [v, ...vs.scheduled] })); setUser(u => ({ ...u, isCreator: true })); pushActivity("Video programmato", 0); resetForm(); };
+  const addAsPublished = () => { const v = baseVideoFromForm(); setVideos(vs => ({ ...vs, published: [v, ...vs.published] })); setUser(u => ({ ...u, isCreator: true, videosPublished: u.videosPublished + 1, points: u.points + POINTS.video })); pushActivity("Video pubblicato", POINTS.video); resetForm(); };
 
-  // UI
-  const [openMenu, setOpenMenu] = useState(false);
-  const [openSettings, setOpenSettings] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [toastMsg, setToastMsg] = useState("");
-  const toast = (m) => setToastMsg(m);
-
-  const goToUpload = () => uploadRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // preferiti
+  const removeFav = id => setFavorites(f => f.filter(x => x.id !== id));
+  const addFavDemo = () => setFavorites(f => [{ id: "f_" + Date.now(), label: "Nuovo preferito", thumb: FALLBACK_IMG }, ...f]);
 
   return (
-    <main className="min-h-screen" style={{ background: brand.bg }}>
-      {/* TOP BAR */}
-      <header className="sticky top-0 z-50 border-b backdrop-blur"
-              style={{ borderColor: `${brand.accent}55`, backgroundColor: `${brand.soft}CC` }}>
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <Link to="/" className="font-extrabold tracking-tight text-base sm:text-lg" style={{ color: brand.primary }}>
-            Il Borghista
-          </Link>
-
-          {/* Toggle Utente ⇄ Creator */}
-          <button
-            onClick={toggleRole}
-            className="hidden sm:inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold border"
-            title="Switch area"
-            style={{ borderColor: `${brand.accent}66`, color: brand.primary, background: brand.sand }}
-          >
-            <UserIcon className="w-4 h-4" />
-            {role === "creator" ? "Creator" : "Utente"} ⇄ {role === "creator" ? "Utente" : "Creator"}
+    <div className="min-h-screen" style={{ backgroundColor: C.cream }}>
+      {/* HEADER */}
+      <header className="sticky top-0 z-40 border-b" style={{ borderColor: C.gold, backgroundColor: "rgba(250,245,224,0.92)", backdropFilter: "blur(6px)" }}>
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+          <button onClick={() => setMenuOpen(true)} className="mr-2 rounded-lg border bg-white p-2 hover:opacity-90" style={{ borderColor: C.gold }}>
+            <Menu className="h-5 w-5" style={{ color: C.primaryDark }} />
           </button>
 
-          <div className="flex items-center gap-2">
-            <button onClick={() => setSearchOpen(true)} className="p-2 rounded-lg border"
-                    style={{ borderColor: `${brand.accent}66`, color: brand.primary }}>
-              <Search className="w-4 h-4" />
-            </button>
-            <button onClick={() => setOpenSettings(true)}
-                    className="p-2 rounded-lg border hidden sm:inline-flex"
-                    style={{ borderColor: `${brand.accent}66`, color: brand.primary }}>
-              <Settings className="w-4 h-4" />
-            </button>
-            <button onClick={() => setOpenMenu(true)} className="p-2 rounded-lg border"
-                    style={{ borderColor: `${brand.accent}66`, color: brand.primary }}>
-              <Menu className="w-4 h-4" />
-            </button>
+          <div className="text-xl font-semibold tracking-tight" style={{ color: C.primaryDark }}>Il Borghista</div>
+
+          <div className="hidden flex-1 px-4 md:block">
+            <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-2" style={{ borderColor: C.gold }}>
+              <Search className="h-4 w-4" style={{ color: C.primaryDark }} />
+              <input className="w-full text-sm outline-none" placeholder="Cerca borghi, luoghi, esperienze..." />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Heart className="h-5 w-5" style={{ color: C.primaryDark }} />
+            <Bell className="h-5 w-5" style={{ color: C.primaryDark }} />
+            <div className="h-8 w-8 rounded-full" style={{ backgroundColor: C.gold }} />
           </div>
         </div>
       </header>
 
-      {/* HERO */}
-      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Avatar avatar={profile.avatar} onPick={(src) => saveProfile({ avatar: src })} />
-            <div>
-              <div className="text-lg sm:text-xl font-black" style={{ color: brand.primary }}>
-                {profile.handle || "@creator"}
-              </div>
-              <div className="text-xs sm:text-sm" style={{ color: `${brand.primary}B3` }}>
-                {profile.bio || "Bio breve."}
-              </div>
-            </div>
-          </div>
-          <button onClick={() => setOpenSettings(true)}
-                  className="px-3 py-2 rounded-lg text-sm font-semibold hidden sm:block"
-                  style={{ background: brand.primary, color: "white" }}>
-            Modifica profilo
-          </button>
-        </div>
-
-        {/* GAMIFICATION */}
-        <div className="mt-4 rounded-2xl p-4 bg-white border" style={{ borderColor: `${brand.accent}55` }}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-semibold" style={{ color: brand.primary }}>{level.name}</span>
-                <span className="text-xs" style={{ color: `${brand.primary}99` }}>Punti: <b>{profile.points}</b> / {nextLevel.at}</span>
-              </div>
-              <div className="mt-2"><Progress value={progress} /></div>
-            </div>
-            <div className="hidden sm:flex items-center gap-2">
-              <MiniBadge label="Builder" unlocked={profile.points >= 100} />
-              <MiniBadge label="Architect" unlocked={profile.points >= 250} />
-              <MiniBadge label="Master" unlocked={profile.points >= 500} />
-              <MiniBadge label="Top" unlocked={profile.points >= 900} />
-            </div>
-          </div>
-
-          {/* Missioni compatte */}
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-2">
-            {missions.map((m, i) => {
-              const pct = Math.round((m.p / m.goal) * 100);
-              return (
-                <div key={m.id} className="rounded-xl border bg-white p-2"
-                     style={{ borderColor: `${brand.accent}40`, opacity: m.unlocked ? 1 : .5 }}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold" style={{ color: brand.primary }}>{i + 1}</span>
-                    {m.done ? <CheckCircle2 className="w-4 h-4" style={{ color: brand.accent }} /> : <Film className="w-4 h-4" style={{ color: brand.primary }} />}
-                  </div>
-                  <div className="mt-1"><Progress value={pct} hint="#F3F4F6" fill={brand.accent} /></div>
-                  <div className="mt-1 text-[11px]" style={{ color: `${brand.primary}99` }}>{m.p}/{m.goal} · +{m.reward}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* SMART UPLOAD */}
-        <div ref={uploadRef} className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <section className="rounded-2xl p-4 bg-white border" style={{ borderColor: `${brand.accent}55` }}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-base sm:text-lg font-bold" style={{ color: brand.primary }}>Upload rapido</h2>
-              <div className="flex gap-1">
-                <button onClick={() => setMode("youtube")}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${mode==="youtube"?"text-white":""}`}
-                        style={{ background: mode==="youtube"?brand.primary:brand.soft, color: mode==="youtube"?"white":brand.primary }}>
-                  <Youtube className="inline w-4 h-4 mr-1" /> YouTube
-                </button>
-                <button onClick={() => setMode("file")}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${mode==="file"?"text-white":""}`}
-                        style={{ background: mode==="file"?brand.primary:brand.soft, color: mode==="file"?"white":brand.primary }}>
-                  <UploadIcon className="inline w-4 h-4 mr-1" /> File
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-3 grid gap-2">
-              <input className="rounded-xl border px-3 py-2 text-sm outline-none"
-                     style={{ borderColor: `${brand.accent}66` }} placeholder="Titolo"
-                     value={title} onChange={(e)=>setTitle(e.target.value)} />
-              <div className="relative">
-                <textarea className="w-full rounded-xl border px-3 py-2 text-sm outline-none resize-none"
-                          style={{ borderColor: `${brand.accent}66` }} placeholder="Descrizione (max 140)"
-                          maxLength={140} rows={2} value={desc} onChange={(e)=>setDesc(e.target.value)} />
-                <span className="absolute bottom-1 right-2 text-[11px]" style={{ color: `${brand.primary}80` }}>{desc.length}/140</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="relative">
-                  <MapPin className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: `${brand.primary}80` }} />
-                  <input className="w-full pl-9 rounded-xl border px-3 py-2 text-sm outline-none"
-                         style={{ borderColor: `${brand.accent}66` }} placeholder="Borgo"
-                         value={borgo} onChange={(e)=>setBorgo(e.target.value)} />
-                </div>
-                <div className="relative">
-                  <Landmark className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: `${brand.primary}80` }} />
-                  <input className="w-full pl-9 rounded-xl border px-3 py-2 text-sm outline-none"
-                         style={{ borderColor: `${brand.accent}66` }} placeholder="POI (opz.)"
-                         value={poi} onChange={(e)=>setPoi(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="relative">
-                <Tag className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: `${brand.primary}80` }} />
-                <input className="w-full pl-9 rounded-xl border px-3 py-2 text-sm outline-none"
-                       style={{ borderColor: `${brand.accent}66` }} placeholder="Tag (separa con virgola)"
-                       value={tags} onChange={(e)=>setTags(e.target.value)} />
-              </div>
-
-              {mode === "youtube" ? (
-                <div className="relative">
-                  <Youtube className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: `${brand.primary}80` }} />
-                  <input className="w-full pl-9 rounded-xl border px-3 py-2 text-sm outline-none"
-                         style={{ borderColor: `${brand.accent}66` }} placeholder="URL YouTube"
-                         value={ytUrl} onChange={(e)=>setYtUrl(e.target.value)} />
-                </div>
-              ) : (
-                <label className="grid place-items-center gap-2 rounded-xl border border-dashed py-6 cursor-pointer"
-                       style={{ borderColor: brand.accent, background: brand.sand }}>
-                  <ImageIcon className="w-6 h-6" style={{ color: brand.primary }} />
-                  <span className="text-sm" style={{ color: brand.primary }}>Carica file video</span>
-                  <input type="file" accept="video/*" className="hidden" onChange={onPick} />
-                </label>
-              )}
-
-              {/* Anteprima / Miniatura */}
-              <div className="mt-1">
-                {mode === "youtube" ? (
-                  ytid ? <YouTubeEmbed url={ytUrl} title={title} /> :
-                  <div className="aspect-video rounded-lg border grid place-items-center text-xs"
-                       style={{ borderColor: `${brand.accent}55`, color: `${brand.primary}80` }}>Miniatura</div>
-                ) : (
-                  <div className="aspect-video rounded-lg overflow-hidden border bg-[#000]/5 grid place-items-center"
-                       style={{ borderColor: `${brand.accent}55` }}>
-                    {thumb ? <video src={thumb} className="w-full h-full object-cover" controls /> :
-                      <div className="text-xs" style={{ color: `${brand.primary}80` }}>Anteprima</div>}
-                  </div>
-                )}
-              </div>
-
-              {/* Azioni */}
-              <div className="grid grid-cols-3 gap-2 pt-1">
-                <button disabled={!canSubmit}
-                        onClick={()=>quickAdd("Bozza")}
-                        className="rounded-xl py-2 font-semibold text-sm border disabled:opacity-50"
-                        style={{ borderColor: `${brand.accent}66`, color: brand.primary, background: brand.soft }}>
-                  Bozza
-                </button>
-                <button disabled={!canSubmit}
-                        onClick={()=>quickAdd("Programmati")}
-                        className="rounded-xl py-2 font-semibold text-sm border disabled:opacity-50"
-                        style={{ borderColor: `${brand.accent}66`, color: brand.primary, background: brand.sand }}>
-                  Programma
-                </button>
-                <button disabled={!canSubmit}
-                        onClick={()=>quickAdd("Pubblicati")}
-                        className="rounded-xl py-2 font-semibold text-sm disabled:opacity-50"
-                        style={{ background: brand.primary, color: "white" }}>
-                  Pubblica
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* STATISTICHE & TIP */}
-          <section className="rounded-2xl p-4 bg-white border" style={{ borderColor: `${brand.accent}55` }}>
-            <div className="grid grid-cols-3 gap-2">
-              <Stat icon={<Eye className="w-5 h-5" />} label="Visual" value={videos.reduce((s,v)=>s+(v.views||0),0)} />
-              <Stat icon={<Heart className="w-5 h-5" />} label="Like" value={videos.reduce((s,v)=>s+(v.likes||0),0)} />
-              <Stat icon={<Layers3 className="w-5 h-5" />} label="Video" value={videos.length} />
-            </div>
-            <div className="mt-4 rounded-xl p-3 border"
-                 style={{ borderColor: `${brand.accent}40`, background: brand.sand }}>
-              <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: brand.primary }}>
-                <CheckCircle2 className="w-4 h-4" /> Consiglio rapido
-              </div>
-              <p className="text-xs mt-1" style={{ color: `${brand.primary}99` }}>
-                Titolo chiaro + miniature luminose = più click.
-              </p>
-            </div>
-          </section>
-        </div>
-
-        {/* I MIEI VIDEO */}
-        <section className="mt-5">
-          <div className="sticky top-14 z-40" style={{ background: brand.bg }}>
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2">
-              {TABS.map(t => (
-                <button key={t} onClick={()=>setTab(t)}
-                        className="px-3 py-1.5 rounded-lg text-sm font-semibold whitespace-nowrap"
-                        style={{
-                          background: tab===t?brand.primary:brand.soft,
-                          color: tab===t?"white":brand.primary
-                        }}>
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {filtered.length === 0 ? (
-            <div className="mt-3 grid place-items-center text-center rounded-2xl border p-6 bg-white"
-                 style={{ borderColor: `${brand.accent}55` }}>
-              <div className="text-5xl">🎬</div>
-              <div className="mt-2 text-sm" style={{ color: brand.primary }}>Nessun contenuto qui.</div>
-              <button onClick={()=>uploadRef.current?.scrollIntoView({ behavior: "smooth" })}
-                      className="mt-3 px-4 py-2 rounded-xl text-sm font-semibold"
-                      style={{ background: brand.primary, color: "white" }}>
-                Carica ora
-              </button>
-            </div>
-          ) : (
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {filtered.map(v => (
-                <article key={v.id}
-                         className="group rounded-xl overflow-hidden bg-white border transition hover:shadow-md"
-                         style={{ borderColor: `${brand.accent}55` }}>
-                  <div className="relative aspect-video bg-[#000]/5">
-                    {v.thumb
-                      ? (v.source?.type === "file"
-                          ? <video src={v.thumb} className="w-full h-full object-cover" />
-                          : <img src={v.thumb} alt={v.title} className="w-full h-full object-cover" />)
-                      : <div className="w-full h-full grid place-items-center text-xs" style={{ color: brand.primary }}>Anteprima</div>}
-                    <span className="absolute top-2 left-2 text-[11px] px-2 py-0.5 rounded-full bg-white/90 border"
-                          style={{ borderColor: `${brand.accent}55`, color: brand.primary }}>
-                      {v.status}
-                    </span>
-                  </div>
-                  <div className="p-3">
-                    <div className="text-sm font-semibold line-clamp-2" style={{ color: brand.primary }}>{v.title}</div>
-                    <div className="mt-1 text-xs" style={{ color: `${brand.primary}99` }}>
-                      {v.borgo}{v.poi ? ` · ${v.poi}` : ""}
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-xs" style={{ color: `${brand.primary}B3` }}>
-                      <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" /> {v.views || 0}</span>
-                      <div className="flex items-center gap-1.5">
-                        {v.source?.url && (
-                          <button onClick={()=>share(v)} className="px-2 py-1 rounded-lg border"
-                                  style={{ borderColor: `${brand.accent}55`, color: brand.primary }}>
-                            <Share2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <button onClick={()=>like(v)} className="px-2 py-1 rounded-lg"
-                                style={{ background: brand.soft, color: brand.primary }}>
-                          <Heart className="w-3.5 h-3.5" /> {v.likes || 0}
-                        </button>
-                        <button onClick={()=>remove(v)} className="px-2 py-1 rounded-lg border"
-                                style={{ borderColor: `${brand.accent}55`, color: brand.primary }}>
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      </section>
-
-      {/* FAB Carica video */}
-      <button
-        onClick={goToUpload}
-        className="fixed bottom-20 right-4 sm:right-6 z-50 rounded-full shadow-lg px-4 py-3 text-sm font-semibold"
-        aria-label="Carica video"
-        style={{ background: brand.primary, color: "white" }}
-      >
-        + Carica video
-      </button>
-
       {/* MENU A PANINO */}
-      {openMenu && (
-        <div className="fixed inset-0 z-[60]">
-          <div className="absolute inset-0 bg-black/40" onClick={()=>setOpenMenu(false)} />
-          <div className="absolute right-0 top-0 h-full w-72 bg-white shadow-xl border-l p-4"
-               style={{ borderColor: `${brand.accent}55` }}>
-            <div className="flex items-center justify-between">
-              <div className="font-bold" style={{ color: brand.primary }}>Menu</div>
-              <button onClick={()=>setOpenMenu(false)} className="p-1 rounded-lg border"
-                      style={{ borderColor: `${brand.accent}55`, color: brand.primary }}>
-                <X className="w-4 h-4" />
+      {menuOpen && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setMenuOpen(false)} />
+          <div className="absolute left-0 top-0 h-full w-80 max-w-[85%] overflow-y-auto border-r bg-white p-4 shadow-xl" style={{ borderColor: C.gold }}>
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-9 rounded-full" style={{ backgroundColor: C.gold }} />
+                <div>
+                  <div className="text-sm">Ciao <b>{user.name}</b></div>
+                  <div className="text-xs" style={{ color: C.primaryDark }}>Livello: <b>{level.name}</b> · {user.points} pt</div>
+                </div>
+              </div>
+              <button onClick={() => setMenuOpen(false)} className="rounded-lg p-2 hover:bg-neutral-100">
+                <X className="h-5 w-5" style={{ color: C.primaryDark }} />
               </button>
             </div>
-            <nav className="mt-4 grid gap-1 text-sm" style={{ color: brand.primary }}>
-              <Link className="px-2 py-2 rounded-lg hover:bg-gray-50" to="/">Home</Link>
-              <button onClick={toggleRole} className="text-left px-2 py-2 rounded-lg hover:bg-gray-50">
-                Area: {role === "creator" ? "Creator" : "Utente"} ⇄ cambia
-              </button>
-              <button onClick={()=>setOpenSettings(true)} className="text-left px-2 py-2 rounded-lg hover:bg-gray-50">Impostazioni</button>
-              {logged && (
-                <button onClick={logout} className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-gray-50">
-                  <LogOut className="w-4 h-4" /> Esci
-                </button>
-              )}
+
+            <nav className="space-y-1">
+              <MenuItem icon={UserIcon} label="Il mio profilo" />
+              <MenuItem icon={List} label="I miei contenuti" />
+              <MenuItem icon={Heart} label="Preferiti" />
+              <div className="my-2 border-t" style={{ borderColor: C.light }} />
+              <MenuItem icon={Trophy} label="Livelli & Obiettivi" />
+              {/* stepper livelli nel menu */}
+              <div className="ml-8 mt-1 space-y-1 text-sm" style={{ color: C.primaryDark }}>
+                {LEVELS.map(l => (
+                  <div key={l.key} className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: level.name === l.name ? C.primary : C.gold, opacity: level.name === l.name ? 1 : .6 }} />
+                    <span className="flex-1">{l.name}</span>
+                    <span className="text-xs opacity-70">{l.min}–{l.max}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="my-2 border-t" style={{ borderColor: C.light }} />
+              <MenuItem icon={Crown} label="Classifica Regionale" href="#classifiche" />
+              <MenuItem icon={BarChart2} label="Classifica Nazionale" href="#classifiche" />
+              <div className="my-2 border-t" style={{ borderColor: C.light }} />
+              <MenuItem icon={LogOut} label="Esci" danger />
             </nav>
           </div>
         </div>
       )}
 
-      {/* OVERLAY RICERCA */}
-      {searchOpen && (
-        <div className="fixed inset-0 z-[65]">
-          <div className="absolute inset-0 bg-black/40" onClick={()=>setSearchOpen(false)} />
-          <div className="absolute left-1/2 -translate-x-1/2 top-16 w-[92%] max-w-xl bg-white rounded-2xl shadow-xl border p-3"
-               style={{ borderColor: `${brand.accent}55` }}>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: `${brand.primary}99` }} />
-              <input autoFocus placeholder="Cerca video, borghi o POI…" className="w-full pl-9 pr-3 py-2 rounded-xl border outline-none"
-                     style={{ borderColor: `${brand.accent}66`, color: brand.primary }} />
-              <button onClick={()=>setSearchOpen(false)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md border"
-                      style={{ borderColor: `${brand.accent}55`, color: brand.primary }}>
-                <X className="w-4 h-4" />
-              </button>
+      {/* MAIN */}
+      <main className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-3">
+        {/* COLONNA UTENTE (in alto) */}
+        <section className="lg:col-span-2 space-y-6">
+          {/* Greeting, progress, stepper, preferiti */}
+          <div className="rounded-2xl border bg-white p-4 md:p-6" style={{ borderColor: C.gold }}>
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h2 className="truncate text-lg font-semibold" style={{ color: C.primaryDark }}>
+                  Ciao {user.name}! <span className="opacity-80">({level.name})</span>
+                </h2>
+                <p className="text-sm" style={{ color: C.primaryDark }}>
+                  Mancano <b>{toNext}</b> pt per diventare <b>{next ? next.name : level.name}</b>.
+                </p>
+              </div>
+              <div className="hidden md:block">
+                <div className="mt-1 h-2 w-56 overflow-hidden rounded-full" style={{ backgroundColor: C.light }}>
+                  <div className="h-full transition-all" style={{ width: `${pct}%`, backgroundColor: C.primary }} />
+                </div>
+                <div className="mt-1 text-right text-xs" style={{ color: C.primaryDark }}>{user.points} pt totali</div>
+              </div>
             </div>
-            <div className="mt-2 text-[11px]" style={{ color: `${brand.primary}99` }}>
-              Suggerimenti: “Viggiano”, “Castelmezzano”, “borgo musical…”
+
+            {/* stepper livelli */}
+            <div className="mt-4 grid grid-cols-5 gap-2">
+              {LEVELS.map(l => (
+                <div key={l.key}
+                     className="rounded-lg border px-2 py-2 text-center text-xs"
+                     style={{
+                       borderColor: C.gold,
+                       backgroundColor: level.name === l.name ? C.gold : "#FFFFFF",
+                       color: C.primaryDark,
+                       fontWeight: level.name === l.name ? 700 : 500
+                     }}>
+                  {l.name}
+                </div>
+              ))}
+            </div>
+
+            {/* Preferiti in alto */}
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-medium" style={{ color: C.primaryDark }}>I tuoi preferiti</h3>
+                <button onClick={addFavDemo} className="rounded-lg border px-3 py-1.5 text-xs hover:opacity-90" style={{ borderColor: C.gold, color: C.primaryDark }}>
+                  Aggiungi preferito demo
+                </button>
+              </div>
+              {favorites.length ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {favorites.map(f => (
+                    <div key={f.id} className="overflow-hidden rounded-xl border" style={{ borderColor: C.gold }}>
+                      <div className="aspect-[16/10] w-full">
+                        <img src={f.thumb} alt={f.label} className="h-full w-full object-cover" />
+                      </div>
+                      <div className="flex items-center justify-between px-3 py-2 text-sm" style={{ color: C.primaryDark, backgroundColor: C.cream }}>
+                        <span className="truncate">{f.label}</span>
+                        <button onClick={() => removeFav(f.id)} className="text-xs underline">Rimuovi</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm" style={{ color: C.primaryDark }}>Nessun preferito. Salva borghi, esperienze, eventi e prodotti tipici.</div>
+              )}
+            </div>
+
+            {/* Azioni rapide */}
+            <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <QuickBtn icon={Clock} label="Check-in (+2)" onClick={doCheckin} />
+              <QuickBtn icon={Flag} label="Segnala evento (+5)" onClick={doReportEvent} />
+              <QuickBtn icon={MessageCircle} label="Lascia feedback (+3)" onClick={doFeedback} />
+              <QuickBtn icon={Camera} label="Carica foto (+4)" onClick={doPhoto} />
+            </div>
+
+            {/* Badge + obiettivi */}
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <div className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Badge sbloccati</div>
+                {unlockedBadges.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {unlockedBadges.slice(0, 3).map(b => (
+                      <span key={b.id} className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
+                            style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
+                        <BadgeCheck className="h-4 w-4" /> {b.label}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs" style={{ color: C.primaryDark }}>Sblocca i tuoi primi badge con le azioni rapide qui sopra.</div>
+                )}
+              </div>
+              <div>
+                <div className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Prossimi obiettivi</div>
+                <ul className="space-y-1 text-sm">
+                  {nextObjectives.map((o, i) => (
+                    <li key={i} className="flex items-center justify-between rounded-lg border px-3 py-2"
+                        style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
+                      <span>{o.label}</span>
+                      <span>{o.needed}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* SETTINGS SIDE PANEL */}
-      {openSettings && (
-        <div className="fixed inset-0 z-[60]">
-          <div className="absolute inset-0 bg-black/40" onClick={()=>setOpenSettings(false)} />
-          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl border-l"
-               style={{ borderColor: `${brand.accent}55` }}>
-            <div className="p-4 flex items-center justify-between border-b" style={{ borderColor: `${brand.accent}40` }}>
-              <div className="font-bold" style={{ color: brand.primary }}>Impostazioni</div>
-              <button onClick={()=>setOpenSettings(false)} className="p-1 rounded-lg border"
-                      style={{ borderColor: `${brand.accent}55`, color: brand.primary }}>
-                <X className="w-4 h-4" />
-              </button>
+          {/* CTA CREATOR */}
+          {!user.isCreator && !creatorOpen && (
+            <div className="overflow-hidden rounded-2xl border p-6 sm:p-8"
+                 style={{ borderColor: C.gold, background: `linear-gradient(90deg, ${C.primary} 0%, ${C.primaryDark} 100%)` }}>
+              <div className="grid items-center gap-6 sm:grid-cols-3">
+                <div className="sm:col-span-2">
+                  <h3 className="text-xl font-semibold text-white">Carica il tuo primo video e diventa Creator</h3>
+                  <p className="mt-1 text-white/90 text-sm">Racconta i tuoi borghi, ottieni <b>+20 punti</b> e sblocca il badge <b>Videomaker</b>.</p>
+                </div>
+                <button onClick={() => setCreatorOpen(true)}
+                        className="rounded-xl bg-white px-5 py-3 text-sm font-semibold hover:opacity-90"
+                        style={{ color: C.primaryDark }}>
+                  Inizia ora
+                </button>
+              </div>
             </div>
-            <div className="p-4 grid gap-3">
-              <div className="grid gap-1">
-                <label className="text-xs" style={{ color: `${brand.primary}99` }}>Handle</label>
-                <input className="rounded-xl border px-3 py-2 text-sm outline-none"
-                       style={{ borderColor: `${brand.accent}66` }}
-                       value={profile.handle} onChange={(e)=>saveProfile({ handle: e.target.value })} />
+          )}
+
+          {/* SEZIONE CREATOR (in basso) */}
+          {(user.isCreator || creatorOpen) && (
+            <>
+              <div className="rounded-2xl border bg-white p-4 md:p-6" style={{ borderColor: C.gold }}>
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Strumenti da Creator</h3>
+                  <div className="flex gap-2 text-xs" style={{ color: C.primaryDark }}>
+                    <Pill icon={Film}>Video totali: {stats.total}</Pill>
+                    <Pill icon={BarChart2}>Visualizzazioni: {stats.views}</Pill>
+                    <Pill icon={Star}>Like totali: {stats.likes}</Pill>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-3">
+                  {/* Form upload */}
+                  <div className="lg:col-span-2 space-y-3">
+                    <Input value={form.title} onChange={(v)=>setForm(f=>({...f,title:v}))} placeholder="Titolo" />
+                    <Textarea value={form.description} onChange={(v)=>setForm(f=>({...f,description:v}))} placeholder="Descrizione (max 140)" maxLength={140} counter />
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Select
+                        label="Borgo"
+                        value={selectedBorgoSlug}
+                        onChange={(v)=>{ setSelectedBorgoSlug(v); setForm(f=>({...f, poiId:"", activity:""})); }}
+                        options={[{value:"",label:"Seleziona borgo…"}, ...BORGI.map(b=>({value:b.slug,label:b.name}))]}
+                      />
+                      <Select
+                        label="POI (opzionale)"
+                        value={form.poiId}
+                        onChange={(v)=>setForm(f=>({...f, poiId:v}))}
+                        disabled={!selectedBorgo}
+                        options={[{value:"",label: selectedBorgo ? "Seleziona un POI…" : "Seleziona prima un borgo"},
+                          ...(selectedBorgo?.poi||[]).map(p=>({value:p.id,label:p.name}))]}
+                      />
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Select
+                        label="Attività (opzionale)"
+                        value={form.activity}
+                        onChange={(v)=>setForm(f=>({...f, activity:v}))}
+                        options={[{value:"",label:"—"},...((selectedBorgo?.activities)||[]).map(a=>({value:a,label:a}))]}
+                      />
+                      <Input label="Tag (opzionali – aiutano la SEO)" value={form.tags} onChange={(v)=>setForm(f=>({...f,tags:v}))} placeholder="es. famiglia, natura, storia" />
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Input label="URL YouTube" icon={<Youtube className="h-4 w-4" style={{color:C.primaryDark}}/>}
+                             value={form.url} onChange={(v)=>setForm(f=>({...f,url:v}))} placeholder="https://youtube.com/..." />
+                      <Input label="Oppure Upload file" icon={<Upload className="h-4 w-4" style={{color:C.primaryDark}}/>}
+                             value={form.fileName} onChange={(v)=>setForm(f=>({...f,fileName:v}))} placeholder="video.mp4 (demo)" />
+                    </div>
+
+                    <div>
+                      <Label>Miniatura (auto)</Label>
+                      <img src={form.thumbnail} alt="thumbnail"
+                           className="aspect-video w-full rounded-xl border object-cover"
+                           style={{ borderColor: C.gold }}
+                           onError={(e) => (e.currentTarget.src = FALLBACK_IMG)} />
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <BtnOutline onClick={addAsDraft}>Bozza</BtnOutline>
+                      <BtnOutline onClick={addAsScheduled}>Programma</BtnOutline>
+                      <BtnPrimary onClick={addAsPublished}>Pubblica</BtnPrimary>
+                    </div>
+                  </div>
+
+                  {/* Stats / Tips */}
+                  <div className="space-y-3">
+                    <div className="rounded-xl border p-3 text-sm" style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
+                      <div className="mb-2 font-medium">Statistiche base</div>
+                      <RowStat icon={Film} label="Video totali" value={stats.total} />
+                      <RowStat icon={BarChart2} label="Visualizzazioni" value={stats.views} />
+                      <RowStat icon={Star} label="Like totali" value={stats.likes} />
+                    </div>
+                    <div className="rounded-xl border p-3 text-sm" style={{ borderColor: C.gold }}>
+                      <div className="mb-2 font-medium" style={{ color: C.primaryDark }}>Consigli rapidi</div>
+                      <ul className="list-disc space-y-1 pl-5" style={{ color: C.primaryDark }}>
+                        <li>Usa il POI per farti trovare nelle mappe del borgo.</li>
+                        <li>Titolo chiaro + miniatura luminosa = più click.</li>
+                        <li>I tag sono opzionali ma utili per la SEO.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="grid gap-1">
-                <label className="text-xs" style={{ color: `${brand.primary}99` }}>Bio</label>
-                <textarea className="rounded-xl border px-3 py-2 text-sm outline-none resize-none"
-                          rows={3} style={{ borderColor: `${brand.accent}66` }}
-                          value={profile.bio} onChange={(e)=>saveProfile({ bio: e.target.value })} />
+
+              {/* Riquadri Creator (appaiono solo se Creator è attivo) */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <ContentColumn title="Bozze" items={videos.drafts} empty="Nessuna bozza." />
+                <ContentColumn title="Programmato" items={videos.scheduled} empty="Nessun video programmato." />
+                <ContentColumn title="Pubblicati" items={videos.published} empty="Nessun video pubblicato." showPoints />
               </div>
-              <label className="inline-flex items-center gap-2 text-sm select-none">
-                <input type="checkbox" checked={!!profile.notify}
-                       onChange={(e)=>saveProfile({ notify: e.target.checked })} />
-                Notifiche attive
-              </label>
-              <button onClick={()=>setOpenSettings(false)}
-                      className="mt-2 rounded-xl py-2 font-semibold"
-                      style={{ background: brand.primary, color: "white" }}>
-                Salva
-              </button>
+            </>
+          )}
+        </section>
+
+        {/* COLONNA DX: attività + classifiche */}
+        <aside className="space-y-6">
+          <div className="rounded-2xl border bg-white p-4" style={{ borderColor: C.gold }}>
+            <div className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Attività recente</div>
+            <ul className="space-y-2 text-sm">
+              {recent.length ? recent.map((a, i) => (
+                <li key={i} className="flex items-center justify-between rounded-lg border px-3 py-2"
+                    style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
+                  <span>{a.label}</span>
+                  <span>+{a.points} pt</span>
+                </li>
+              )) : <li style={{ color: C.primaryDark }}>Ancora nessuna attività.</li>}
+            </ul>
+          </div>
+
+          <div id="classifiche" className="rounded-2xl border bg-white p-4" style={{ borderColor: C.gold }}>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Classifiche</h3>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <LeaderboardCard title="Regionale" icon={Crown} items={leaderboardRegional} mePoints={user.points} />
+              <LeaderboardCard title="Nazionale" icon={BarChart2} items={leaderboardNational} mePoints={user.points} />
             </div>
           </div>
-        </div>
-      )}
-
-      {toastMsg && <Toast msg={toastMsg} onClose={()=>setToastMsg("")} />}
-    </main>
-  );
-}
-
-/* ======================
-   SUB COMPONENTS
-====================== */
-function Avatar({ avatar, onPick }) {
-  const pick = (e) => {
-    const f = e.target.files?.[0]; if (!f) return;
-    const r = new FileReader(); r.onload = () => onPick(typeof r.result === "string" ? r.result : ""); r.readAsDataURL(f);
-  };
-  return (
-    <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden ring-2"
-         style={{ borderColor: brand.accent }}>
-      {avatar
-        ? <img src={avatar} alt="avatar" className="w-full h-full object-cover" />
-        : <div className="w-full h-full grid place-items-center text-xs text-black/30">Avatar</div>}
-      <label className="absolute -bottom-1 -right-1 bg-white border rounded-full p-1 shadow cursor-pointer"
-             style={{ borderColor: brand.accent }}>
-        <input type="file" accept="image/*" className="hidden" onChange={pick} />
-        <span className="text-xs" role="img" aria-label="carica">📷</span>
-      </label>
+        </aside>
+      </main>
     </div>
   );
 }
 
-function MiniBadge({ label, unlocked }) {
+/* =======================
+   UI HELPERS (niente import doppi)
+======================= */
+function MenuItem({ icon: Icon, label, href, danger }) {
+  const Comp = href ? "a" : "button";
   return (
-    <span className="inline-flex items-center px-2 py-0.5 text-[11px] rounded-full border"
-          style={{
-            background: unlocked ? "#ECFDF5" : "#F3F4F6",
-            color: brand.primary,
-            borderColor: `${brand.accent}55`,
-            opacity: unlocked ? 1 : .6
-          }}>
-      {unlocked ? <Trophy className="w-3.5 h-3.5 mr-1" /> : <Film className="w-3.5 h-3.5 mr-1" />}
-      {label}
-    </span>
+    <Comp href={href || undefined}
+          className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-neutral-50 ${danger ? "text-red-600" : ""}`}>
+      <span className="flex items-center gap-2">
+        <Icon className={`h-4 w-4 ${danger ? "text-red-600" : ""}`} />
+        {label}
+      </span>
+      <ChevronRight className="h-4 w-4" />
+    </Comp>
   );
 }
-
-function Stat({ icon, label, value }) {
+function QuickBtn({ icon: Icon, label, onClick }) {
   return (
-    <div className="rounded-xl p-3 border bg-white" style={{ borderColor: `${brand.accent}40` }}>
+    <button onClick={onClick} className="rounded-xl border bg-white px-3 py-2 text-sm hover:opacity-90"
+            style={{ borderColor: C.gold, color: C.primaryDark }}>
       <div className="flex items-center gap-2">
-        <div className="rounded-lg p-2 border" style={{ borderColor: `${brand.accent}55`, color: brand.primary }}>
-          {icon}
-        </div>
-        <div>
-          <div className="text-sm font-semibold" style={{ color: brand.primary }}>{value}</div>
-          <div className="text-[11px]" style={{ color: `${brand.primary}99` }}>{label}</div>
-        </div>
+        <Icon className="h-4 w-4" />
+        {label}
+      </div>
+    </button>
+  );
+}
+function Pill({ icon: Icon, children }) {
+  return (
+    <div className="flex items-center gap-2 rounded-full border px-3 py-1 text-sm"
+         style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
+      <Icon className="h-4 w-4" />
+      <span>{children}</span>
+    </div>
+  );
+}
+function RowStat({ icon: Icon, label, value }) {
+  return (
+    <div className="flex items-center justify-between text-sm" style={{ color: C.primaryDark }}>
+      <span className="flex items-center gap-2"><Icon className="h-4 w-4" /> {label}</span>
+      <b>{value}</b>
+    </div>
+  );
+}
+function ContentColumn({ title, items, empty, showPoints }) {
+  return (
+    <div className="rounded-2xl border bg-white p-3" style={{ borderColor: C.gold }}>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="font-medium" style={{ color: C.primaryDark }}>{title}</div>
+        <span className="text-xs" style={{ color: C.primaryDark }}>{items.length}</span>
+      </div>
+      <div className="space-y-2">
+        {items.map(v => <VideoCard key={v.id} v={v} showPoints={showPoints} />)}
+        {!items.length && <EmptyCard text={empty} />}
       </div>
     </div>
   );
+}
+function VideoCard({ v, showPoints = false }) {
+  return (
+    <div className="overflow-hidden rounded-xl border" style={{ borderColor: C.gold }}>
+      <div className="aspect-video w-full bg-neutral-100">
+        <img src={v.thumbnail} alt={v.title} className="h-full w-full object-cover"
+             onError={(e) => (e.currentTarget.src = FALLBACK_IMG)} />
+      </div>
+      <div className="p-2">
+        <div className="truncate text-sm font-medium" style={{ color: C.primaryDark }}>{v.title}</div>
+        <div className="mt-1 flex items-center justify-between text-xs" style={{ color: C.primaryDark }}>
+          <span>{v.borgo}{v.poiName ? ` · ${v.poiName}` : ""}</span>
+          <span>{v.views} v · {v.likes} ❤</span>
+        </div>
+        {showPoints && (
+          <div className="mt-2 rounded px-2 py-1 text-xs"
+               style={{ backgroundColor: C.cream, color: C.primaryDark }}>
+            +20 pt (pubblicato)
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+function EmptyCard({ text }) {
+  return (
+    <div className="rounded-lg border border-dashed p-6 text-center text-sm"
+         style={{ borderColor: C.gold, color: C.primaryDark }}>
+      {text}
+    </div>
+  );
+}
+function LeaderboardCard({ title, icon: Icon, items, mePoints }) {
+  return (
+    <div className="rounded-xl border bg-white p-3" style={{ borderColor: C.gold }}>
+      <div className="mb-2 flex items-center gap-2" style={{ color: C.primaryDark }}>
+        <Icon className="h-4 w-4" />
+        <div className="font-medium">{title}</div>
+      </div>
+      <ol className="space-y-1 text-sm">
+        {items.map((p, i) => (
+          <li key={i} className="flex items-center justify-between rounded-lg border px-3 py-2"
+              style={{ borderColor: C.light, backgroundColor: C.cream, color: C.primaryDark }}>
+            <span>{i + 1}. {p.name} · <span className="opacity-80">{p.level}</span></span>
+            <b>{p.points}</b>
+          </li>
+        ))}
+        <li className="mt-2 flex items-center justify-between rounded-lg border border-dashed px-3 py-2"
+            style={{ borderColor: C.gold, color: C.primaryDark }}>
+          <span>Tu</span>
+          <b>{mePoints}</b>
+        </li>
+      </ol>
+    </div>
+  );
+}
+
+/* --- piccoli componenti form con stile coerente --- */
+function Label({ children }) { return <label className="mb-1 block text-xs" style={{ color: C.primaryDark }}>{children}</label>; }
+function Input({ label, value, onChange, placeholder, icon }) {
+  return (
+    <div>
+      {label && <Label>{label}</Label>}
+      <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm"
+           style={{ borderColor: C.gold, color: C.primaryDark }}>
+        {icon}
+        <input className="w-full outline-none" value={value} onChange={(e)=>onChange(e.target.value)} placeholder={placeholder} />
+      </div>
+    </div>
+  );
+}
+function Textarea({ label, value, onChange, placeholder, maxLength=140, counter=false }) {
+  return (
+    <div>
+      {label && <Label>{label}</Label>}
+      <textarea value={value} maxLength={maxLength} onChange={(e)=>onChange(e.target.value)} placeholder={placeholder}
+        className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none"
+        style={{ borderColor: C.gold, color: C.primaryDark }} />
+      {counter && <div className="mt-1 text-right text-xs" style={{ color: C.primaryDark }}>{value.length}/{maxLength}</div>}
+    </div>
+  );
+}
+function Select({ label, value, onChange, options, disabled }) {
+  return (
+    <div>
+      {label && <Label>{label}</Label>}
+      <select disabled={disabled} value={value} onChange={(e)=>onChange(e.target.value)}
+              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none disabled:bg-neutral-100"
+              style={{ borderColor: C.gold, color: C.primaryDark }}>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+function BtnPrimary({ children, onClick }) {
+  return <button onClick={onClick} className="rounded-xl px-4 py-2 text-sm text-white hover:opacity-90" style={{ backgroundColor: C.primary }}>{children}</button>;
+}
+function BtnOutline({ children, onClick }) {
+  return <button onClick={onClick} className="rounded-xl border px-4 py-2 text-sm hover:opacity-90" style={{ borderColor: C.gold, color: C.primaryDark }}>{children}</button>;
 }

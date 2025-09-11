@@ -11,14 +11,17 @@ import {
   Clock,
   MessageCircle,
   Star,
+  Instagram,
+  Youtube,
+  Music2, // usato come icona TikTok-like
 } from "lucide-react";
 
 /**
- * CreatorIndex
- * - Panoramica accattivante dei creator
- * - Filtri in alto (ricerca, regione, categoria, ordinamento)
- * - Card ricche: avatar/foto, metriche video, categorie, regione, rating (se presente), CTA "Contatta"
- * - Mobile-first, grid responsive, focus state e accessibilità base
+ * Panoramica Creator — versione con follower per piattaforma
+ * - Mostra: avatar/cover, nome/handle, regione, categorie
+ * - Metriche: video, views, durata media (se disponibile), follower (piattaforma principale)
+ * - Filtri superiori + ordinamento
+ * - CTA: Contatta / Vedi profilo
  */
 export default function CreatorIndex() {
   const navigate = useNavigate();
@@ -27,25 +30,72 @@ export default function CreatorIndex() {
   // -------------------------
   // STATE FILTRI E ORDINAMENTO
   // -------------------------
-  const [q, setQ] = useState(""); // ricerca per nome/descrizione/tag
+  const [q, setQ] = useState("");
   const [region, setRegion] = useState("");
   const [category, setCategory] = useState("");
   const [sort, setSort] = useState("pop"); // pop | views | videos | recent
 
-  // opzioni dinamiche da dataset (evita null/duplicati)
+  // opzioni dinamiche
   const { regions, categories } = useMemo(() => {
     const r = new Set();
     const c = new Set();
     creators.forEach((cr) => {
       if (cr?.region) r.add(cr.region);
-      if (Array.isArray(cr?.categories)) cr.categories.forEach((x) => x && c.add(x));
-      if (cr?.category) c.add(cr.category);
+      const pool = Array.isArray(cr?.categories)
+        ? cr.categories
+        : [cr?.category].filter(Boolean);
+      pool.forEach((x) => x && c.add(x));
     });
     return {
       regions: Array.from(r).sort((a, b) => a.localeCompare(b)),
       categories: Array.from(c).sort((a, b) => a.localeCompare(b)),
     };
   }, [creators]);
+
+  // -------------------------
+  // HELPERS
+  // -------------------------
+  const fmt = (n) =>
+    typeof n === "number"
+      ? Intl.NumberFormat("it-IT", { notation: "compact", maximumFractionDigits: 1 }).format(n)
+      : "—";
+
+  // Rileva piattaforma principale in base al numero follower/subscriber
+  const pickTopPlatform = (c) => {
+    const ig = c?.social?.instagramFollowers ?? c?.instagramFollowers ?? 0;
+    const tt = c?.social?.tiktokFollowers ?? c?.tiktokFollowers ?? 0;
+    const yt = c?.social?.youtubeSubscribers ?? c?.youtubeSubscribers ?? 0;
+
+    const platforms = [
+      { key: "instagram", label: "Instagram", count: ig, Icon: Instagram },
+      { key: "tiktok", label: "TikTok", count: tt, Icon: Music2 },
+      { key: "youtube", label: "YouTube", count: yt, Icon: Youtube },
+    ].filter((p) => typeof p.count === "number" && p.count > 0);
+
+    if (!platforms.length) return null;
+
+    platforms.sort((a, b) => b.count - a.count);
+    const top = platforms[0];
+
+    // tooltip riepilogativo con tutte le piattaforme disponibili
+    const tooltip = platforms
+      .map((p) => `${p.label}: ${fmt(p.count)}`)
+      .join(" · ");
+
+    return { ...top, tooltip };
+  };
+
+  const getEngagement = (c) => {
+    // percentuale (0-100) o frazione (0-1) gestita
+    let e =
+      c?.social?.engagementRate ??
+      c?.engagementRate ??
+      c?.stats?.engagementRate ??
+      null;
+    if (e == null) return null;
+    if (e > 0 && e <= 1) e = e * 100;
+    return Math.round(e * 10) / 10; // una cifra decimale
+  };
 
   // -------------------------
   // FILTER + SORT
@@ -55,21 +105,24 @@ export default function CreatorIndex() {
 
     let arr = creators.filter((c) => {
       const inRegion = !region || norm(c.region).includes(norm(region));
-      const catPool = Array.isArray(c.categories) ? c.categories : [c.category].filter(Boolean);
-      const inCategory =
-        !category || catPool.some((cat) => norm(cat).includes(norm(category)));
+      const pool = Array.isArray(c.categories)
+        ? c.categories
+        : [c.category].filter(Boolean);
+      const inCategory = !category || pool.some((cat) => norm(cat).includes(norm(category)));
+
       const hay =
         [
           c.name,
+          c.handle ? "@" + c.handle : "",
           c.bio,
           c.region,
-          ...(catPool || []),
+          ...(pool || []),
           ...(c.tags || []),
-          c.handle ? "@" + c.handle : "",
         ]
           .filter(Boolean)
           .join(" ")
           .toLowerCase() || "";
+
       const inQuery = !q || hay.includes(q.toLowerCase());
       return inRegion && inCategory && inQuery;
     });
@@ -88,7 +141,8 @@ export default function CreatorIndex() {
       if (sort === "views") return bViews - aViews;
       if (sort === "videos") return bVideos - aVideos;
       if (sort === "recent") return bRecent - aRecent;
-      // pop (default): mix points + views + videos
+
+      // pop: miscela di punteggio, views e n° video
       const aPop = aScore * 5 + aViews * 0.001 + aVideos * 2;
       const bPop = bScore * 5 + bViews * 0.001 + bVideos * 2;
       return bPop - aPop;
@@ -97,19 +151,11 @@ export default function CreatorIndex() {
     return arr;
   }, [creators, q, region, category, sort]);
 
-  // -------------------------
-  // UI HELPERS
-  // -------------------------
-  const fmt = (n) =>
-    typeof n === "number"
-      ? Intl.NumberFormat("it-IT", { notation: "compact" }).format(n)
-      : "—";
-
   const CategoryPills = ({ items = [] }) => {
     if (!items.length) return null;
     return (
       <div className="flex flex-wrap gap-1.5">
-        {items.slice(0, 4).map((x, i) => (
+        {items.slice(0, 3).map((x, i) => (
           <span
             key={i}
             className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-[#FAF5E0] text-[#6B271A] border border-amber-200"
@@ -118,9 +164,9 @@ export default function CreatorIndex() {
             {x}
           </span>
         ))}
-        {items.length > 4 && (
+        {items.length > 3 && (
           <span className="text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-600 border">
-            +{items.length - 4}
+            +{items.length - 3}
           </span>
         )}
       </div>
@@ -137,7 +183,7 @@ export default function CreatorIndex() {
         <div>
           <h1 className="text-2xl font-extrabold text-[#6B271A]">I nostri Creator</h1>
           <p className="text-sm text-gray-600">
-            Scopri profili, stili e competenze. Filtra e contatta chi vuoi ingaggiare.
+            Filtra per regione e categoria, confronta metriche e contatta chi vuoi ingaggiare.
           </p>
         </div>
         <Link
@@ -148,30 +194,24 @@ export default function CreatorIndex() {
         </Link>
       </div>
 
-      {/* Barre di ricerca/filtri (sempre sopra) */}
+      {/* Barre di ricerca e filtri */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-        {/* Ricerca libera */}
         <div className="md:col-span-5">
-          <label className="sr-only" htmlFor="q">
-            Cerca creator
-          </label>
+          <label className="sr-only" htmlFor="q">Cerca creator</label>
           <div className="relative">
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input
               id="q"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Cerca per nome, tag o stile (es. drone, storytelling, food)…"
+              placeholder="Cerca per nome, tag o stile (es. food, drone, storytelling)…"
               className="w-full h-11 pl-9 pr-3 rounded-xl border bg-white focus:ring-2 focus:ring-[#E1B671]/70 outline-none"
             />
           </div>
         </div>
 
-        {/* Regione */}
         <div className="md:col-span-3">
-          <label className="sr-only" htmlFor="region">
-            Regione
-          </label>
+          <label className="sr-only" htmlFor="region">Regione</label>
           <select
             id="region"
             value={region}
@@ -180,18 +220,13 @@ export default function CreatorIndex() {
           >
             <option value="">Tutte le regioni</option>
             {regions.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
+              <option key={r} value={r}>{r}</option>
             ))}
           </select>
         </div>
 
-        {/* Categoria */}
         <div className="md:col-span-3">
-          <label className="sr-only" htmlFor="category">
-            Categoria
-          </label>
+          <label className="sr-only" htmlFor="category">Categoria</label>
           <select
             id="category"
             value={category}
@@ -200,18 +235,13 @@ export default function CreatorIndex() {
           >
             <option value="">Tutte le categorie</option>
             {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
         </div>
 
-        {/* Ordinamento */}
         <div className="md:col-span-1">
-          <label className="sr-only" htmlFor="sort">
-            Ordina
-          </label>
+          <label className="sr-only" htmlFor="sort">Ordina</label>
           <select
             id="sort"
             value={sort}
@@ -238,7 +268,10 @@ export default function CreatorIndex() {
           const videos = c?.stats?.videosCount ?? c.videosCount ?? 0;
           const views = c?.stats?.totalViews ?? c.totalViews ?? 0;
           const avgDur = c?.stats?.avgDurationMin ?? c.avgDurationMin ?? null;
-          const rating = c?.rating ?? null; // 0–5 (facoltativo)
+          const rating = c?.rating ?? null;
+
+          const topPlatform = pickTopPlatform(c);
+          const engagement = getEngagement(c); // percentuale se disponibile
 
           return (
             <article
@@ -252,9 +285,7 @@ export default function CreatorIndex() {
                     src={cover}
                     alt={name}
                     className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
+                    onError={(e) => (e.currentTarget.style.display = "none")}
                   />
                 ) : null}
 
@@ -264,9 +295,7 @@ export default function CreatorIndex() {
                     src={avatar}
                     alt={name}
                     className="absolute -bottom-6 left-4 w-14 h-14 rounded-full ring-4 ring-white object-cover bg-white"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
+                    onError={(e) => (e.currentTarget.style.display = "none")}
                   />
                 ) : (
                   <div className="absolute -bottom-6 left-4 w-14 h-14 rounded-full ring-4 ring-white bg-gray-200" />
@@ -298,13 +327,21 @@ export default function CreatorIndex() {
                       {c.region}
                     </span>
                   )}
+
+                  {/* Engagement (se presente) */}
+                  {engagement != null && (
+                    <span className="ml-auto inline-flex items-center gap-1 text-[12px] px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
+                      {engagement}% ENG
+                    </span>
+                  )}
                 </div>
 
+                {/* Categorie */}
                 <div className="mt-2">
                   <CategoryPills items={catPool} />
                 </div>
 
-                {/* Metriche video */}
+                {/* Metriche */}
                 <div className="mt-4 grid grid-cols-3 gap-2 text-[12px]">
                   <div className="rounded-xl border bg-[#FAF5E0] text-[#6B271A] px-2 py-2 flex items-center gap-1.5 justify-center">
                     <VideoIcon className="w-4 h-4" />
@@ -316,12 +353,44 @@ export default function CreatorIndex() {
                     <span className="font-semibold">{fmt(views)}</span>
                     <span className="text-gray-600 opacity-80">views</span>
                   </div>
-                  <div className="rounded-xl border bg-white px-2 py-2 flex items-center gap-1.5 justify-center">
-                    <Clock className="w-4 h-4 text-gray-700" />
-                    <span className="font-semibold">{avgDur ? `${avgDur}′` : "—"}</span>
-                    <span className="text-gray-600 opacity-80">avg</span>
-                  </div>
+
+                  {/* Durata media: mostrata solo se disponibile */}
+                  {avgDur != null ? (
+                    <div className="rounded-xl border bg-white px-2 py-2 flex items-center gap-1.5 justify-center">
+                      <Clock className="w-4 h-4 text-gray-700" />
+                      <span className="font-semibold">{avgDur}′</span>
+                      <span className="text-gray-600 opacity-80">avg</span>
+                    </div>
+                  ) : (
+                    // Follower piattaforma principale (se non c'è avg mostriamo comunque i follower come terzo box)
+                    topPlatform && (
+                      <div
+                        className="rounded-xl border bg-white px-2 py-2 flex items-center gap-1.5 justify-center"
+                        title={topPlatform.tooltip}
+                      >
+                        <topPlatform.Icon className="w-4 h-4 text-gray-700" />
+                        <span className="font-semibold">{fmt(topPlatform.count)}</span>
+                        <span className="text-gray-600 opacity-80">
+                          {topPlatform.key === "youtube" ? "sub" : "followers"}
+                        </span>
+                      </div>
+                    )
+                  )}
                 </div>
+
+                {/* Se abbiamo sia avg che follower, aggiungiamo il box follower sotto */}
+                {avgDur != null && topPlatform && (
+                  <div
+                    className="mt-2 text-[12px] inline-flex items-center gap-1.5 rounded-xl border bg-white px-2 py-1.5"
+                    title={topPlatform.tooltip}
+                  >
+                    <topPlatform.Icon className="w-4 h-4 text-gray-700" />
+                    <span className="font-semibold">{fmt(topPlatform.count)}</span>
+                    <span className="text-gray-600 opacity-80">
+                      {topPlatform.key === "youtube" ? "sub" : "followers"}
+                    </span>
+                  </div>
+                )}
 
                 {/* CTA */}
                 <div className="mt-4 flex items-center gap-2">

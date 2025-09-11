@@ -2,11 +2,10 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import SuggestItineraryBtn from "../../components/SuggestItineraryBtn";
-import { listMyItineraries } from "../../lib/itineraries";
 import {
-  Menu, X, LogOut, Search, Heart, Bell, User as UserIcon,
-  Flag, MessageCircle, Camera, Film, Upload, Youtube,
-  BarChart2, Star, BadgeCheck, Clock, ChevronRight, Crown, List, Trophy
+  Menu, X, LogOut, Flag, MessageCircle, Upload, Youtube,
+  BarChart2, Clock, ChevronRight, Crown, List, Bell,
+  Compass, Map, Star, Medal, Trophy, Film
 } from "lucide-react";
 
 /* =======================
@@ -55,21 +54,16 @@ const BORGI = [
 ];
 
 /* =======================
-   GAMIFICATION (5 livelli)
+   GAMIFICATION (5 livelli a icone)
 ======================= */
 const LEVELS = [
-  { key: 1, name: "Curioso", min: 0,   max: 100 },
-  { key: 2, name: "Esploratore", min: 101, max: 250 },
-  { key: 3, name: "Viaggiatore", min: 251, max: 500 },
-  { key: 4, name: "Ambasciatore", min: 501, max: 900 },
-  { key: 5, name: "Il Borghista", min: 901, max: 999999 },
+  { key: 1, name: "Curioso",       min: 0,   max: 100,  Icon: Compass },
+  { key: 2, name: "Esploratore",   min: 101, max: 250,  Icon: Map },
+  { key: 3, name: "Viaggiatore",   min: 251, max: 500,  Icon: Star },
+  { key: 4, name: "Ambasciatore",  min: 501, max: 900,  Icon: Medal },
+  { key: 5, name: "Il Borghista",  min: 901, max: 999999, Icon: Crown },
 ];
-const POINTS = { checkin: 2, event: 5, feedback: 3, photo: 4, video: 20, like: 1 };
-const BADGE_RULES = [
-  { id: "fotografo_bronzo", label: "Fotografo • Bronzo", type: "photos", threshold: 3 },
-  { id: "recensore_bronzo", label: "Recensore • Bronzo", type: "feedback", threshold: 3 },
-  { id: "videomaker_bronzo", label: "Videomaker • Bronzo", type: "videos_published", threshold: 1 },
-];
+const POINTS = { checkin: 2, event: 5, feedback: 3, video: 20 };
 const FALLBACK_IMG =
   "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop";
 
@@ -89,23 +83,21 @@ function useLevel(points) {
 }
 
 /* =======================
-   PAGE
+   PAGE (mobile-first)
 ======================= */
 export default function Onboarding() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   // stato utente
   const [user, setUser] = useState({
-    id: "demo_1", // ⬅️ serve per salvare/filtrare itinerari su localStorage
     name: "Piero",
     points: 0,
-    photosUploaded: 0,
     feedbackGiven: 0,
     eventsReported: 0,
     videosPublished: 0,
     region: "Basilicata",
     streakDays: 0,
-    isCreator: false, // diventa true quando attiva/pubb
+    isCreator: false,
   });
   const { level, next, pct, toNext } = useLevel(user.points);
 
@@ -114,13 +106,6 @@ export default function Onboarding() {
     { id: "b1", label: "Castelmezzano", thumb: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=800&auto=format&fit=crop" },
     { id: "b2", label: "Pietrapertosa", thumb: "https://images.unsplash.com/photo-1501854140801-50d01698950b?q=80&w=800&auto=format&fit=crop" },
   ]);
-
-  // itinerari: conteggi rapidi
-  const itinCounts = useMemo(() => ({
-    bozza: listMyItineraries(user.id, "bozza").length,
-    in_revisione: listMyItineraries(user.id, "in_revisione").length,
-    pubblicato: listMyItineraries(user.id, "pubblicato").length,
-  }), [user.id]);
 
   // creator
   const [creatorOpen, setCreatorOpen] = useState(false);
@@ -164,26 +149,7 @@ export default function Onboarding() {
   const doCheckin = () => { setUser(u => ({ ...u, streakDays: u.streakDays + 1 })); pushActivity("Check-in giornaliero", POINTS.checkin); };
   const doReportEvent = () => { setUser(u => ({ ...u, eventsReported: u.eventsReported + 1 })); pushActivity("Segnalazione evento", POINTS.event); };
   const doFeedback = () => { setUser(u => ({ ...u, feedbackGiven: u.feedbackGiven + 1 })); pushActivity("Feedback lasciato", POINTS.feedback); };
-  const doPhoto = () => { setUser(u => ({ ...u, photosUploaded: u.photosUploaded + 1 })); pushActivity("Foto caricata", POINTS.photo); };
-
-  // badge + obiettivi
-  const unlockedBadges = useMemo(() => {
-    const out = [];
-    BADGE_RULES.forEach(r => {
-      if (r.type === "photos" && user.photosUploaded >= r.threshold) out.push(r);
-      if (r.type === "feedback" && user.feedbackGiven >= r.threshold) out.push(r);
-      if (r.type === "videos_published" && user.videosPublished >= r.threshold) out.push(r);
-    });
-    return out;
-  }, [user]);
-  const nextObjectives = useMemo(() => {
-    const items = [];
-    if (next) items.push({ label: `Passa a “${next.name}”`, needed: `${toNext} pt` });
-    if (user.photosUploaded < 3) items.push({ label: "Sblocca Fotografo • Bronzo", needed: `carica ${3 - user.photosUploaded} foto` });
-    if (user.feedbackGiven < 3) items.push({ label: "Sblocca Recensore • Bronzo", needed: `lascia ${3 - user.feedbackGiven} feedback` });
-    if (user.videosPublished < 1) items.push({ label: "Sblocca Videomaker • Bronzo", needed: "pubblica 1 video" });
-    return items.slice(0, 3);
-  }, [next, toNext, user]);
+  const goToVideoUpload = () => { setCreatorOpen(true); document.getElementById("creator-tools")?.scrollIntoView({ behavior: "smooth" }); };
 
   // creator helpers
   const baseVideoFromForm = () => {
@@ -214,69 +180,53 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: C.cream }}>
-      {/* HEADER */}
-      <header className="sticky top-0 z-40 border-b" style={{ borderColor: C.gold, backgroundColor: "rgba(250,245,224,0.92)", backdropFilter: "blur(6px)" }}>
+      {/* HEADER MOBILE-FIRST */}
+      <header className="sticky top-0 z-40 border-b" style={{ borderColor: C.gold, backgroundColor: "rgba(250,245,224,0.96)", backdropFilter: "blur(6px)" }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <button onClick={() => setMenuOpen(true)} className="mr-2 rounded-lg border bg-white p-2 hover:opacity-90" style={{ borderColor: C.gold }}>
+          <div className="text-lg sm:text-xl font-semibold tracking-tight" style={{ color: C.primaryDark }}>Il Borghista</div>
+          <button onClick={() => setMenuOpen(true)} className="ml-2 rounded-lg border bg-white p-2 hover:opacity-90" style={{ borderColor: C.gold }}>
             <Menu className="h-5 w-5" style={{ color: C.primaryDark }} />
           </button>
-
-          <div className="text-xl font-semibold tracking-tight" style={{ color: C.primaryDark }}>Il Borghista</div>
-
-          <div className="hidden flex-1 px-4 md:block">
-            <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-2" style={{ borderColor: C.gold }}>
-              <Search className="h-4 w-4" style={{ color: C.primaryDark }} />
-              <input className="w-full text-sm outline-none" placeholder="Cerca borghi, luoghi, esperienze..." />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* bottone itinerari in header (desktop) */}
-            <div className="hidden md:block">
-              <SuggestItineraryBtn />
-            </div>
-            <Heart className="h-5 w-5" style={{ color: C.primaryDark }} />
-            <Bell className="h-5 w-5" style={{ color: C.primaryDark }} />
-            <div className="h-8 w-8 rounded-full" style={{ backgroundColor: C.gold }} />
-          </div>
         </div>
       </header>
 
-      {/* MENU A PANINO */}
+      {/* MENU A PANINO (a destra) */}
       {menuOpen && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/30" onClick={() => setMenuOpen(false)} />
-          <div className="absolute left-0 top-0 h-full w-80 max-w-[85%] overflow-y-auto border-r bg-white p-4 shadow-xl" style={{ borderColor: C.gold }}>
+          <div className="absolute right-0 top-0 h-full w-80 max-w-[85%] overflow-y-auto border-l bg-white p-4 shadow-xl" style={{ borderColor: C.gold }}>
             <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-full" style={{ backgroundColor: C.gold }} />
-                <div>
-                  <div className="text-sm">Ciao <b>{user.name}</b></div>
-                  <div className="text-xs" style={{ color: C.primaryDark }}>Livello: <b>{level.name}</b> · {user.points} pt</div>
-                </div>
-              </div>
+              <div className="text-base font-semibold" style={{ color: C.primaryDark }}>Menu</div>
               <button onClick={() => setMenuOpen(false)} className="rounded-lg p-2 hover:bg-neutral-100">
                 <X className="h-5 w-5" style={{ color: C.primaryDark }} />
               </button>
             </div>
 
             <nav className="space-y-1">
-              <MenuItem icon={UserIcon} label="Il mio profilo" />
+              <MenuItem icon={Bell} label="Notifiche" />
               <MenuItem icon={List} label="I miei contenuti" />
-              <MenuItem icon={Heart} label="Preferiti" />
-              {/* NEW: accesso diretto agli Itinerari */}
-              <MenuItem icon={List} label="Itinerari Consigliati" href="/itinerari" />
               <div className="my-2 border-t" style={{ borderColor: C.light }} />
               <MenuItem icon={Trophy} label="Livelli & Obiettivi" />
               {/* stepper livelli nel menu */}
-              <div className="ml-8 mt-1 space-y-1 text-sm" style={{ color: C.primaryDark }}>
-                {LEVELS.map(l => (
-                  <div key={l.key} className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: level.name === l.name ? C.primary : C.gold, opacity: level.name === l.name ? 1 : .6 }} />
-                    <span className="flex-1">{l.name}</span>
-                    <span className="text-xs opacity-70">{l.min}–{l.max}</span>
-                  </div>
-                ))}
+              <div className="ml-8 mt-1 flex items-center gap-3">
+                {LEVELS.map((l) => {
+                  const active = l.name === level.name;
+                  const Icon = l.Icon;
+                  return (
+                    <div key={l.key} className="flex flex-col items-center text-xs" style={{ color: C.primaryDark }}>
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full border"
+                           title={l.name}
+                           style={{
+                             borderColor: active ? C.primary : C.gold,
+                             backgroundColor: active ? C.primary : "#fff",
+                             color: active ? "#fff" : C.primaryDark,
+                           }}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <span className="mt-1 opacity-70">{l.key}</span>
+                    </div>
+                  );
+                })}
               </div>
               <div className="my-2 border-t" style={{ borderColor: C.light }} />
               <MenuItem icon={Crown} label="Classifica Regionale" href="#classifiche" />
@@ -289,45 +239,55 @@ export default function Onboarding() {
       )}
 
       {/* MAIN */}
-      <main className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-3">
-        {/* COLONNA UTENTE (in alto) */}
+      <main className="mx-auto max-w-6xl px-4 py-6 lg:grid lg:grid-cols-3 lg:gap-6">
+        {/* COLONNA UTENTE (sempre prima su mobile) */}
         <section className="lg:col-span-2 space-y-6">
-          {/* Greeting, progress, stepper, preferiti */}
-          <div className="rounded-2xl border bg-white p-4 md:p-6" style={{ borderColor: C.gold }}>
-            <div className="flex items-center justify-between gap-4">
+          {/* Greeting + progress + livelli icone + preferiti + azioni */}
+          <div className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
+            <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="truncate text-lg font-semibold" style={{ color: C.primaryDark }}>
+                <h2 className="truncate text-base sm:text-lg font-semibold" style={{ color: C.primaryDark }}>
                   Ciao {user.name}! <span className="opacity-80">({level.name})</span>
                 </h2>
                 <p className="text-sm" style={{ color: C.primaryDark }}>
                   Mancano <b>{toNext}</b> pt per diventare <b>{next ? next.name : level.name}</b>.
                 </p>
               </div>
-              <div className="hidden md:block">
-                <div className="mt-1 h-2 w-56 overflow-hidden rounded-full" style={{ backgroundColor: C.light }}>
+              <div className="hidden sm:block">
+                <div className="mt-1 h-2 w-40 sm:w-56 overflow-hidden rounded-full" style={{ backgroundColor: C.light }}>
                   <div className="h-full transition-all" style={{ width: `${pct}%`, backgroundColor: C.primary }} />
                 </div>
                 <div className="mt-1 text-right text-xs" style={{ color: C.primaryDark }}>{user.points} pt totali</div>
               </div>
             </div>
 
-            {/* stepper livelli */}
-            <div className="mt-4 grid grid-cols-5 gap-2">
-              {LEVELS.map(l => (
-                <div key={l.key}
-                     className="rounded-lg border px-2 py-2 text-center text-xs"
-                     style={{
-                       borderColor: C.gold,
-                       backgroundColor: level.name === l.name ? C.gold : "#FFFFFF",
-                       color: C.primaryDark,
-                       fontWeight: level.name === l.name ? 700 : 500
-                     }}>
-                  {l.name}
-                </div>
-              ))}
+            {/* livelli a icone (compatti) */}
+            <div className="mt-4 flex items-center justify-between">
+              {LEVELS.map((l) => {
+                const active = l.name === level.name;
+                const Icon = l.Icon;
+                return (
+                  <div key={l.key} className="flex flex-col items-center">
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-full border"
+                      title={l.name}
+                      style={{
+                        borderColor: active ? C.primary : C.gold,
+                        backgroundColor: active ? C.primary : "#fff",
+                        color: active ? "#fff" : C.primaryDark,
+                      }}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="mt-1 text-[10px] sm:text-xs" style={{ color: C.primaryDark }}>
+                      {l.key}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Preferiti in alto */}
+            {/* Preferiti */}
             <div className="mt-5">
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="text-sm font-medium" style={{ color: C.primaryDark }}>I tuoi preferiti</h3>
@@ -359,55 +319,25 @@ export default function Onboarding() {
               <QuickBtn icon={Clock} label="Check-in (+2)" onClick={doCheckin} />
               <QuickBtn icon={Flag} label="Segnala evento (+5)" onClick={doReportEvent} />
               <QuickBtn icon={MessageCircle} label="Lascia feedback (+3)" onClick={doFeedback} />
-              <QuickBtn icon={Camera} label="Carica foto (+4)" onClick={doPhoto} />
+              <QuickBtn icon={Film} label="Carica video (+20)" onClick={goToVideoUpload} />
             </div>
 
-            {/* Badge + obiettivi */}
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div>
-                <div className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Badge sbloccati</div>
-                {unlockedBadges.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {unlockedBadges.slice(0, 3).map(b => (
-                      <span key={b.id} className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
-                            style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
-                        <BadgeCheck className="h-4 w-4" /> {b.label}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-xs" style={{ color: C.primaryDark }}>Sblocca i tuoi primi badge con le azioni rapide qui sopra.</div>
-                )}
-              </div>
-              <div>
-                <div className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Prossimi obiettivi</div>
-                <ul className="space-y-1 text-sm">
-                  {nextObjectives.map((o, i) => (
-                    <li key={i} className="flex items-center justify-between rounded-lg border px-3 py-2"
-                        style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
-                      <span>{o.label}</span>
-                      <span>{o.needed}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            {/* Prossimi obiettivi (badge sezione rimossa) */}
+            <div className="mt-4">
+              <div className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Prossimi obiettivi</div>
+              <ul className="space-y-1 text-sm">
+                <li className="flex items-center justify-between rounded-lg border px-3 py-2"
+                    style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
+                  <span>Passa a “{next ? next.name : level.name}”</span>
+                  <span>{toNext} pt</span>
+                </li>
+                <li className="flex items-center justify-between rounded-lg border px-3 py-2"
+                    style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
+                  <span>Pubblica un video</span>
+                  <span>+{POINTS.video} pt</span>
+                </li>
+              </ul>
             </div>
-          </div>
-
-          {/* NEW: Box Itinerari Consigliati (utente) */}
-          <div className="rounded-2xl border bg-white p-4" style={{ borderColor: C.gold }}>
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Itinerari Consigliati</h3>
-              <div className="flex items-center gap-2">
-                <Link to="/itinerari" className="text-sm underline" style={{ color: C.primaryDark }}>Vedi tutti</Link>
-                <SuggestItineraryBtn />
-              </div>
-            </div>
-            <ul className="grid grid-cols-3 gap-2 text-sm">
-              <li className="rounded-lg border px-3 py-2 text-center" style={{ borderColor: C.gold, color:"#6B271A" }}>Bozze <b>{itinCounts.bozza}</b></li>
-              <li className="rounded-lg border px-3 py-2 text-center" style={{ borderColor: C.gold, color:"#6B271A" }}>In revisione <b>{itinCounts.in_revisione}</b></li>
-              <li className="rounded-lg border px-3 py-2 text-center" style={{ borderColor: C.gold, color:"#6B271A" }}>Pubblicati <b>{itinCounts.pubblicato}</b></li>
-            </ul>
           </div>
 
           {/* CTA CREATOR */}
@@ -416,8 +346,8 @@ export default function Onboarding() {
                  style={{ borderColor: C.gold, background: `linear-gradient(90deg, ${C.primary} 0%, ${C.primaryDark} 100%)` }}>
               <div className="grid items-center gap-6 sm:grid-cols-3">
                 <div className="sm:col-span-2">
-                  <h3 className="text-xl font-semibold text-white">Carica il tuo primo video e diventa Creator</h3>
-                  <p className="mt-1 text-white/90 text-sm">Racconta i tuoi borghi, ottieni <b>+20 punti</b> e sblocca il badge <b>Videomaker</b>.</p>
+                  <h3 className="text-lg sm:text-xl font-semibold text-white">Carica il tuo primo video e diventa Creator</h3>
+                  <p className="mt-1 text-white/90 text-sm">Racconta i tuoi borghi, ottieni <b>+20 punti</b> subito.</p>
                 </div>
                 <button onClick={() => setCreatorOpen(true)}
                         className="rounded-xl bg-white px-5 py-3 text-sm font-semibold hover:opacity-90"
@@ -431,18 +361,17 @@ export default function Onboarding() {
           {/* SEZIONE CREATOR (in basso) */}
           {(user.isCreator || creatorOpen) && (
             <>
-              <div className="rounded-2xl border bg-white p-4 md:p-6" style={{ borderColor: C.gold }}>
-                <div className="mb-4 flex items-center justify-between">
+              <div id="creator-tools" className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Strumenti da Creator</h3>
                   <div className="flex gap-2 text-xs" style={{ color: C.primaryDark }}>
-                    <Pill icon={Film}>Video totali: {stats.total}</Pill>
+                    <Pill icon={Film}>Video: {stats.total}</Pill>
                     <Pill icon={BarChart2}>Visualizzazioni: {stats.views}</Pill>
-                    <Pill icon={Star}>Like totali: {stats.likes}</Pill>
                   </div>
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-3">
-                  {/* Form upload */}
+                  {/* Form upload (semplificato) */}
                   <div className="lg:col-span-2 space-y-3">
                     <Input value={form.title} onChange={(v)=>setForm(f=>({...f,title:v}))} placeholder="Titolo" />
                     <Textarea value={form.description} onChange={(v)=>setForm(f=>({...f,description:v}))} placeholder="Descrizione (max 140)" maxLength={140} counter />
@@ -465,16 +394,6 @@ export default function Onboarding() {
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <Select
-                        label="Attività (opzionale)"
-                        value={form.activity}
-                        onChange={(v)=>setForm(f=>({...f, activity:v}))}
-                        options={[{value:"",label:"—"},...((selectedBorgo?.activities)||[]).map(a=>({value:a,label:a}))]}
-                      />
-                      <Input label="Tag (opzionali – aiutano la SEO)" value={form.tags} onChange={(v)=>setForm(f=>({...f,tags:v}))} placeholder="es. famiglia, natura, storia" />
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
                       <Input label="URL YouTube" icon={<Youtube className="h-4 w-4" style={{color:C.primaryDark}}/>}
                              value={form.url} onChange={(v)=>setForm(f=>({...f,url:v}))} placeholder="https://youtube.com/..." />
                       <Input label="Oppure Upload file" icon={<Upload className="h-4 w-4" style={{color:C.primaryDark}}/>}
@@ -492,31 +411,22 @@ export default function Onboarding() {
                     <div className="flex flex-wrap gap-2 pt-1">
                       <BtnOutline onClick={addAsDraft}>Bozza</BtnOutline>
                       <BtnOutline onClick={addAsScheduled}>Programma</BtnOutline>
-                      <BtnPrimary onClick={addAsPublished}>Pubblica</BtnPrimary>
+                      <BtnPrimary onClick={addAsPublished}>Pubblica (+20)</BtnPrimary>
                     </div>
                   </div>
 
-                  {/* Stats / Tips */}
+                  {/* Statistiche base */}
                   <div className="space-y-3">
                     <div className="rounded-xl border p-3 text-sm" style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
                       <div className="mb-2 font-medium">Statistiche base</div>
                       <RowStat icon={Film} label="Video totali" value={stats.total} />
                       <RowStat icon={BarChart2} label="Visualizzazioni" value={stats.views} />
-                      <RowStat icon={Star} label="Like totali" value={stats.likes} />
-                    </div>
-                    <div className="rounded-xl border p-3 text-sm" style={{ borderColor: C.gold }}>
-                      <div className="mb-2 font-medium" style={{ color: C.primaryDark }}>Consigli rapidi</div>
-                      <ul className="list-disc space-y-1 pl-5" style={{ color: C.primaryDark }}>
-                        <li>Usa il POI per farti trovare nelle mappe del borgo.</li>
-                        <li>Titolo chiaro + miniatura luminosa = più click.</li>
-                        <li>I tag sono opzionali ma utili per la SEO.</li>
-                      </ul>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Riquadri Creator (appaiono solo se Creator è attivo) */}
+              {/* Riquadri Creator */}
               <div className="grid gap-4 md:grid-cols-3">
                 <ContentColumn title="Bozze" items={videos.drafts} empty="Nessuna bozza." />
                 <ContentColumn title="Programmato" items={videos.scheduled} empty="Nessun video programmato." />
@@ -524,10 +434,15 @@ export default function Onboarding() {
               </div>
             </>
           )}
+
+          {/* CTA in fondo: Suggerisci Itinerario (solo qui, non in alto) */}
+          <div className="pt-2">
+            <SuggestItineraryBtn className="w-full sm:w-auto" />
+          </div>
         </section>
 
         {/* COLONNA DX: attività + classifiche */}
-        <aside className="space-y-6">
+        <aside className="mt-6 space-y-6 lg:mt-0">
           <div className="rounded-2xl border bg-white p-4" style={{ borderColor: C.gold }}>
             <div className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Attività recente</div>
             <ul className="space-y-2 text-sm">
@@ -557,7 +472,7 @@ export default function Onboarding() {
 }
 
 /* =======================
-   UI HELPERS (niente import doppi)
+   UI HELPERS
 ======================= */
 function MenuItem({ icon: Icon, label, href, danger }) {
   const Comp = href ? "a" : "button";
@@ -691,7 +606,7 @@ function Textarea({ label, value, onChange, placeholder, maxLength=140, counter=
       <textarea value={value} maxLength={maxLength} onChange={(e)=>onChange(e.target.value)} placeholder={placeholder}
         className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none"
         style={{ borderColor: C.gold, color: C.primaryDark }} />
-      {counter && <div className="mt-1 text-right text-xs" style={{ color: C.primaryDark }}>{value.length}/{maxLength}</div>}
+      {counter && <div className="mt-1 text-right text-xs" style={{ color: C.primaryDark }}>{(value||"").length}/{maxLength}</div>}
     </div>
   );
 }

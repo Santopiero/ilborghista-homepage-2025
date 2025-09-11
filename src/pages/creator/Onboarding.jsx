@@ -1,5 +1,8 @@
-// src/pages/Dashboard.jsx
+// src/pages/Onboarding.jsx
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import SuggestItineraryBtn from "../../components/SuggestItineraryBtn";
+import { listMyItineraries } from "../../lib/itineraries";
 import {
   Menu, X, LogOut, Search, Heart, Bell, User as UserIcon,
   Flag, MessageCircle, Camera, Film, Upload, Youtube,
@@ -88,11 +91,12 @@ function useLevel(points) {
 /* =======================
    PAGE
 ======================= */
-export default function Dashboard() {
+export default function Onboarding() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   // stato utente
   const [user, setUser] = useState({
+    id: "demo_1", // ⬅️ serve per salvare/filtrare itinerari su localStorage
     name: "Piero",
     points: 0,
     photosUploaded: 0,
@@ -110,6 +114,13 @@ export default function Dashboard() {
     { id: "b1", label: "Castelmezzano", thumb: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=800&auto=format&fit=crop" },
     { id: "b2", label: "Pietrapertosa", thumb: "https://images.unsplash.com/photo-1501854140801-50d01698950b?q=80&w=800&auto=format&fit=crop" },
   ]);
+
+  // itinerari: conteggi rapidi
+  const itinCounts = useMemo(() => ({
+    bozza: listMyItineraries(user.id, "bozza").length,
+    in_revisione: listMyItineraries(user.id, "in_revisione").length,
+    pubblicato: listMyItineraries(user.id, "pubblicato").length,
+  }), [user.id]);
 
   // creator
   const [creatorOpen, setCreatorOpen] = useState(false);
@@ -220,6 +231,10 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* bottone itinerari in header (desktop) */}
+            <div className="hidden md:block">
+              <SuggestItineraryBtn />
+            </div>
             <Heart className="h-5 w-5" style={{ color: C.primaryDark }} />
             <Bell className="h-5 w-5" style={{ color: C.primaryDark }} />
             <div className="h-8 w-8 rounded-full" style={{ backgroundColor: C.gold }} />
@@ -249,6 +264,8 @@ export default function Dashboard() {
               <MenuItem icon={UserIcon} label="Il mio profilo" />
               <MenuItem icon={List} label="I miei contenuti" />
               <MenuItem icon={Heart} label="Preferiti" />
+              {/* NEW: accesso diretto agli Itinerari */}
+              <MenuItem icon={List} label="Itinerari Consigliati" href="/itinerari" />
               <div className="my-2 border-t" style={{ borderColor: C.light }} />
               <MenuItem icon={Trophy} label="Livelli & Obiettivi" />
               {/* stepper livelli nel menu */}
@@ -375,6 +392,22 @@ export default function Dashboard() {
                 </ul>
               </div>
             </div>
+          </div>
+
+          {/* NEW: Box Itinerari Consigliati (utente) */}
+          <div className="rounded-2xl border bg-white p-4" style={{ borderColor: C.gold }}>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Itinerari Consigliati</h3>
+              <div className="flex items-center gap-2">
+                <Link to="/itinerari" className="text-sm underline" style={{ color: C.primaryDark }}>Vedi tutti</Link>
+                <SuggestItineraryBtn />
+              </div>
+            </div>
+            <ul className="grid grid-cols-3 gap-2 text-sm">
+              <li className="rounded-lg border px-3 py-2 text-center" style={{ borderColor: C.gold, color:"#6B271A" }}>Bozze <b>{itinCounts.bozza}</b></li>
+              <li className="rounded-lg border px-3 py-2 text-center" style={{ borderColor: C.gold, color:"#6B271A" }}>In revisione <b>{itinCounts.in_revisione}</b></li>
+              <li className="rounded-lg border px-3 py-2 text-center" style={{ borderColor: C.gold, color:"#6B271A" }}>Pubblicati <b>{itinCounts.pubblicato}</b></li>
+            </ul>
           </div>
 
           {/* CTA CREATOR */}

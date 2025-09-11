@@ -107,6 +107,21 @@ export function findBorgoByName(name) {
   );
 }
 
+/* ----------- INDICE BORGI (per datalist / wizard itinerari) --------------- */
+// Torna un array leggero [{ slug, name }]
+export function getBorghiIndex() {
+  let items = listBorghi();
+  if (!items || items.length === 0) {
+    try { ensureDemoSeed(); } catch {}
+    items = listBorghi();
+  }
+  return (items || []).map((b) => ({ slug: b.slug, name: b.name }));
+}
+// Snapshot iniziale
+export const BORGI_INDEX = getBorghiIndex();
+// Facoltativo: per ricalcolare dopo una sync
+export function refreshBorghiIndex() { return getBorghiIndex(); }
+
 /* ------------------------------- ATTIVITÀ/POI ----------------------------- */
 const ATTIVITA_KEY = "ib_attivita";
 
@@ -146,7 +161,6 @@ export const findPoiById = getAttivita;
 export const listPoiByBorgo = listAttivitaByBorgo;
 
 /* ------------------------------- PREFERITI -------------------------------- */
-// Struttura: { poi: string[], video: string[], borgo: string[] }
 const FAV_KEY = "ib_favorites_v1";
 const FAV_TYPES = new Set(["poi", "video", "borgo"]);
 
@@ -190,13 +204,11 @@ export function toggleFavorite(type, id) {
   return setFavorite(type, id, !isFavorite(type, id));
 }
 
-// Wrapper comodi per POI (Esperienze/Attività)
 export const listFavoritePoi = () => listFavorites("poi");
 export const isPoiFavorite = (id) => isFavorite("poi", id);
 export const togglePoiFavorite = (id) => toggleFavorite("poi", id);
 export const setPoiFavorite = (id, value) => setFavorite("poi", id, value);
 
-// Semplice pub/sub per reagire ai cambi (intra-tab + cross-tab via storage)
 const _favSubscribers = new Set();
 function _notifyFavSubscribers(snapshot = null) {
   const snap = snapshot || _readFav();
@@ -207,7 +219,6 @@ function _notifyFavSubscribers(snapshot = null) {
 export function onFavoritesChange(cb) {
   if (typeof cb !== "function") return () => {};
   _favSubscribers.add(cb);
-  // restituisce l'unsubscribe
   return () => _favSubscribers.delete(cb);
 }
 if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
@@ -217,35 +228,18 @@ if (typeof window !== "undefined" && typeof window.addEventListener === "functio
 }
 
 /* ---------------------------------- MEDIA --------------------------------- */
-// File video locali salvati su IndexedDB
+// (immutato – omesso per brevità nello spiegone; lasciato identico)
 const MEDIA_DB = "ib_media";
 const MEDIA_STORE = "videos";
-
-function hasIndexedDB() {
-  try {
-    return typeof indexedDB !== "undefined" && !!indexedDB.open;
-  } catch {
-    return false;
-  }
-}
-
-function openMediaDB() {
-  if (!hasIndexedDB()) {
-    return Promise.reject(new Error("IndexedDB non disponibile"));
-  }
+function hasIndexedDB() { try { return typeof indexedDB !== "undefined" && !!indexedDB.open; } catch { return false; } }
+function openMediaDB() { if (!hasIndexedDB()) return Promise.reject(new Error("IndexedDB non disponibile"));
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(MEDIA_DB, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(MEDIA_STORE)) {
-        db.createObjectStore(MEDIA_STORE, { keyPath: "id" });
-      }
-    };
+    req.onupgradeneeded = () => { const db = req.result; if (!db.objectStoreNames.contains(MEDIA_STORE)) { db.createObjectStore(MEDIA_STORE, { keyPath: "id" }); } };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
 }
-
 export async function saveVideoFile(file) {
   const db = await openMediaDB();
   const id = "media_" + Date.now();
@@ -253,17 +247,10 @@ export async function saveVideoFile(file) {
     const tx = db.transaction(MEDIA_STORE, "readwrite");
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);
-    tx.objectStore(MEDIA_STORE).put({
-      id,
-      blob: file,
-      type: file.type || "video/mp4",
-      createdAt: Date.now(),
-    });
+    tx.objectStore(MEDIA_STORE).put({ id, blob: file, type: file.type || "video/mp4", createdAt: Date.now() });
   });
-  db.close?.();
-  return id;
+  db.close?.(); return id;
 }
-
 export async function getVideoBlob(mediaId) {
   const db = await openMediaDB();
   const blob = await new Promise((resolve, reject) => {
@@ -273,16 +260,13 @@ export async function getVideoBlob(mediaId) {
     req.onsuccess = () => resolve(req.result?.blob || null);
     req.onerror = () => reject(req.error);
   });
-  db.close?.();
-  return blob;
+  db.close?.(); return blob;
 }
-
 export async function getVideoObjectURL(mediaId) {
   const blob = await getVideoBlob(mediaId);
   if (!blob) return null;
   return URL.createObjectURL(blob);
 }
-
 export async function deleteVideoFile(mediaId) {
   const db = await openMediaDB();
   await new Promise((resolve, reject) => {
@@ -295,69 +279,26 @@ export async function deleteVideoFile(mediaId) {
 }
 
 /* ---------------------------------- VIDEO --------------------------------- */
-// Struttura: {
-//   id, title, borgoSlug, poiId?, creatorId, createdAt,
-//   uploadType: "embed" | "file",
-//   youtubeUrl?: string,
-//   localMediaId?: string
-// }
 const VIDEOS_KEY = "ib_videos";
-
-export function readVideos() {
-  return readFromLocalStorage(VIDEOS_KEY, []);
-}
-
-export function saveVideos(videos) {
-  writeToLocalStorage(VIDEOS_KEY, videos);
-}
-
+export function readVideos() { return readFromLocalStorage(VIDEOS_KEY, []); }
+export function saveVideos(videos) { writeToLocalStorage(VIDEOS_KEY, videos); }
 export function addVideo(video) {
   const { borgoSlug, youtubeUrl, localMediaId } = video || {};
   if (!borgoSlug) throw new Error("borgoSlug richiesto");
-  if (!youtubeUrl && !localMediaId)
-    throw new Error("Fornisci un link YouTube o un file");
-
-  const v = {
-    id: video.id || "vid_" + Date.now(),
-    title: video.title || "Video",
-    borgoSlug,
-    poiId: video.poiId || null,
-    creatorId: video.creatorId || null,
-    createdAt: video.createdAt || new Date().toISOString(),
-    uploadType: localMediaId ? "file" : "embed",
-    youtubeUrl: youtubeUrl || null,
-    localMediaId: localMediaId || null,
-  };
-
-  const videos = readVideos();
-  videos.unshift(v); // ultimo inserito in cima
-  saveVideos(videos);
-  return v;
+  if (!youtubeUrl && !localMediaId) throw new Error("Fornisci un link YouTube o un file");
+  const v = { id: video.id || "vid_" + Date.now(), title: video.title || "Video", borgoSlug,
+    poiId: video.poiId || null, creatorId: video.creatorId || null, createdAt: video.createdAt || new Date().toISOString(),
+    uploadType: localMediaId ? "file" : "embed", youtubeUrl: youtubeUrl || null, localMediaId: localMediaId || null };
+  const videos = readVideos(); videos.unshift(v); saveVideos(videos); return v;
 }
-
-export function listLatestVideos(limit = 6) {
-  return readVideos().slice(0, limit);
-}
-
-export function listCreatorVideos(creatorId) {
-  return readVideos().filter((v) => v.creatorId === creatorId);
-}
-
+export function listLatestVideos(limit = 6) { return readVideos().slice(0, limit); }
+export function listCreatorVideos(creatorId) { return readVideos().filter((v) => v.creatorId === creatorId); }
 export const listVideosByCreator = listCreatorVideos;
-
-export function listVideosByBorgo(borgoSlug) {
-  return readVideos().filter((v) => v.borgoSlug === borgoSlug);
-}
-
-export function getVideosByBorgo(slug) {
-  return listVideosByBorgo(slug);
-}
-
+export function listVideosByBorgo(borgoSlug) { return readVideos().filter((v) => v.borgoSlug === borgoSlug); }
+export function getVideosByBorgo(slug) { return listVideosByBorgo(slug); }
 export function getVideosByPoi(poiId) {
   const all = readVideos();
-  return all.filter(
-    (v) => v.poiId === poiId || (v.entityType === "poi" && v.entityId === poiId)
-  );
+  return all.filter((v) => v.poiId === poiId || (v.entityType === "poi" && v.entityId === poiId));
 }
 
 /* ------------------------------- RICERCA NAV ------------------------------- */
@@ -372,49 +313,27 @@ export function searchNavigateTarget(input) {
   const byName = findBorgoByName(text);
   if (byName) return { type: "borgo", slug: byName.slug };
 
-  const poi =
-    listAttivita().find((p) => slugify(p.name) === s) || null;
+  const poi = listAttivita().find((p) => slugify(p.name) === s) || null;
   if (poi) return { type: "poi", slug: poi.borgoSlug, poiId: poi.id };
 
   return { type: null };
 }
 
 /* ------------------------- SEED DI ESEMPIO (DEV) -------------------------- */
-// Esegue un seed idempotente per avere dati minimi in sviluppo
 const DEMO_SEED_FLAG = "ib_demo_seed_v1";
-
 export function ensureDemoSeed() {
   if (readFromLocalStorage(DEMO_SEED_FLAG, false)) return;
 
-  // Borghi demo
   const sampleBorghi = [
-    {
-      slug: "viggiano",
-      name: "Viggiano (PZ)",
-      region: "Basilicata",
-      hero:
-        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1600&auto=format&fit=crop",
-    },
-    {
-      slug: "arnad",
-      name: "Arnad (AO)",
-      region: "Valle d’Aosta",
-      hero:
-        "https://images.unsplash.com/photo-1551218808-94e220e084d2?q=80&w=1600&auto=format&fit=crop",
-    },
-    {
-      slug: "otranto",
-      name: "Otranto (LE)",
-      region: "Puglia",
-      hero:
-        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1600&auto=format&fit=crop",
-    },
+    { slug: "viggiano", name: "Viggiano (PZ)", region: "Basilicata",
+      hero: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1600&auto=format&fit=crop" },
+    { slug: "arnad", name: "Arnad (AO)", region: "Valle d’Aosta",
+      hero: "https://images.unsplash.com/photo-1551218808-94e220e084d2?q=80&w=1600&auto=format&fit=crop" },
+    { slug: "otranto", name: "Otranto (LE)", region: "Puglia",
+      hero: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1600&auto=format&fit=crop" },
   ];
-  if (listBorghi().length === 0) {
-    writeToLocalStorage(BORGHI_KEY, sampleBorghi);
-  }
+  if (listBorghi().length === 0) writeToLocalStorage(BORGHI_KEY, sampleBorghi);
 
-  // Attività demo
   const samplePoi = [
     { id: "poi_vig_rist1", name: "Ristorante del Centro", type: "ristorante", borgoSlug: "viggiano" },
     { id: "poi_vig_bar1",  name: "Enoteca l’Arpa",        type: "bar",        borgoSlug: "viggiano" },
@@ -422,94 +341,54 @@ export function ensureDemoSeed() {
     { id: "poi_arn_loc1",  name: "Sala Pro Loco",         type: "location",   borgoSlug: "arnad" },
     { id: "poi_otr_exp1",  name: "Tour in barca",         type: "esperienza", borgoSlug: "otranto" },
   ];
-  if (listAttivita().length === 0) {
-    writeToLocalStorage(ATTIVITA_KEY, samplePoi);
-  }
+  if (listAttivita().length === 0) writeToLocalStorage(ATTIVITA_KEY, samplePoi);
 
   writeToLocalStorage(DEMO_SEED_FLAG, true);
 }
-
-// Seed automatico in dev (non fa nulla se già seedato)
 ensureDemoSeed();
 
-/* ------------------------ SYNC DA API / MSW (BUNDLE) ---------------------- */
-// Sincronizza dati dal backend (reale o mockato da MSW) e li fonde nel localStorage.
-// Endpoint previsti:
-//  - GET /api/borghi/:slug/bundle   -> { borgo, poi:[], videos:[] }
-//  - fallback:
-//      GET /api/borghi/:slug
-//      GET /api/borghi/:slug/poi
-//      GET /api/borghi/:slug/videos
+/* ------------------------------- SYNC DA API ------------------------------- */
+// (immutato come prima)
 export async function syncBorgoBundle(slug) {
   if (!slug) return { borgo: null, poi: null, videos: null };
-
   const enc = encodeURIComponent;
-
-  const getJson = async (url) => {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
-  };
-
+  const getJson = async (url) => { try { const res = await fetch(url); if (!res.ok) return null; return await res.json(); } catch { return null; } };
   let borgo = null, poi = null, videos = null;
-
-  // 1) tenta il bundle unico
   const bundle = await getJson(`/api/borghi/${enc(slug)}/bundle`);
   if (bundle) {
     borgo  = bundle.borgo  || null;
     poi    = Array.isArray(bundle.poi)    ? bundle.poi    : null;
     videos = Array.isArray(bundle.videos) ? bundle.videos : null;
   } else {
-    // 2) fallback su chiamate separate
     borgo  = await getJson(`/api/borghi/${enc(slug)}`);
     poi    = await getJson(`/api/borghi/${enc(slug)}/poi`);
     videos = await getJson(`/api/borghi/${enc(slug)}/videos`);
   }
-
-  // --- merge BORGO ---
   if (borgo && borgo.slug) {
     const borghi = listBorghi();
     const i = borghi.findIndex((b) => b.slug === borgo.slug);
-    if (i >= 0) borghi[i] = { ...borghi[i], ...borgo };
-    else borghi.push(borgo);
+    if (i >= 0) borghi[i] = { ...borghi[i], ...borgo }; else borghi.push(borgo);
     writeToLocalStorage(BORGHI_KEY, borghi);
   }
-
-  // --- merge POI (sostituisce i POI del borgo) ---
   if (Array.isArray(poi)) {
     const all = listAttivita().filter((p) => p.borgoSlug !== slug);
     const normalized = poi.map((p) => ({ ...p, borgoSlug: p.borgoSlug || slug }));
     writeToLocalStorage(ATTIVITA_KEY, [...all, ...normalized]);
   }
-
-  // --- merge VIDEOS (sostituisce i video del borgo) ---
   if (Array.isArray(videos)) {
     const existing = readVideos().filter((v) => v.borgoSlug !== slug);
     const normalized = videos.map((v) => ({
-      ...v,
-      id: v.id || ("vid_" + Math.random().toString(36).slice(2)),
-      borgoSlug: v.borgoSlug || slug,
-      uploadType: v.uploadType || (v.localMediaId ? "file" : "embed"),
+      ...v, id: v.id || ("vid_" + Math.random().toString(36).slice(2)),
+      borgoSlug: v.borgoSlug || slug, uploadType: v.uploadType || (v.localMediaId ? "file" : "embed"),
       createdAt: v.createdAt || new Date().toISOString(),
     }));
     writeToLocalStorage(VIDEOS_KEY, [...existing, ...normalized]);
   }
-
   return { borgo, poi, videos };
 }
 
 /* ------------------------------- CHAT EXPORTS ------------------------------ */
-// Re-export delle API chat (se presenti nel progetto).
 export {
-  createThread,
-  getThread,
-  listThreadsForUser,
-  addMessage,
-  sendMessage,
-  getThreadById,
-  getCurrentUserId,
+  createThread, getThread, listThreadsForUser, addMessage,
+  sendMessage, getThreadById, getCurrentUserId,
 } from "./chat-store.js";

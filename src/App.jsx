@@ -47,6 +47,10 @@ const POIDetail = lazy(() => import("./pages/POIDetail"));
 const HomeBorgo = lazy(() => import("./pages/HomeBorgo"));
 const Esperienze = lazy(() => import("./pages/Esperienze"));
 
+/* ===== NEW: itinerari (utente/creator) ===== */
+const ItinerariConsigliati = lazy(() => import("./pages/ItinerariConsigliati"));
+const ItineraryWizard = lazy(() => import("./pages/ItineraryWizard"));
+
 function SectionPlaceholder({ title, note }) {
   return (
     <main style={{ padding: "24px" }}>
@@ -111,6 +115,11 @@ export default function App() {
           <Route path="/poi/:slug" element={<RouteErrorBoundary><POIDetail /></RouteErrorBoundary>} />
           <Route path="/borghi/:slug" element={<RouteErrorBoundary><HomeBorgo /></RouteErrorBoundary>} />
           <Route path="/borghi/:slug/esperienze" element={<RouteErrorBoundary><Esperienze /></RouteErrorBoundary>} />
+
+          {/* ===== NEW: itinerari suggeriti & wizard ===== */}
+          <Route path="/itinerari" element={<RouteErrorBoundary><ItinerariConsigliati /></RouteErrorBoundary>} />
+          <Route path="/itinerari/nuovo" element={<RouteErrorBoundary><ItineraryWizard /></RouteErrorBoundary>} />
+          <Route path="/itinerari/:id/edit" element={<RouteErrorBoundary><ItineraryWizard /></RouteErrorBoundary>} />
 
           {/* Placeholder pillole */}
           <Route path="/borghi/:slug/eventi" element={<RouteErrorBoundary><SectionPlaceholder title="Eventi e Sagre" /></RouteErrorBoundary>} />

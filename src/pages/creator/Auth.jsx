@@ -1,6 +1,6 @@
 // src/pages/creator/Auth.jsx
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   setCurrentUser,
   getMyCreatorProfile,
@@ -9,6 +9,9 @@ import {
 
 export default function CreatorAuth() {
   const nav = useNavigate();
+  const location = useLocation(); // per eventuale ritorno
+  const backTo = location.state?.from || "/";
+
   const [mode, setMode] = useState("login"); // "login" | "signup"
 
   // LOGIN state
@@ -49,11 +52,11 @@ export default function CreatorAuth() {
 
     try {
       setBusy(true);
-      // 1) “Login” locale come Utente/Creator (comportamento esistente)
+      // 1) Login locale come Utente/Creator
       const user = { id: "u_" + Date.now(), email: eMail, role: "creator" };
       setCurrentUser(user);
 
-      // 2) Se non esiste ancora il profilo creator, crealo
+      // 2) Se non esiste ancora il profilo creator, crealo (compatibilità con parti dell'app che lo usano)
       let me = getMyCreatorProfile();
       if (!me) {
         me = addCreator({
@@ -68,8 +71,8 @@ export default function CreatorAuth() {
         });
       }
 
-      // 3) Vai all’onboarding (alias /creator/me)
-      nav("/creator/me", { replace: true });
+      // 3) Vai all’Onboarding generico
+      nav("/onboarding", { replace: true, state: { backTo } });
     } finally {
       setBusy(false);
     }
@@ -103,12 +106,11 @@ export default function CreatorAuth() {
 
     // Smista in base alla scelta
     if (signupRole === "attivita") {
-      // Flusso attività: dopo la validazione ti porto all'onboarding Attività
       nav("/registrazione-attivita");
       return;
     }
 
-    // Flusso Utente/Creator: manteniamo la tua logica esistente
+    // Flusso Utente/Creator
     const eMail = signupEmail.trim().toLowerCase();
     const user = { id: "u_" + Date.now(), email: eMail, role: "creator" };
     setCurrentUser(user);
@@ -127,17 +129,17 @@ export default function CreatorAuth() {
       });
     }
 
-    nav("/creator/me", { replace: true });
+    // Onboarding generico
+    nav("/onboarding", { replace: true, state: { backTo } });
   }
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
       <h1 className="text-3xl font-extrabold text-[#6B271A]">
-        Accedi / Registrati come Creator
+        Accedi / Registrati
       </h1>
       <p className="mt-2 text-gray-700">
-        Con il tuo profilo Creator puoi caricare video, essere contattato dalle
-        aziende e comparire nelle schede dei borghi e delle attività.
+        Accedi oppure crea un account per personalizzare l’esperienza su Il Borghista.
       </p>
 
       {/* Toggle Accedi / Crea account */}

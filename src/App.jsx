@@ -1,7 +1,7 @@
 // src/App.jsx
 import React, { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import ModalInstallApp from "./components/ModalInstallApp"; // modale install
+import ModalInstallApp from "./components/ModalInstallApp";
 
 /* ======================= Error boundary ======================= */
 class RouteErrorBoundary extends React.Component {
@@ -32,22 +32,20 @@ const HomepageMockup = lazy(() => import("./HomepageMockup"));
 const Registrazione = lazy(() => import("./pages/Registrazione"));
 const RegistrazioneBorgo = lazy(() => import("./pages/RegistrazioneBorgo"));
 const RegistrazioneAttivita = lazy(() => import("./pages/RegistrazioneAttivita"));
-const RegistrazioneUtente = lazy(() => import("./pages/RegistrazioneUtente"));
+// ⛔ rimosso RegistrazioneUtente
 const Dormire = lazy(() => import("./pages/attivita/Dormire"));
 const Mangiare = lazy(() => import("./pages/attivita/Mangiare"));
 const Artigiani = lazy(() => import("./pages/attivita/Artigiani"));
 const Trasporti = lazy(() => import("./pages/attivita/Trasporti"));
 const CreatorIndex = lazy(() => import("./pages/creator/CreatorIndex"));
 const CreatorProfile = lazy(() => import("./pages/creator/CreatorProfile"));
-const CreatorAuth = lazy(() => import("./pages/creator/Auth"));
+const CreatorAuth = lazy(() => import("./pages/creator/Auth"));          // ✅ usa questo
 const CreatorOnboarding = lazy(() => import("./pages/creator/Onboarding"));
 const Thread = lazy(() => import("./pages/chat/Thread"));
 const SearchResults = lazy(() => import("./pages/SearchResults"));
 const POIDetail = lazy(() => import("./pages/POIDetail"));
 const HomeBorgo = lazy(() => import("./pages/HomeBorgo"));
 const Esperienze = lazy(() => import("./pages/Esperienze"));
-
-/* ===== NEW: itinerari (utente/creator) ===== */
 const ItinerariConsigliati = lazy(() => import("./pages/ItinerariConsigliati"));
 const ItineraryWizard = lazy(() => import("./pages/ItineraryWizard"));
 
@@ -71,7 +69,6 @@ function SectionPlaceholder({ title, note }) {
 export default function App() {
   return (
     <RouteErrorBoundary>
-      {/* Modale install PWA disponibile ovunque */}
       <ModalInstallApp />
 
       <Suspense fallback={<Fallback />}>
@@ -79,13 +76,13 @@ export default function App() {
           <Route path="/" element={<RouteErrorBoundary><HomepageMockup /></RouteErrorBoundary>} />
 
           {/* Registrazioni principali */}
-          {/* NEW: alias che aprono SEMPRE la scelta profilo (4 modalità) */}
           <Route path="/registrazione" element={<RouteErrorBoundary><Registrazione /></RouteErrorBoundary>} />
           <Route path="/registrati" element={<RouteErrorBoundary><Registrazione /></RouteErrorBoundary>} />
           <Route path="/registrazione-comune" element={<RouteErrorBoundary><Registrazione /></RouteErrorBoundary>} />
 
           <Route path="/registrazione-borgo" element={<RouteErrorBoundary><RegistrazioneBorgo /></RouteErrorBoundary>} />
-          <Route path="/registrazione-utente" element={<RouteErrorBoundary><RegistrazioneUtente /></RouteErrorBoundary>} />
+          {/* retro-compatibilità: vecchia pagina -> auth */}
+          <Route path="/registrazione-utente" element={<Navigate to="/auth" replace />} />
           <Route path="/registrazione-attivita" element={<RouteErrorBoundary><RegistrazioneAttivita /></RouteErrorBoundary>} />
 
           {/* Attività > categorie */}
@@ -116,12 +113,12 @@ export default function App() {
           <Route path="/borghi/:slug" element={<RouteErrorBoundary><HomeBorgo /></RouteErrorBoundary>} />
           <Route path="/borghi/:slug/esperienze" element={<RouteErrorBoundary><Esperienze /></RouteErrorBoundary>} />
 
-          {/* ===== NEW: itinerari suggeriti & wizard ===== */}
+          {/* Itinerari */}
           <Route path="/itinerari" element={<RouteErrorBoundary><ItinerariConsigliati /></RouteErrorBoundary>} />
           <Route path="/itinerari/nuovo" element={<RouteErrorBoundary><ItineraryWizard /></RouteErrorBoundary>} />
           <Route path="/itinerari/:id/edit" element={<RouteErrorBoundary><ItineraryWizard /></RouteErrorBoundary>} />
 
-          {/* Placeholder pillole */}
+          {/* Pillole */}
           <Route path="/borghi/:slug/eventi" element={<RouteErrorBoundary><SectionPlaceholder title="Eventi e Sagre" /></RouteErrorBoundary>} />
           <Route path="/borghi/:slug/prodotti-tipici" element={<RouteErrorBoundary><SectionPlaceholder title="Prodotti Tipici" /></RouteErrorBoundary>} />
           <Route path="/borghi/:slug/artigiani" element={<RouteErrorBoundary><SectionPlaceholder title="Artigiani" /></RouteErrorBoundary>} />
@@ -130,6 +127,10 @@ export default function App() {
           <Route path="/borghi/:slug/cosa-fare" element={<RouteErrorBoundary><SectionPlaceholder title="Cosa Fare" /></RouteErrorBoundary>} />
           <Route path="/borghi/:slug/info-utili" element={<RouteErrorBoundary><SectionPlaceholder title="Info Utili" /></RouteErrorBoundary>} />
           <Route path="/borghi/:slug/video" element={<RouteErrorBoundary><SectionPlaceholder title="Video del borgo" /></RouteErrorBoundary>} />
+
+          {/* ✅ Auth utente/creator e onboarding */}
+          <Route path="/auth" element={<RouteErrorBoundary><CreatorAuth /></RouteErrorBoundary>} />
+          <Route path="/onboarding" element={<Navigate to="/creator/me" replace />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

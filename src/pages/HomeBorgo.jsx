@@ -16,7 +16,7 @@ import {
   ChevronLeft, ChevronRight, Share2, Heart, Film, CalendarDays, Route, ShoppingBag,
   List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Search, Menu, X,
   LogIn, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned,
-  MapPin, Star, Bus, Info, HandHeart, Minus, User, Smartphone
+  MapPin, Star, Bus, Info, HandHeart, User, Smartphone
 } from "lucide-react";
 
 /* ================= Helpers ================= */
@@ -67,7 +67,6 @@ function useFavorite(type, id, data) {
     e?.stopPropagation?.();
     try {
       const next = toggleFavorite?.(type, id, data);
-      // se toggleFavorite ritorna boolean, usalo; altrimenti optimistico
       if (typeof next === "boolean") setFav(next);
       else setFav((v) => !v);
     } catch {
@@ -86,6 +85,9 @@ function TopBar({ slug }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState("");
+
+  const infoHref = `/borghi/${slug}/info`;
+  const donateHref = `/borghi/${slug}/sostieni`;
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -172,14 +174,34 @@ function TopBar({ slug }) {
             </div>
 
             <ul className="p-2">
-              {/* Accedi + Registrati */}
+              {/* Accedi + Registrati → /auth */}
               <li>
                 <Link
-                  to="/registrazione-utente"
+                  to="/auth"
                   className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
                   onClick={() => setMenuOpen(false)}
                 >
                   <LogIn className="h-4 w-4" /> Accedi / Registrati
+                </Link>
+              </li>
+
+              {/* Info & Sostieni — SOLO mobile (spostati qui) */}
+              <li className="sm:hidden">
+                <Link
+                  to={infoHref}
+                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Info className="h-4 w-4" /> Info
+                </Link>
+              </li>
+              <li className="sm:hidden">
+                <Link
+                  to={donateHref}
+                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <HandHeart className="h-4 w-4" /> Sostieni il borgo
                 </Link>
               </li>
 
@@ -322,7 +344,12 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
 
   return (
     <section className="relative">
-      <div className="relative h-72 w-full overflow-hidden md:h-[380px]" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      {/* Mobile invariato, desktop più alto */}
+      <div
+        className="relative h-72 w-full overflow-hidden md:h-[560px] lg:h-[680px]"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         <img src={current?.src || fallback} alt={current?.name || title} className="h-full w-full object-cover" loading="eager" decoding="async" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
 
@@ -360,12 +387,14 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
         )}
       </div>
 
-      {/* titolo + extra (Info + Sostieni) */}
+      {/* Titolo + extra. Extra nascosti su mobile, visibili su desktop */}
       <div className="absolute inset-x-0 bottom-4">
         <div className="mx-auto flex max-w-6xl items-end justify-between gap-2 px-4 sm:px-6">
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-extrabold text-white drop-shadow md:text-4xl">{title}</h1>
-            {leftExtras}
+            <div className="hidden md:flex items-center gap-2">
+              {leftExtras}
+            </div>
           </div>
           <div className="hidden items-center gap-2 sm:flex">
             <button className="inline-flex h-10 items-center gap-2 rounded-xl border bg-white/90 px-3 text-[#6B271A] hover:bg-white">
@@ -497,7 +526,6 @@ function InBreve({ meta, borgo, slug }) {
 }
 
 /* ================== CARD “HM” PRECISE ================== */
-/* 1) Video dei creator */
 function CreatorCardHM({ v, borgoName }) {
   const th = v.thumbnail || getYouTubeThumb(v.youtubeUrl || v.url);
   const name = v.creatorName || v.author || v.owner || v.channel || (v.title ? String(v.title).split("–")[0].trim() : "Creator");
@@ -515,7 +543,6 @@ function CreatorCardHM({ v, borgoName }) {
               <PlayCircle className="h-10 w-10" />
             </div>
           )}
-          {/* cuore in alto dx (rimpiazza il "minus") */}
           <button
             type="button"
             aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
@@ -531,7 +558,6 @@ function CreatorCardHM({ v, borgoName }) {
             <MapPin className="h-4 w-4 text-[#D54E30]" />
             {borgoName}
           </div>
-          {/* icona profilo in basso dx */}
           <span className="mt-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#D54E30] text-white">
             <User className="h-4 w-4" />
           </span>
@@ -541,7 +567,6 @@ function CreatorCardHM({ v, borgoName }) {
   );
 }
 
-/* 2) Borghi da scoprire (nearby) */
 function DiscoverBorgoCardHM({ b }) {
   const [fav, toggleFav] = useFavorite("borgo", b.slug, { slug: b.slug, name: b.name, hero: b.hero });
   return (
@@ -576,13 +601,11 @@ function DiscoverBorgoCardHM({ b }) {
   );
 }
 
-/* 3) Prossimi eventi – locandina verticale */
 function HMEventPosterCard({ ev }) {
   const eventId = ev.id || slugify(ev.title + (ev.date || ""));
   const [fav, toggleFav] = useFavorite("evento", eventId, { id: eventId, title: ev.title, img: ev.img, date: ev.date, place: ev.place });
   return (
     <article className="snap-center shrink-0 w-[68%] xs:w-[54%] sm:w-[38%] md:w-[28%] lg:w-[22%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
-      {/* Locandina verticale 2:3 */}
       <div className="relative aspect-[2/3] w-full overflow-hidden">
         <img
           src={ev.img}
@@ -620,7 +643,6 @@ function HMEventPosterCard({ ev }) {
   );
 }
 
-/* 4) Prodotti tipici */
 function HMProductCard({ p }) {
   const prodId = p.id || slugify(p.title);
   const [fav, toggleFav] = useFavorite("prodotto", prodId, { id: prodId, title: p.title, img: p.img, location: p.location, priceFrom: p.priceFrom });
@@ -732,7 +754,6 @@ function NewsletterCTA({ slug }) {
 export default function HomeBorgo() {
   const { slug } = useParams();
 
-  // 🔄 trigger per rileggere i dati dopo la sync MSW
   const [syncTick, setSyncTick] = useState(0);
   useEffect(() => {
     let mounted = true;
@@ -762,21 +783,17 @@ export default function HomeBorgo() {
     ? meta.gallery
     : [{ src: meta?.hero || "https://images.unsplash.com/photo-1543340713-8f6b9f4507f8?q=80&w=1600&auto=format&fit=crop", name: meta?.name || borgo?.name || "Borgo" }];
 
-  // Mappa (bottone unico)
   const place = (meta?.name || borgo?.name || slug) + " " + ((borgo?.provincia || meta?.provincia || "") + " " + (borgo?.regione || meta?.regione || "")).trim();
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
 
-  // Video creator
   const videos = useMemo(() => getVideosByBorgo(slug), [slug, syncTick]);
 
-  // POI raccolte
   const allPoi = useMemo(() => listPoiByBorgo(slug), [slug, syncTick]);
   const eatDrink = useMemo(() => allPoi.filter(isFoodDrink), [allPoi]);
   const sleep = useMemo(() => allPoi.filter(isSleep), [allPoi]);
   const artigiani = useMemo(() => allPoi.filter(isArtigiano), [allPoi]);
   const thingsToDo = useMemo(() => allPoi.filter((p) => !isFoodDrink(p) && !isSleep(p) && !isArtigiano(p)), [allPoi]);
 
-  // Mock coerenti con HM (>=4 per sezione)
   const eventi = [
     { title: "La festa della Madonna Nera", img: "https://images.unsplash.com/photo-1553877522-43269d4ea984?q=80&w=1500&auto=format&fit=crop", tag: "SAGRA", date: "9–10 agosto 2025", place: "Viggiano (PZ) · Santuario", meta: "Ore 21:00 · Navette gratuite" },
     { title: "Sapori in Piazza", img: "https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?q=80&w=1500&auto=format&fit=crop", tag: "SAGRA", date: "15 agosto 2025", place: "Viggiano (PZ) · Centro storico", meta: "Ingresso libero" },
@@ -790,7 +807,6 @@ export default function HomeBorgo() {
   ];
   const nearby = (BORGI_INDEX || []).filter((b) => b.slug !== slug).slice(0, 4);
 
-  /* NAV items */
   const navBase = [
     { key: "cosafare",   label: "Cosa fare",              to: `/borghi/${slug}/cosa-fare`,       icon: ListIcon,   ...colors.cosafare },
     { key: "mangiare",   label: "Mangiare e Bere",        to: `/borghi/${slug}/mangiare-bere`,   icon: Utensils,   ...colors.mangiare },
@@ -817,13 +833,13 @@ export default function HomeBorgo() {
           overlay={<HeroOverlay mapsUrl={mapsUrl} />}
           leftExtras={
             <>
-              <Link to={infoHref} aria-label={`Informazioni su ${title}`} className="inline-flex h-9 md:h-10 items-center gap-1.5 rounded-full border bg-white/90 px-2 md:px-3 text-white md:text-[#6B271A] hover:bg-white">
+              <Link to={infoHref} aria-label={`Informazioni su ${title}`} className="inline-flex h-10 items-center gap-1.5 rounded-full border bg-white/90 px-3 text-[#6B271A] hover:bg-white">
                 <Info className="h-4 w-4" />
-                <span className="hidden md:inline font-semibold text-[#6B271A]">Info</span>
+                <span className="font-semibold">Info</span>
               </Link>
-              <Link to={donateHref} aria-label={`Sostieni ${title}`} className="inline-flex h-9 md:h-10 items-center gap-1.5 rounded-full bg-[#06B6D4] px-2 md:px-3 text-white hover:opacity-95">
+              <Link to={donateHref} aria-label={`Sostieni ${title}`} className="inline-flex h-10 items-center gap-1.5 rounded-full bg-[#06B6D4] px-3 text-white hover:opacity-95">
                 <HandHeart className="h-4 w-4" />
-                <span className="hidden md:inline font-semibold">Sostieni il borgo</span>
+                <span className="font-semibold">Sostieni il borgo</span>
               </Link>
             </>
           }
@@ -832,7 +848,7 @@ export default function HomeBorgo() {
           favData={{ slug, name: title, hero: gallery?.[0]?.src || "" }}
         />
 
-        {/* NAV – mobile griglia / desktop fila compatta */}
+        {/* NAV */}
         <section className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
           <div className="grid grid-cols-2 gap-2 sm:hidden">
             {navBase.map((n) => (
@@ -852,8 +868,6 @@ export default function HomeBorgo() {
         {/* DESCRIZIONE + IN BREVE */}
         <DescriptionBlock text={descr} slug={slug} />
         <InBreve meta={meta} borgo={borgo} slug={slug} />
-
-        {/* ======= SEZIONI IN STILE HM ======= */}
 
         {/* Video dei creator */}
         <SectionHM title="Video dei creator" linkTo={`/borghi/${slug}/video`}>
@@ -875,7 +889,7 @@ export default function HomeBorgo() {
           ))}
         </SectionHM>
 
-        {/* Prossimi eventi — locandine verticali */}
+        {/* Prossimi eventi */}
         <SectionHM title="Prossimi eventi" linkTo={`/borghi/${slug}/eventi`}>
           {eventi.map((ev, i) => (
             <HMEventPosterCard key={i} ev={ev} />
@@ -889,7 +903,7 @@ export default function HomeBorgo() {
           ))}
         </SectionHM>
 
-        {/* (Facoltative) altre raccolte locali in stile semplice */}
+        {/* Cosa fare (dal dataset POI) */}
         {thingsToDo?.length ? (
           <SectionHM title="Cosa fare" linkTo={`/borghi/${slug}/cosa-fare`}>
             {thingsToDo.slice(0, 8).map((p) => (

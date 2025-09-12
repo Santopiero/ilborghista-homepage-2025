@@ -1,11 +1,12 @@
-// src/pages/Onboarding.jsx
+// src/pages/creator/Onboarding.jsx
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import SuggestItineraryBtn from "../../components/SuggestItineraryBtn";
 import {
   Menu, X, LogOut, Flag, MessageCircle, Upload, Youtube,
   BarChart2, Clock, ChevronRight, Crown, List, Bell,
-  Compass, Map, Star, Medal, Trophy, Film
+  Compass, Map, Star, Medal, Trophy, Film,
+  Image as ImageIcon, Globe, Link2, MapPin
 } from "lucide-react";
 
 /* =======================
@@ -107,10 +108,27 @@ export default function Onboarding() {
     { id: "b2", label: "Pietrapertosa", thumb: "https://images.unsplash.com/photo-1501854140801-50d01698950b?q=80&w=800&auto=format&fit=crop" },
   ]);
 
-  // creator
+  // creator: profilo pubblico + upload
   const [creatorOpen, setCreatorOpen] = useState(false);
+
+  // profilo creator (per anteprima pubblica)
+  const [creatorProfile, setCreatorProfile] = useState({
+    coverUrl: "",
+    avatarUrl: "",
+    displayName: "santopiero",
+    bio: "",
+    region: "Basilicata",
+    traits: [], // es: ["Natura","Food","Storie locali"]
+    socials: { website: "", youtube: "", instagram: "", tiktok: "" },
+  });
+
+  const TRAIT_OPTS = [
+    "Natura", "Food", "Storie locali", "Cammini", "Arte & Cultura", "Family friendly", "Drone", "Vlog"
+  ];
+
   const [selectedBorgoSlug, setSelectedBorgoSlug] = useState("");
   const selectedBorgo = useMemo(() => BORGI.find(b => b.slug === selectedBorgoSlug) || null, [selectedBorgoSlug]);
+
   const [form, setForm] = useState({
     title: "", description: "", poiId: "", activity: "", tags: "", url: "", fileName: "", thumbnail: FALLBACK_IMG
   });
@@ -178,9 +196,9 @@ export default function Onboarding() {
   const removeFav = id => setFavorites(f => f.filter(x => x.id !== id));
   const addFavDemo = () => setFavorites(f => [{ id: "f_" + Date.now(), label: "Nuovo preferito", thumb: FALLBACK_IMG }, ...f]);
 
+  /* ================= HEADER ================= */
   return (
     <div className="min-h-screen" style={{ backgroundColor: C.cream }}>
-      {/* HEADER MOBILE-FIRST */}
       <header className="sticky top-0 z-40 border-b" style={{ borderColor: C.gold, backgroundColor: "rgba(250,245,224,0.96)", backdropFilter: "blur(6px)" }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="text-lg sm:text-xl font-semibold tracking-tight" style={{ color: C.primaryDark }}>Il Borghista</div>
@@ -203,12 +221,17 @@ export default function Onboarding() {
             </div>
 
             <nav className="space-y-1">
+              {/* Notifiche nel menu (come richiesto) */}
               <MenuItem icon={Bell} label="Notifiche" />
-              <MenuItem icon={List} label="I miei contenuti" />
+
+              {/* I miei contenuti → apri panoramica itinerari */}
+              <MenuItem icon={List} label="I miei contenuti" to="/itinerari" />
+
               <div className="my-2 border-t" style={{ borderColor: C.light }} />
               <MenuItem icon={Trophy} label="Livelli & Obiettivi" />
-              {/* stepper livelli nel menu */}
-              <div className="ml-8 mt-1 flex items-center gap-3">
+
+              {/* Stepper livelli compatto anche nel menu */}
+              <div className="ml-8 mt-2 flex items-center gap-3">
                 {LEVELS.map((l) => {
                   const active = l.name === level.name;
                   const Icon = l.Icon;
@@ -228,9 +251,11 @@ export default function Onboarding() {
                   );
                 })}
               </div>
+
               <div className="my-2 border-t" style={{ borderColor: C.light }} />
               <MenuItem icon={Crown} label="Classifica Regionale" href="#classifiche" />
               <MenuItem icon={BarChart2} label="Classifica Nazionale" href="#classifiche" />
+
               <div className="my-2 border-t" style={{ borderColor: C.light }} />
               <MenuItem icon={LogOut} label="Esci" danger />
             </nav>
@@ -240,10 +265,11 @@ export default function Onboarding() {
 
       {/* MAIN */}
       <main className="mx-auto max-w-6xl px-4 py-6 lg:grid lg:grid-cols-3 lg:gap-6">
-        {/* COLONNA UTENTE (sempre prima su mobile) */}
+        {/* COLONNA UTENTE */}
         <section className="lg:col-span-2 space-y-6">
-          {/* Greeting + progress + livelli icone + preferiti + azioni */}
+          {/* Riquadro utente */}
           <div className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
+            {/* Header card + progress */}
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="truncate text-base sm:text-lg font-semibold" style={{ color: C.primaryDark }}>
@@ -253,16 +279,17 @@ export default function Onboarding() {
                   Mancano <b>{toNext}</b> pt per diventare <b>{next ? next.name : level.name}</b>.
                 </p>
               </div>
+              {/* progress desktop */}
               <div className="hidden sm:block">
-                <div className="mt-1 h-2 w-40 sm:w-56 overflow-hidden rounded-full" style={{ backgroundColor: C.light }}>
+                <div className="mt-1 h-2 w-44 sm:w-56 overflow-hidden rounded-full" style={{ backgroundColor: C.light }}>
                   <div className="h-full transition-all" style={{ width: `${pct}%`, backgroundColor: C.primary }} />
                 </div>
                 <div className="mt-1 text-right text-xs" style={{ color: C.primaryDark }}>{user.points} pt totali</div>
               </div>
             </div>
 
-            {/* livelli a icone (compatti) */}
-            <div className="mt-4 flex items-center justify-between">
+            {/* Livelli a icone — mobile ok, desktop più compatti */}
+            <div className="mt-4 flex items-center justify-center gap-2 md:gap-2 lg:gap-2">
               {LEVELS.map((l) => {
                 const active = l.name === level.name;
                 const Icon = l.Icon;
@@ -279,7 +306,7 @@ export default function Onboarding() {
                     >
                       <Icon className="h-5 w-5" />
                     </div>
-                    <span className="mt-1 text-[10px] sm:text-xs" style={{ color: C.primaryDark }}>
+                    <span className="mt-1 text-[10px] sm:text-[11px]" style={{ color: C.primaryDark }}>
                       {l.key}
                     </span>
                   </div>
@@ -322,8 +349,8 @@ export default function Onboarding() {
               <QuickBtn icon={Film} label="Carica video (+20)" onClick={goToVideoUpload} />
             </div>
 
-            {/* Prossimi obiettivi (badge sezione rimossa) */}
-            <div className="mt-4">
+            {/* Prossimi obiettivi + BARRA ROSSA + BTN Suggerisci itinerario (interno card) */}
+            <div className="mt-5">
               <div className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Prossimi obiettivi</div>
               <ul className="space-y-1 text-sm">
                 <li className="flex items-center justify-between rounded-lg border px-3 py-2"
@@ -337,10 +364,22 @@ export default function Onboarding() {
                   <span>+{POINTS.video} pt</span>
                 </li>
               </ul>
+
+              {/* barra rossa + bottone dentro lo stesso riquadro */}
+              <div className="mt-4 rounded-xl p-3"
+                   style={{ background: `linear-gradient(90deg, ${C.primary} 0%, ${C.primaryDark} 100%)` }}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="text-white/90 text-sm">
+                    Hai un’idea di percorso tra borghi? Suggeriscilo alla community.
+                  </div>
+                  {/* bottone (versione con componente; se non l’hai, sostituisci con Link) */}
+                  <SuggestItineraryBtn className="w-full sm:w-auto" />
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* CTA CREATOR */}
+          {/* CTA CREATOR (se non attivo) */}
           {!user.isCreator && !creatorOpen && (
             <div className="overflow-hidden rounded-2xl border p-6 sm:p-8"
                  style={{ borderColor: C.gold, background: `linear-gradient(90deg, ${C.primary} 0%, ${C.primaryDark} 100%)` }}>
@@ -358,9 +397,90 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* SEZIONE CREATOR (in basso) */}
+          {/* SEZIONE CREATOR (profilo pubblico + upload) */}
           {(user.isCreator || creatorOpen) && (
             <>
+              {/* ===== Profilo Creator (con anteprima pubblica) ===== */}
+              <div className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
+                <h3 className="text-base font-semibold mb-3" style={{ color: C.primaryDark }}>Profilo Creator</h3>
+
+                <div className="grid gap-4 lg:grid-cols-3">
+                  {/* form */}
+                  <div className="lg:col-span-2 space-y-3">
+                    <Input label="Nome pubblico" value={creatorProfile.displayName}
+                           onChange={(v)=>setCreatorProfile(p=>({...p,displayName:v}))} placeholder="es. santopiero" />
+
+                    <Textarea label="Bio sintetica" value={creatorProfile.bio}
+                              onChange={(v)=>setCreatorProfile(p=>({...p,bio:v}))}
+                              placeholder="Racconto i borghi con focus su natura, cammini e sapori." maxLength={180} counter />
+
+                    <Input label="Regione" value={creatorProfile.region}
+                           onChange={(v)=>setCreatorProfile(p=>({...p,region:v}))} placeholder="Basilicata" icon={<MapPin className="h-4 w-4" style={{color:C.primaryDark}} />} />
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Input label="Cover URL" value={creatorProfile.coverUrl}
+                             onChange={(v)=>setCreatorProfile(p=>({...p,coverUrl:v}))} placeholder="https://…" icon={<ImageIcon className="h-4 w-4" style={{color:C.primaryDark}} />} />
+                      <Input label="Avatar URL" value={creatorProfile.avatarUrl}
+                             onChange={(v)=>setCreatorProfile(p=>({...p,avatarUrl:v}))} placeholder="https://…" icon={<ImageIcon className="h-4 w-4" style={{color:C.primaryDark}} />} />
+                    </div>
+
+                    <div>
+                      <Label>Caratteristiche (per card pubblico)</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {TRAIT_OPTS.map(t => {
+                          const active = (creatorProfile.traits||[]).includes(t);
+                          return (
+                            <button key={t} type="button"
+                              onClick={()=>setCreatorProfile(p=>{
+                                const set = new Set(p.traits||[]);
+                                set.has(t) ? set.delete(t) : set.add(t);
+                                return {...p, traits: Array.from(set)};
+                              })}
+                              className="px-3 py-1.5 rounded-2xl text-sm border"
+                              style={{
+                                borderColor: active ? C.primary : C.gold,
+                                backgroundColor: active ? C.primary : "#fff",
+                                color: active ? "#fff" : C.primaryDark,
+                              }}>
+                              {t}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Input label="Sito web" value={creatorProfile.socials.website}
+                             onChange={(v)=>setCreatorProfile(p=>({...p,socials:{...p.socials,website:v}}))} placeholder="https://il-mi-sito.it" icon={<Globe className="h-4 w-4" style={{color:C.primaryDark}} />} />
+                      <Input label="YouTube" value={creatorProfile.socials.youtube}
+                             onChange={(v)=>setCreatorProfile(p=>({...p,socials:{...p.socials,youtube:v}}))} placeholder="https://youtube.com/…" icon={<Youtube className="h-4 w-4" style={{color:C.primaryDark}} />} />
+                      <Input label="Instagram" value={creatorProfile.socials.instagram}
+                             onChange={(v)=>setCreatorProfile(p=>({...p,socials:{...p.socials,instagram:v}}))} placeholder="https://instagram.com/…" icon={<Link2 className="h-4 w-4" style={{color:C.primaryDark}} />} />
+                      <Input label="TikTok" value={creatorProfile.socials.tiktok}
+                             onChange={(v)=>setCreatorProfile(p=>({...p,socials:{...p.socials,tiktok:v}}))} placeholder="https://tiktok.com/@…" icon={<Link2 className="h-4 w-4" style={{color:C.primaryDark}} />} />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <BtnPrimary onClick={()=>setUser(u=>({...u,isCreator:true}))}>Salva profilo</BtnPrimary>
+                      <Link to="/creator/me" className="rounded-xl border px-4 py-2 text-sm hover:opacity-90"
+                            style={{ borderColor: C.gold, color: C.primaryDark }}>
+                        Vedi profilo pubblico
+                      </Link>
+                    </div>
+                  </div>
+
+                  {/* Anteprima pubblica (coerente con card creator) */}
+                  <div>
+                    <PublicCreatorCard
+                      profile={creatorProfile}
+                      stats={{ videos: stats.total, views: stats.views }}
+                      palette={C}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ===== Strumenti upload video ===== */}
               <div id="creator-tools" className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Strumenti da Creator</h3>
@@ -371,7 +491,7 @@ export default function Onboarding() {
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-3">
-                  {/* Form upload (semplificato) */}
+                  {/* form */}
                   <div className="lg:col-span-2 space-y-3">
                     <Input value={form.title} onChange={(v)=>setForm(f=>({...f,title:v}))} placeholder="Titolo" />
                     <Textarea value={form.description} onChange={(v)=>setForm(f=>({...f,description:v}))} placeholder="Descrizione (max 140)" maxLength={140} counter />
@@ -434,11 +554,6 @@ export default function Onboarding() {
               </div>
             </>
           )}
-
-          {/* CTA in fondo: Suggerisci Itinerario (solo qui, non in alto) */}
-          <div className="pt-2">
-            <SuggestItineraryBtn className="w-full sm:w-auto" />
-          </div>
         </section>
 
         {/* COLONNA DX: attività + classifiche */}
@@ -474,11 +589,12 @@ export default function Onboarding() {
 /* =======================
    UI HELPERS
 ======================= */
-function MenuItem({ icon: Icon, label, href, danger }) {
-  const Comp = href ? "a" : "button";
+function MenuItem({ icon: Icon, label, href, to, danger }) {
+  const Comp = to ? Link : (href ? "a" : "button");
+  const props = to ? { to } : href ? { href } : {};
   return (
-    <Comp href={href || undefined}
-          className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-neutral-50 ${danger ? "text-red-600" : ""}`}>
+    <Comp {...props}
+      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-neutral-50 ${danger ? "text-red-600" : ""}`}>
       <span className="flex items-center gap-2">
         <Icon className={`h-4 w-4 ${danger ? "text-red-600" : ""}`} />
         {label}
@@ -585,7 +701,7 @@ function LeaderboardCard({ title, icon: Icon, items, mePoints }) {
   );
 }
 
-/* --- piccoli componenti form con stile coerente --- */
+/* --- Form components --- */
 function Label({ children }) { return <label className="mb-1 block text-xs" style={{ color: C.primaryDark }}>{children}</label>; }
 function Input({ label, value, onChange, placeholder, icon }) {
   return (
@@ -599,7 +715,7 @@ function Input({ label, value, onChange, placeholder, icon }) {
     </div>
   );
 }
-function Textarea({ label, value, onChange, placeholder, maxLength=140, counter=false }) {
+function Textarea({ label, value, onChange, placeholder, maxLength=180, counter=false }) {
   return (
     <div>
       {label && <Label>{label}</Label>}
@@ -627,4 +743,80 @@ function BtnPrimary({ children, onClick }) {
 }
 function BtnOutline({ children, onClick }) {
   return <button onClick={onClick} className="rounded-xl border px-4 py-2 text-sm hover:opacity-90" style={{ borderColor: C.gold, color: C.primaryDark }}>{children}</button>;
+}
+
+/* --- Card anteprima pubblica creator --- */
+function PublicCreatorCard({ profile, stats, palette }) {
+  const cover = profile.coverUrl || "https://images.unsplash.com/photo-1533750349088-cd871a92f312?q=80&w=1200&auto=format&fit=crop";
+  const avatar = profile.avatarUrl || "https://placehold.co/80x80?text=%20";
+  const traits = profile.traits || [];
+  const socials = profile.socials || {};
+  return (
+    <div className="rounded-2xl border overflow-hidden" style={{ borderColor: palette.gold }}>
+      <div className="bg-neutral-100 relative">
+        <div className="aspect-[3/1] w-full">
+          <img src={cover} alt="cover" className="w-full h-full object-cover" />
+        </div>
+        <div className="absolute left-4 -bottom-6 h-16 w-16 rounded-full ring-4" style={{ ringColor: "#fff", backgroundColor: "#fff" }}>
+          <img src={avatar} alt="avatar" className="h-16 w-16 rounded-full object-cover" />
+        </div>
+      </div>
+
+      <div className="pt-8 px-4 pb-4">
+        <div className="font-semibold" style={{ color: palette.primaryDark }}>{profile.displayName || "creator"}</div>
+
+        <div className="mt-2 flex flex-wrap gap-2">
+          <span className="inline-flex items-center gap-1 text-xs rounded-full px-2 py-1"
+                style={{ backgroundColor: palette.cream, color: palette.primaryDark, border: `1px solid ${palette.gold}` }}>
+            <Film className="w-3 h-3" /> {stats.videos || 0} video
+          </span>
+          <span className="inline-flex items-center gap-1 text-xs rounded-full px-2 py-1"
+                style={{ backgroundColor: palette.cream, color: palette.primaryDark, border: `1px solid ${palette.gold}` }}>
+            <BarChart2 className="w-3 h-3" /> {stats.views || 0} views
+          </span>
+        </div>
+
+        {profile.bio && <p className="mt-2 text-sm" style={{ color: palette.primaryDark }}>{profile.bio}</p>}
+
+        <div className="mt-2 flex flex-wrap gap-1">
+          {traits.map((t) => (
+            <span key={t} className="text-xs rounded-full border px-2 py-0.5"
+                  style={{ borderColor: palette.gold, color: palette.primaryDark }}>
+              {t}
+            </span>
+          ))}
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <a href={socials.website || "#"} className="rounded-xl border px-3 py-2 text-sm text-center hover:bg-neutral-50"
+             style={{ borderColor: palette.gold, color: palette.primaryDark }}>
+            <div className="inline-flex items-center gap-2 justify-center"><Globe className="w-4 h-4" /> Sito</div>
+          </a>
+          <a href={socials.youtube || "#"} className="rounded-xl border px-3 py-2 text-sm text-center hover:bg-neutral-50"
+             style={{ borderColor: palette.gold, color: palette.primaryDark }}>
+            <div className="inline-flex items-center gap-2 justify-center"><Youtube className="w-4 h-4" /> YouTube</div>
+          </a>
+          <a href={socials.instagram || "#"} className="rounded-xl border px-3 py-2 text-sm text-center hover:bg-neutral-50"
+             style={{ borderColor: palette.gold, color: palette.primaryDark }}>
+            <div className="inline-flex items-center gap-2 justify-center"><Link2 className="w-4 h-4" /> Instagram</div>
+          </a>
+          <a href={socials.tiktok || "#"} className="rounded-xl border px-3 py-2 text-sm text-center hover:bg-neutral-50"
+             style={{ borderColor: palette.gold, color: palette.primaryDark }}>
+            <div className="inline-flex items-center gap-2 justify-center"><Link2 className="w-4 h-4" /> TikTok</div>
+          </a>
+        </div>
+
+        <div className="mt-3 flex gap-2">
+          <button className="flex-1 rounded-xl px-4 py-2 text-sm text-white"
+                  style={{ backgroundColor: palette.primary }}>
+            Contatta
+          </button>
+          <button className="rounded-xl border px-4 py-2 text-sm"
+                  style={{ borderColor: palette.gold, color: palette.primaryDark }}>
+            Vedi profilo
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

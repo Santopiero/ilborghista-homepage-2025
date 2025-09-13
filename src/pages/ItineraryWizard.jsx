@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams, Link } from "react-router-dom";
 import {
   ArrowLeft,
-  Plus,
+  PlusCircle,
+  Trash2,
   MapPin,
   Calendar,
   X,
@@ -416,7 +417,7 @@ export default function ItineraryWizard() {
                 color: step === n ? "#FFFFFF" : C.primaryDark,
               }}
             >
-              {["Base", "Tappe", "Consigli", "Anteprima"][n - 1]}
+              {["Dettagli", "Tappe", "Consigli", "Anteprima"][n - 1]}
             </button>
           ))}
           <button
@@ -452,11 +453,11 @@ export default function ItineraryWizard() {
         {step === 1 && (
           <section className="space-y-4">
             <h2 className="text-lg font-semibold" style={{ color: C.primaryDark }}>
-              Info di base
+              Dettagli
             </h2>
 
             <div className="grid gap-3">
-              {/* Consigliato per — CHIP CON CHECKBOX (aspetto diverso dai tab) */}
+              {/* Consigliato per — CHIP CON CHECKBOX */}
               <div>
                 <div className="mb-1 text-sm" style={{ color: C.primaryDark }}>
                   Consigliato per
@@ -685,6 +686,26 @@ export default function ItineraryWizard() {
                   placeholder={user?.name ? user.name : "es. Maria Rossi"}
                 />
               </div>
+
+              {/* CTA bottom */}
+              <div className="mt-2 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => navigate(-1)}
+                  className="px-3 py-2 rounded-xl border hover:bg-gray-50"
+                  style={{ borderColor: C.gold, color: C.primaryDark }}
+                >
+                  Indietro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="px-4 py-2 rounded-xl font-semibold"
+                  style={{ backgroundColor: C.primary, color: "#fff" }}
+                >
+                  Continua
+                </button>
+              </div>
             </div>
           </section>
         )}
@@ -699,6 +720,24 @@ export default function ItineraryWizard() {
               stops={it.stops || []}
               onChange={(stops) => handleChange("stops", stops)}
             />
+            <div className="mt-2 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="px-3 py-2 rounded-xl border hover:bg-gray-50"
+                style={{ borderColor: C.gold, color: C.primaryDark }}
+              >
+                Indietro
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep(3)}
+                className="px-4 py-2 rounded-xl font-semibold"
+                style={{ backgroundColor: C.primary, color: "#fff" }}
+              >
+                Continua
+              </button>
+            </div>
           </section>
         )}
 
@@ -746,6 +785,24 @@ export default function ItineraryWizard() {
                   })
                 }
               />
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="px-3 py-2 rounded-xl border hover:bg-gray-50"
+                style={{ borderColor: C.gold, color: C.primaryDark }}
+              >
+                Indietro
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep(4)}
+                className="px-4 py-2 rounded-xl font-semibold"
+                style={{ backgroundColor: C.primary, color: "#fff" }}
+              >
+                Continua
+              </button>
             </div>
           </section>
         )}
@@ -803,7 +860,15 @@ function StopsEditor({ stops, onChange }) {
 
   useEffect(() => setLocal(stops), [stops]);
 
-  // genera objectURL per le foto delle tappe
+  // se non ci sono tappe, crea la prima di default (schema visibile)
+  useEffect(() => {
+    if (!local || local.length === 0) {
+      addStopAt(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // genera objectURL per le foto delle tappe (thumb accanto al titolo)
   useEffect(() => {
     let disposed = false;
     (async () => {
@@ -833,24 +898,30 @@ function StopsEditor({ stops, onChange }) {
     };
   }, [JSON.stringify((local || []).map((s) => s.photoKey || ""))]);
 
-  function addStop() {
+  function newStop() {
+    return {
+      id: "stop_" + Math.random().toString(36).slice(2, 9),
+      name: "",
+      category: "",
+      description: "",
+      cost: "",
+      tip: "",
+      photoKey: "",
+    };
+  }
+
+  function addStopAt(index) {
     setLocal((prev) => {
-      const next = [
-        ...prev,
-        {
-          id: "stop_" + Math.random().toString(36).slice(2, 9),
-          name: "",
-          category: "",
-          description: "",
-          cost: "",
-          tip: "",
-          photoKey: "",
-        },
-      ];
+      const next = [...(prev || [])];
+      next.splice(index, 0, newStop());
       onChange(next);
       return next;
     });
   }
+  function addStopAfter(idx) {
+    addStopAt(idx + 1);
+  }
+
   function update(idx, patch) {
     const next = [...local];
     next[idx] = { ...next[idx], ...patch };
@@ -877,9 +948,9 @@ function StopsEditor({ stops, onChange }) {
     const files = e.target.files;
     if (!files || !files[0]) return;
     const [dataUrl] = await filesToCompressedDataURLs(files, 1, {
-      maxW: 640,
-      maxH: 640,
-      quality: 0.7,
+      maxW: 960,
+      maxH: 960,
+      quality: 0.75,
     });
     const key = await saveImageFromDataURL(dataUrl);
     if (local[idx]?.photoKey) await deleteImage(local[idx].photoKey).catch(() => {});
@@ -893,19 +964,7 @@ function StopsEditor({ stops, onChange }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm" style={{ color: C.primaryDark }}>
-          Aggiungi le tappe del tuo racconto.
-        </p>
-        <button
-          type="button"
-          onClick={addStop}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-white shadow-sm"
-          style={{ backgroundColor: C.primaryDark }}
-        >
-          <Plus className="w-4 h-4" /> Aggiungi tappa
-        </button>
-      </div>
+      {/* Tolto l'header con “Aggiungi tappa” */}
 
       <ol className="space-y-4">
         {local.map((s, idx) => (
@@ -918,30 +977,6 @@ function StopsEditor({ stops, onChange }) {
               borderLeft: `6px solid ${C.primary}`,
             }}
           >
-            {/* Pulsanti freccia in alto a destra */}
-            <div className="absolute top-2 right-2 flex gap-1">
-              <button
-                type="button"
-                onClick={() => move(idx, -1)}
-                className="p-1.5 rounded-lg border bg-white hover:bg-gray-50"
-                style={{ borderColor: C.gold }}
-                aria-label="Su"
-                title="Su"
-              >
-                <ChevronUp className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => move(idx, +1)}
-                className="p-1.5 rounded-lg border bg-white hover:bg-gray-50"
-                style={{ borderColor: C.gold }}
-                aria-label="Giù"
-                title="Giù"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </div>
-
             {/* Header compatto */}
             <div className="flex items-center gap-2 mb-2">
               <span
@@ -951,7 +986,7 @@ function StopsEditor({ stops, onChange }) {
                 {idx + 1}
               </span>
 
-              {/* Thumbnail */}
+              {/* Thumbnail accanto al titolo */}
               {thumbUrls[idx] ? (
                 <img
                   src={thumbUrls[idx]}
@@ -993,8 +1028,6 @@ function StopsEditor({ stops, onChange }) {
                 ))}
               </select>
 
-              {/* (orario rimosso) */}
-
               <input
                 type="text"
                 value={s.cost}
@@ -1021,40 +1054,91 @@ function StopsEditor({ stops, onChange }) {
               style={{ borderColor: C.gold, color: C.primaryDark }}
             />
 
-            {/* Upload foto tappa */}
+            {/* Upload/preview foto tappa - preview grande + X */}
             <div className="mt-3">
               <div className="text-sm mb-1" style={{ color: C.primaryDark }}>
                 Foto della tappa (1 facoltativa)
               </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => onStopPhotoChange(idx, e)}
-                  ref={(el) => (fileInputsRef.current[idx] = el)}
-                />
-                {s.photoKey && (
+
+              {s.photoKey ? (
+                <div className="relative">
+                  {/* preview grande */}
+                  <img
+                    src={thumbUrls[idx] || ""}
+                    alt={`stop-photo-${idx}`}
+                    className="w-full h-40 object-cover rounded-xl border"
+                    style={{ borderColor: C.gold }}
+                  />
                   <button
                     type="button"
                     onClick={() => clearStopPhoto(idx)}
-                    className="px-2 py-1 rounded-lg border text-sm hover:bg-gray-50"
-                    style={{ borderColor: C.gold, color: C.primaryDark }}
+                    className="absolute -top-2 -right-2 p-1.5 rounded-full bg-white border shadow"
+                    style={{ borderColor: C.gold }}
+                    aria-label="Rimuovi foto"
                   >
-                    Rimuovi foto
+                    <X className="w-4 h-4" />
                   </button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => onStopPhotoChange(idx, e)}
+                    ref={(el) => (fileInputsRef.current[idx] = el)}
+                  />
+                </div>
+              )}
             </div>
 
-            <div className="mt-3 flex items-center justify-end">
-              <button
-                type="button"
-                onClick={() => remove(idx)}
-                className="px-3 py-1.5 rounded-xl border hover:bg-gray-50"
-                style={{ borderColor: C.gold, color: C.primaryDark }}
-              >
-                Rimuovi
-              </button>
+            {/* Barra azioni in basso: su/giù, aggiungi dopo, cestino */}
+            <div className="mt-3 flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => move(idx, -1)}
+                  className="p-1.5 rounded-lg border bg-white hover:bg-gray-50"
+                  style={{ borderColor: C.gold }}
+                  aria-label="Sposta su"
+                  title="Sposta su"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(idx, +1)}
+                  className="p-1.5 rounded-lg border bg-white hover:bg-gray-50"
+                  style={{ borderColor: C.gold }}
+                  aria-label="Sposta giù"
+                  title="Sposta giù"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => addStopAfter(idx)}
+                  className="p-1.5 rounded-lg border bg-white hover:bg-gray-50"
+                  style={{ borderColor: C.gold }}
+                  aria-label="Aggiungi tappa dopo"
+                  title="Aggiungi tappa dopo"
+                >
+                  <PlusCircle className="w-5 h-5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => remove(idx)}
+                  className="p-1.5 rounded-lg border bg-white hover:bg-gray-50"
+                  style={{ borderColor: C.gold }}
+                  aria-label="Rimuovi tappa"
+                  title="Rimuovi tappa"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           </li>
         ))}

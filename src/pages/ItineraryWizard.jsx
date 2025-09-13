@@ -1,3 +1,4 @@
+// src/pages/ItineraryWizard.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams, Link } from "react-router-dom";
 import {
@@ -17,7 +18,7 @@ import {
   createDraft,
   getItinerary,
   updateItinerary,
-  submitForReview,
+  publish, // ⬅️ sostituisce submitForReview
 } from "../lib/itineraries";
 import {
   getCurrentUser,
@@ -52,7 +53,7 @@ const AUDIENCE_OPTS = [
 ];
 
 const CATEGORY_OPTS = [
-  "",                // <- opzionale / nessuna
+  "", // <- opzionale / nessuna
   "Cosa vedere",
   "Dove mangiare",
   "Natura",
@@ -119,7 +120,8 @@ export default function ItineraryWizard() {
   const navigate = useNavigate();
   const { id } = useParams();
   const qs = useQuery();
-  const shouldSubmit = qs.get("submit") === "1";
+  // supporta sia ?publish=1 che vecchio ?submit=1
+  const shouldPublish = qs.get("publish") === "1" || qs.get("submit") === "1";
 
   const BORGI_INDEX =
     STORE_BORGI_INDEX && STORE_BORGI_INDEX.length
@@ -242,11 +244,11 @@ export default function ItineraryWizard() {
     return () => clearInterval(h);
   }, [it]);
 
-  // Submit da query
+  // Publish da query (?publish=1 o ?submit=1)
   useEffect(() => {
-    if (it && shouldSubmit) handleSubmit();
+    if (it && shouldPublish) handlePublish();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [it, shouldSubmit]);
+  }, [it, shouldPublish]);
 
   // Risolvi objectURL della galleria ogni volta che cambiano le chiavi
   useEffect(() => {
@@ -294,14 +296,20 @@ export default function ItineraryWizard() {
     set.has(key) ? set.delete(key) : set.add(key);
     handleChange("audiences", Array.from(set));
   }
-  function handleSubmit() {
+  function handlePublish() {
     if (!it.title || !it.mainBorgoSlug || (it.stops || []).length === 0) {
       alert("Titolo, Borgo principale e almeno una tappa sono obbligatori.");
       return;
     }
-    submitForReview(it.id);
-    alert("Inviato in revisione. Grazie per il tuo contributo!");
-    navigate("/itinerari");
+    const ok = publish(it.id);
+    if (!ok) {
+      alert("Errore durante la pubblicazione.");
+      return;
+    }
+    alert("Pubblicato! Ora lo trovi nelle esperienze del borgo.");
+    navigate(
+      `/borghi/${encodeURIComponent(it.mainBorgoSlug)}/esperienze?tab=itinerari`
+    );
   }
 
   // Galleria (max 3)
@@ -413,11 +421,11 @@ export default function ItineraryWizard() {
           ))}
           <button
             type="button"
-            onClick={handleSubmit}
+            onClick={handlePublish}
             className="ml-auto px-3 py-1.5 rounded-xl"
             style={{ backgroundColor: C.primary, color: "#fff" }}
           >
-            Invia per revisione
+            Pubblica
           </button>
         </div>
 
@@ -448,7 +456,7 @@ export default function ItineraryWizard() {
             </h2>
 
             <div className="grid gap-3">
-              {/* Consigliato per (SPOSTATO IN ALTO) */}
+              {/* Consigliato per — CHIP CON CHECKBOX (aspetto diverso dai tab) */}
               <div>
                 <div className="mb-1 text-sm" style={{ color: C.primaryDark }}>
                   Consigliato per
@@ -457,19 +465,25 @@ export default function ItineraryWizard() {
                   {AUDIENCE_OPTS.map((a) => {
                     const active = (it.audiences || []).includes(a.key);
                     return (
-                      <button
-                        type="button"
+                      <label
                         key={a.key}
-                        onClick={() => toggleAudience(a.key)}
-                        className="px-3 py-1.5 rounded-2xl text-sm border"
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm cursor-pointer ${
+                          active ? "ring-1" : ""
+                        }`}
                         style={{
-                          borderColor: active ? C.primary : C.gold,
-                          backgroundColor: active ? C.primary : "#fff",
-                          color: active ? "#fff" : C.primaryDark,
+                          borderColor: C.gold,
+                          backgroundColor: active ? C.cream : "#fff",
+                          color: C.primaryDark,
                         }}
                       >
-                        {a.label}
-                      </button>
+                        <input
+                          type="checkbox"
+                          checked={active}
+                          onChange={() => toggleAudience(a.key)}
+                          className="accent-[#D54E30]"
+                        />
+                        <span>{a.label}</span>
+                      </label>
                     );
                   })}
                 </div>
@@ -570,10 +584,13 @@ export default function ItineraryWizard() {
                     borderColor: C.gold,
                     background: "#FFF8EF",
                   }}
-                  onClick={() => document.getElementById("gallery-file-input")?.click()}
+                  onClick={() =>
+                    document.getElementById("gallery-file-input")?.click()
+                  }
                 >
                   <div className="text-xs mb-2" style={{ color: C.primaryDark }}>
-                    Trascina qui fino a 3 foto oppure <u>clicca per selezionare</u>
+                    Trascina qui fino a 3 foto oppure{" "}
+                    <u>clicca per selezionare</u>
                   </div>
                   <input
                     id="gallery-file-input"
@@ -1046,7 +1063,7 @@ function StopsEditor({ stops, onChange }) {
   );
 }
 
-/* -------- Anteprima con carousel, badge categoria/costo e lightbox per foto tappa -------- */
+/* -------- Anteprima con carousel, badge categoria/costo, lightbox e CONSIGLI PRATICI -------- */
 function PreviewSection({
   it,
   galleryUrls,
@@ -1087,6 +1104,13 @@ function PreviewSection({
       });
     };
   }, [JSON.stringify((it.stops || []).map((s) => s.photoKey || ""))]);
+
+  const hasTips =
+    it?.finalTips &&
+    (it.finalTips.howToArrive ||
+      it.finalTips.parking ||
+      it.finalTips.bestPeriod ||
+      it.finalTips.extraTips);
 
   return (
     <section className="space-y-4">
@@ -1206,6 +1230,41 @@ function PreviewSection({
                   #{t}
                 </span>
               ))}
+            </div>
+          )}
+
+          {/* CONSIGLI PRATICI */}
+          {hasTips && (
+            <div className="mt-4 rounded-xl border p-3" style={{ borderColor: C.gold }}>
+              <h4 className="font-semibold mb-2" style={{ color: C.primaryDark }}>
+                Consigli pratici
+              </h4>
+              <ul className="space-y-1 text-sm" style={{ color: C.primaryDark }}>
+                {it.finalTips?.howToArrive && (
+                  <li>
+                    <span className="font-medium">Come arrivare: </span>
+                    {it.finalTips.howToArrive}
+                  </li>
+                )}
+                {it.finalTips?.parking && (
+                  <li>
+                    <span className="font-medium">Parcheggio / come muoversi: </span>
+                    {it.finalTips.parking}
+                  </li>
+                )}
+                {it.finalTips?.bestPeriod && (
+                  <li>
+                    <span className="font-medium">Periodo migliore: </span>
+                    {it.finalTips.bestPeriod}
+                  </li>
+                )}
+                {it.finalTips?.extraTips && (
+                  <li>
+                    <span className="font-medium">Altri consigli: </span>
+                    {it.finalTips.extraTips}
+                  </li>
+                )}
+              </ul>
             </div>
           )}
 

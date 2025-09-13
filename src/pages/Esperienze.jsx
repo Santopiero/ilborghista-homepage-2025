@@ -1,13 +1,18 @@
 // src/pages/Esperienze.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { BORGI_BY_SLUG } from "../data/borghi";
 import { findBorgoBySlug, listPoiByBorgo, getVideosByPoi } from "../lib/store";
 import {
   Search, Menu, X, CalendarDays, Route, ShoppingBag, Hammer, Utensils, BedDouble,
-  List as ListIcon, MapPin, Star, ChevronDown, Bus, Film, Home, Heart
+  List as ListIcon, MapPin, Star, ChevronDown, Bus, Film, Home, Heart, Calendar,
+  ThumbsUp, ThumbsDown
 } from "lucide-react";
+
+/* ====== NEW: itinerari utente ====== */
+import { listPublishedNear } from "../lib/itineraries";
+import { getImageBlob } from "../lib/imageStore";
 
 /* ---------- helpers ---------- */
 const isFoodDrink = (p) => /(ristor|tratt|osteria|pizzer|bar|caff|café|enotec|pub|agritur)/i.test(p.type || p.name || "");
@@ -206,7 +211,7 @@ function EToggle({ value, onChange }) {
     <div className="inline-flex h-9 items-center rounded-full border bg-white p-0.5 shadow-sm" role="tablist" aria-label="Tipo contenuto">
       {[{v:"esperienze",l:"Esperienze"},{v:"itinerari",l:"Itinerari"}].map(({ v, l }) => (
         <button key={v} role="tab" aria-selected={value===v} onClick={() => onChange(v)}
-          className={`px-3 text-sm font-semibold rounded-full ${value===v?"bg-[#FAF5E0] text-[#6B271A]":"text-[#6B271A]/70 hover:bg-neutral-50"}`}>
+          className={`px-3 text-sm font-semibold rounded-full ${value===v?"bg[#FAF5E0] bg-[#FAF5E0] text-[#6B271A]":"text-[#6B271A]/70 hover:bg-neutral-50"}`}>
           {l}
         </button>
       ))}
@@ -219,7 +224,7 @@ const favKey = "fav:esperienze";
 const loadFavs = () => { try { return new Set(JSON.parse(localStorage.getItem(favKey) || "[]")); } catch { return new Set(); } };
 const saveFavs = (set) => { try { localStorage.setItem(favKey, JSON.stringify(Array.from(set))); } catch {} };
 
-/* ---------- Card ---------- */
+/* ---------- Card partner ---------- */
 function ExperienceCard({ slug, p, liked, onToggleLike }) {
   const partner = partnerLabel(p);
   const price = priceFrom(p);
@@ -272,6 +277,121 @@ function ExperienceCard({ slug, p, liked, onToggleLike }) {
   );
 }
 
+/* ---------- Card itinerario UTENTE (minimal + feedback) ---------- */
+function UserItineraryCard({ it, coverUrl }) {
+  const borgoName =
+    BORGI_BY_SLUG?.[it.mainBorgoSlug]?.displayName ||
+    BORGI_BY_SLUG?.[it.mainBorgoSlug]?.name ||
+    it.mainBorgoSlug ||
+    "";
+
+  const AUDIENCE_LABEL = {
+    famiglie: "🧒 Famiglie",
+    coppie: "❤️ Coppie",
+    gruppo: "👥 Gruppo",
+    solo: "👤 Solo",
+  };
+  const audChips = (it.audiences || []).map((k) => AUDIENCE_LABEL[k]).filter(Boolean);
+
+  // feedback locale (localStorage)
+  const fbKey = (id) => `itfb:${id}`;
+  const loadFB = (id) => {
+    try { return JSON.parse(localStorage.getItem(fbKey(id)) || '{"u":0,"d":0,"mine":null}'); }
+    catch { return { u: 0, d: 0, mine: null }; }
+  };
+  const saveFB = (id, data) => { try { localStorage.setItem(fbKey(id), JSON.stringify(data)); } catch {} };
+  const [fb, setFb] = React.useState(() => loadFB(it.id));
+  const vote = (type) => {
+    setFb((prev) => {
+      let { u, d, mine } = prev;
+      if (mine === type) {
+        if (type === "up") u = Math.max(0, u - 1);
+        else d = Math.max(0, d - 1);
+        mine = null;
+      } else {
+        if (mine === "up") u = Math.max(0, u - 1);
+        if (mine === "down") d = Math.max(0, d - 1);
+        if (type === "up") u += 1; else d += 1;
+        mine = type;
+      }
+      const next = { u, d, mine };
+      saveFB(it.id, next);
+      return next;
+    });
+  };
+
+  return (
+    <article className="overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow" role="listitem">
+      <Link to={`/itinerari/${it.id}/edit?preview=1`} aria-label={`Apri itinerario: ${it.title}`} className="block">
+        <div className="relative aspect-[16/9] w-full bg-neutral-100">
+          {coverUrl ? (
+            <img src={coverUrl} alt={it.title || "Itinerario utente"} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+          ) : (
+            <div className="h-full w-full grid place-items-center text-neutral-400 text-sm">Nessuna foto</div>
+          )}
+          {/* Bollino semplificato */}
+          <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-[#6B271A] shadow ring-1 ring-black/5">
+            Itinerario utente
+          </span>
+        </div>
+
+        <div className="p-3">
+          {/* Titolo */}
+          <h3 className="line-clamp-2 h-[44px] font-semibold text-[#1A1818]">{it.title || "Senza titolo"}</h3>
+
+          {/* Località + audience */}
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-neutral-700">
+            {borgoName && (
+              <span className="inline-flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5 text-[#D54E30]" />
+                {borgoName}
+              </span>
+            )}
+            {!!audChips.length && (
+              <span className="inline-flex flex-wrap gap-1">
+                {audChips.slice(0, 3).map((lab, i) => (
+                  <span key={i} className="rounded-full border px-2 py-0.5" style={{ borderColor: "#E1B671", color: "#6B271A" }}>
+                    {lab}
+                  </span>
+                ))}
+              </span>
+            )}
+          </div>
+
+          {/* Suggerito da */}
+          {it.suggestedByEnabled && it.suggestedBy && (
+            <div className="mt-1 text-[12px] text-[#6B271A]">Suggerito da <span className="font-medium">{it.suggestedBy}</span></div>
+          )}
+
+          {/* Feedback (locale) */}
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); vote("up"); }}
+              aria-pressed={fb.mine === "up"}
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${fb.mine === "up" ? "bg-[#FAF5E0]" : "bg-white"}`}
+              style={{ borderColor: "#E1B671", color: "#6B271A" }}
+              title="Utile"
+            >
+              <ThumbsUp className="h-3.5 w-3.5" /> {fb.u}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); vote("down"); }}
+              aria-pressed={fb.mine === "down"}
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${fb.mine === "down" ? "bg-[#FAF5E0]" : "bg-white"}`}
+              style={{ borderColor: "#E1B671", color: "#6B271A" }}
+              title="Non utile"
+            >
+              <ThumbsDown className="h-3.5 w-3.5" /> {fb.d}
+            </button>
+          </div>
+        </div>
+      </Link>
+    </article>
+  );
+}
+
 /* ---- Seeds fallback ---- */
 const MOCK_ITEMS = [
   { id:"mock-exp-1", name:"Aosta: volo in mongolfiera sulle Alpi con vista mozzafiato",
@@ -304,6 +424,17 @@ export default function Esperienze() {
 
   /* FILTRI (valori) */
   const [contentType, setContentType] = useState("esperienze"); // esperienze | itinerari
+
+  /* >>> NEW: inizializza tab da ?tab= <<< */
+  const location = useLocation();
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get("tab");
+    if (tab === "itinerari" || tab === "esperienze") {
+      setContentType(tab);
+    }
+  }, [location.search]);
+
   const [typeKey, setTypeKey] = useState("all");
   const [party, setParty] = useState("all");
   const [radius, setRadius] = useState("all"); // km
@@ -327,7 +458,7 @@ export default function Esperienze() {
     return base.length < 4 ? [...base, ...MOCK_ITEMS.map((m) => ({ ...m, id: `${slug}-${m.id}` }))] : base;
   }, [base, contentType, slug]);
 
-  /* mapping tipologia/compagnia */
+  /* mapping tipologia/compagnia per partner */
   const matchesType = (p, key) => {
     if (key === "all") return true;
     const hay = `${p.type||""} ${p.category||""} ${p.name||""} ${(p.tags||[]).join(" ")}`.toLowerCase();
@@ -354,7 +485,8 @@ export default function Esperienze() {
 
   const borgoLL = getLatLng(borgo) || getLatLng(meta);
 
-  const filtered = useMemo(() => {
+  /* ====== FILTRAGGIO PARTNER ====== */
+  const filteredPartner = useMemo(() => {
     let arr = [...baseWithSeeds];
 
     // tipologia, compagnia, raggio
@@ -405,7 +537,85 @@ export default function Esperienze() {
     return arr;
   }, [baseWithSeeds, typeKey, party, radius, priceBand, partner, duration, order, borgoLL]);
 
-  const resultsCount = filtered.length;
+  /* ====== ITINERARI UTENTE (nuovo) ====== */
+  const matchesTypeIt = (it) => {
+    if (typeKey === "all") return true;
+    const hay = `${(it.title||"")} ${(it.summary||"")} ${((it.tags||[]).join(" "))}`.toLowerCase();
+    const stops = (it.stops || []).map((s) => (s.category || "").toLowerCase());
+    const any = (arr) => arr.some((t) => hay.includes(t) || stops.some((c) => c.includes(t)));
+    switch (typeKey) {
+      case "familiari": return any(["bambin","famigl","kids","family","parco","didatt"]);
+      case "outdoor": return any(["trek","escurs","passegg","sentier","outdoor","ebike","bike","natura"]);
+      case "enogastronomiche": return any(["degust","cantin","vino","birra","olio","cena","pranzo","enogastr","mangiare"]);
+      case "culturali": return any(["muse","visita","cultur","stor","arte","borgo","chiesa"]);
+      case "adrenaliniche": return any(["rafting","quad","volo","parapend","adren","arrampic"]);
+      case "relax": return any(["spa","yoga","beness","term","relax"]);
+      default: return true;
+    }
+  };
+  const matchesPartyIt = (it) => {
+    if (party === "all") return true;
+    const aud = (it.audiences || []);
+    const want = party === "famiglia" ? "famiglie" : party === "amici" ? "gruppo" : party;
+    return aud.includes(want);
+  };
+  const matchesDurationIt = (it) => {
+    if (duration === "all") return true;
+    const l = (it.duration || "").toLowerCase();
+    if (!l) return false;
+    if (duration === "le2") return /(\b1\b|\b2\b|\b1 ?ora|\b2 ?ore)/.test(l) || /min/.test(l);
+    if (duration === "2-4") return /(2|3|4) ?ore/.test(l);
+    if (duration === "day") return /(giorn)/.test(l) || /(6|7|8|9|10|11|12) ?ore/.test(l) || /(weekend)/.test(l);
+    return true;
+  };
+
+  const radiusKm = radius === "all" ? 0 : Number(radius);
+
+  const userItsRaw = useMemo(() => {
+    return contentType === "itinerari" ? listPublishedNear(slug, radiusKm) : [];
+  }, [slug, contentType, radiusKm]);
+
+  const userIts = useMemo(() => {
+    let arr = [...userItsRaw];
+    arr = arr.filter(matchesTypeIt);
+    arr = arr.filter(matchesPartyIt);
+    arr = arr.filter(matchesDurationIt);
+    return arr;
+  }, [userItsRaw, typeKey, party, duration]);
+
+  // cover per itinerari utente
+  const [userCoverMap, setUserCoverMap] = useState({});
+  useEffect(() => {
+    let disposed = false;
+    (async () => {
+      const map = {};
+      for (const it of userIts) {
+        const k = it.galleryKeys?.[0];
+        if (!k) continue;
+        const b = await getImageBlob(k);
+        if (b) map[it.id] = URL.createObjectURL(b);
+      }
+      if (!disposed) {
+        setUserCoverMap((prev) => {
+          Object.values(prev).forEach((u) => u && URL.revokeObjectURL(u));
+          return map;
+        });
+      }
+    })();
+    return () => {
+      disposed = true;
+      setUserCoverMap((prev) => {
+        Object.values(prev).forEach((u) => u && URL.revokeObjectURL(u));
+        return {};
+      });
+    };
+  }, [JSON.stringify(userIts.map((i) => i.galleryKeys?.[0] || ""))]);
+
+  const resultsCount =
+    contentType === "itinerari"
+      ? filteredPartner.length + userIts.length
+      : filteredPartner.length;
+
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     (meta?.name || borgo?.name || slug) + " " + ((borgo?.provincia || meta?.provincia || "") + " " + (borgo?.regione || meta?.regione || "")).trim()
   )}`;
@@ -476,7 +686,7 @@ export default function Esperienze() {
             <h1 className="text-base sm:text-lg font-extrabold text-[#6B271A]">
               {contentType === "itinerari" ? "Itinerari" : "Esperienze"} a {title}
             </h1>
-            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title)}`} target="_blank" rel="noreferrer"
+            <a href={mapsUrl} target="_blank" rel="noreferrer"
                className="hidden rounded-full border bg-white px-3 py-1.5 text-sm font-semibold text-[#6B271A] shadow-sm hover:bg-neutral-50 md:inline-flex">
               Apri mappa
             </a>
@@ -539,16 +749,43 @@ export default function Esperienze() {
 
         {/* Griglia */}
         <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-          {filtered.length === 0 ? (
-            <div className="rounded-2xl border bg-white p-6 text-center text-neutral-700">
-              Nessun risultato con i filtri selezionati.
-            </div>
+          {contentType === "itinerari" ? (
+            (filteredPartner.length + userIts.length === 0) ? (
+              <div className="rounded-2xl border bg-white p-6 text-center text-neutral-700">
+                Nessun risultato con i filtri selezionati.
+              </div>
+            ) : (
+              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+                {/* Prima gli itinerari degli UTENTI */}
+                {userIts.map((it) => (
+                  <li key={`u-${it.id}`}>
+                    <UserItineraryCard it={it} coverUrl={userCoverMap[it.id]} />
+                  </li>
+                ))}
+                {/* Poi gli itinerari PARTNER (già filtrati) */}
+                {filteredPartner.map((p) => (
+                  <li key={`p-${p.id}`}>
+                    <ExperienceCard slug={slug} p={p} liked={favs.has(p.id)} onToggleLike={toggleFav} />
+                  </li>
+                ))}
+              </ul>
+            )
           ) : (
-            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-              {filtered.map((p) => (
-                <ExperienceCard key={p.id} slug={slug} p={p} liked={favs.has(p.id)} onToggleLike={toggleFav} />
-              ))}
-            </ul>
+            <>
+              {filteredPartner.length === 0 ? (
+                <div className="rounded-2xl border bg-white p-6 text-center text-neutral-700">
+                  Nessun risultato con i filtri selezionati.
+                </div>
+              ) : (
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+                  {filteredPartner.map((p) => (
+                    <li key={p.id}>
+                      <ExperienceCard slug={slug} p={p} liked={favs.has(p.id)} onToggleLike={toggleFav} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </section>
 

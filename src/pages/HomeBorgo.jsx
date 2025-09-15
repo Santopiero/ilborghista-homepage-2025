@@ -57,6 +57,18 @@ function getYouTubeId(url = "") {
 const getYouTubeThumb = (url = "") =>
   getYouTubeId(url) ? `https://i.ytimg.com/vi/${getYouTubeId(url)}/hqdefault.jpg` : "";
 
+/* distanza km se lat/lng presenti */
+function haversineKm(lat1, lon1, lat2, lon2) {
+  if ([lat1,lon1,lat2,lon2].some(v => typeof v !== "number" || Number.isNaN(v))) return null;
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return Math.round(R * c);
+}
+
 /* ================= Small Favorite Hook ================= */
 function useFavorite(type, id, data) {
   const [fav, setFav] = useState(() => {
@@ -185,7 +197,7 @@ function TopBar({ slug }) {
                 </Link>
               </li>
 
-              {/* Info & Sostieni — SOLO mobile (spostati qui) */}
+              {/* Info & Sostieni — SOLO mobile */}
               <li className="sm:hidden">
                 <Link
                   to={infoHref}
@@ -462,7 +474,7 @@ function NavTileMobile({ to, label, icon: Icon, bg, color, gradient }) {
 }
 const Divider = () => <span className="mx-1 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
 
-/* ================= Descrizione & In breve ================= */
+/* ================= Descrizione ================= */
 function DescriptionBlock({ text, slug }) {
   const KEY = `descr-expanded:${slug}`;
   const [expanded, setExpanded] = useState(() => {
@@ -484,44 +496,52 @@ function DescriptionBlock({ text, slug }) {
     </section>
   );
 }
-function SmallGallery({ items = [] }) {
-  const ref = useRef(null);
-  const scrollBy = (dx) => ref.current && ref.current.scrollBy({ left: dx, behavior: "smooth" });
-  if (!items.length) return null;
-  return (
-    <div className="relative">
-      <div ref={ref} className="scrollbar-none mt-2 flex gap-2 overflow-x-auto snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
-        {items.map((it, idx) => (
-          <figure key={idx} className="snap-start shrink-0 w-40">
-            <img src={it.src} alt={it.name || `Foto ${idx + 1}`} className="h-24 w-40 rounded-xl object-cover ring-1 ring-black/5" loading="lazy" decoding="async" />
-            {it.name ? <figcaption className="mt-1 truncate text-xs text-neutral-600">{it.name}</figcaption> : null}
-          </figure>
-        ))}
-      </div>
-      <div className="mt-2 hidden justify-end gap-2 md:flex">
-        <button onClick={() => scrollBy(-300)} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5" aria-label="precedente"><ChevronLeft className="h-4 w-4" /></button>
-        <button onClick={() => scrollBy(300)} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5" aria-label="successivo"><ChevronRight className="h-4 w-4" /></button>
-      </div>
-    </div>
-  );
-}
-function InBreve({ meta, borgo, slug }) {
+
+/* ======= “In breve” laterale (pannello) ======= */
+function InBrevePanel({ open, onClose, meta, borgo, slug }) {
+  if (!open) return null;
   const regione = borgo?.regione || meta?.regione || meta?.region;
   const provincia = borgo?.provincia || meta?.provincia || meta?.province;
   const short = meta?.shortInfo || null;
+
   return (
-    <section className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
-      <div className="rounded-2xl border bg-[#FAF5E0] p-4">
-        <h3 className="text-sm font-bold text-[#6B271A]">In breve</h3>
-        <ul className="mt-2 space-y-1 text-sm text-gray-700">
-          {short?.text ? <li className="leading-relaxed">{short.text}</li> : null}
-          {regione ? <li><span className="font-semibold">Regione:</span> {regione}</li> : null}
-          {provincia ? <li><span className="font-semibold">Provincia:</span> {provincia}</li> : null}
-          <li><span className="font-semibold">Hashtag:</span> #{slug}</li>
-        </ul>
-        {Array.isArray(short?.gallery) && short.gallery.length ? <div className="mt-3"><SmallGallery items={short.gallery} /></div> : null}
-      </div>
-    </section>
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <aside className="absolute right-0 top-0 h-full w-[92%] sm:w-[420px] bg-white shadow-2xl rounded-l-2xl overflow-y-auto">
+        <div className="flex items-center justify-between border-b p-4">
+          <div className="inline-flex items-center gap-2">
+            <Info className="h-5 w-5 text-[#6B271A]" />
+            <span className="font-bold text-[#6B271A]">Viggiano informa</span>
+          </div>
+          <button onClick={onClose} aria-label="Chiudi" className="inline-flex h-9 w-9 items-center justify-center rounded-full border">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="p-4">
+          {short?.text ? (
+            <p className="leading-relaxed text-gray-800">{short.text}</p>
+          ) : null}
+
+          <ul className="mt-3 space-y-1 text-sm text-gray-700">
+            {regione ? <li><span className="font-semibold">Regione:</span> {regione}</li> : null}
+            {provincia ? <li><span className="font-semibold">Provincia:</span> {provincia}</li> : null}
+            <li><span className="font-semibold">Hashtag:</span> #{slug}</li>
+          </ul>
+
+          {Array.isArray(short?.gallery) && short.gallery.length ? (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {short.gallery.map((it, idx) => (
+                <figure key={idx} className="overflow-hidden rounded-xl">
+                  <img src={it.src} alt={it.name || `Foto ${idx + 1}`} className="h-28 w-full object-cover" loading="lazy" decoding="async" />
+                  {it.name ? <figcaption className="mt-1 truncate text-xs text-neutral-600">{it.name}</figcaption> : null}
+                </figure>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -567,7 +587,7 @@ function CreatorCardHM({ v, borgoName }) {
   );
 }
 
-function DiscoverBorgoCardHM({ b }) {
+function DiscoverBorgoCardHM({ b, distanceKm }) {
   const [fav, toggleFav] = useFavorite("borgo", b.slug, { slug: b.slug, name: b.name, hero: b.hero });
   return (
     <Link
@@ -579,6 +599,11 @@ function DiscoverBorgoCardHM({ b }) {
         <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-[#5B2A1F] shadow ring-1 ring-black/5">
           {b.name}
         </span>
+        {typeof distanceKm === "number" ? (
+          <span className="absolute left-3 bottom-3 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-[#5B2A1F] shadow ring-1 ring-black/5">
+            {distanceKm} km
+          </span>
+        ) : null}
         <button
           aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
           onClick={toggleFav}
@@ -670,6 +695,76 @@ function HMProductCard({ p }) {
           {p.location}
         </div>
       </div>
+    </article>
+  );
+}
+
+/* ================= Experience Card (stile screenshot) ================= */
+function ExperienceCard({ e, slug }) {
+  const [fav, toggleFav] = useFavorite("esperienza", e.id, {
+    id: e.id,
+    title: e.title,
+    img: e.img,
+    priceFrom: e.priceFrom,
+    location: e.location,
+    meta: e.meta,
+    url: e.url || `/borghi/${slug}/poi/${e.id}`,
+  });
+
+  return (
+    <article className="snap-center shrink-0 w-[86%] xs:w-[74%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+      <Link to={e.url || `/borghi/${slug}/poi/${e.id}`} className="block">
+        <div className="relative aspect-[16/9] w-full overflow-hidden rounded-t-3xl">
+          {e.img ? (
+            <img src={e.img} alt={e.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-neutral-100 text-neutral-400">
+              <PlayCircle className="h-10 w-10" />
+            </div>
+          )}
+
+          {/* cuore */}
+          <button
+            type="button"
+            aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+            className={`absolute left-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
+            onClick={(ev) => { ev.preventDefault(); toggleFav(); }}
+          >
+            <Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} />
+          </button>
+
+          {/* prezzo */}
+          {e.priceFrom != null && (
+            <span className="absolute right-3 top-3 rounded-full bg-[#D54E30] px-3 py-1 text-xs font-extrabold text-white shadow ring-1 ring-[#E1B671]">
+              da {fmtPrice(e.priceFrom).replace(/\s?EUR?/, "").trim()}
+            </span>
+          )}
+
+          {/* pallini finti */}
+          <div className="absolute left-1/2 bottom-2 -translate-x-1/2 flex gap-1">
+            <span className="h-2 w-2 rounded-full bg-white/90" />
+            <span className="h-2 w-2 rounded-full bg-white/60" />
+            <span className="h-2 w-2 rounded-full bg-white/60" />
+          </div>
+        </div>
+
+        <div className="p-4">
+          <span
+            className="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold text-[#6B271A]"
+            style={{ borderColor: "#E1B671" }}
+          >
+            ESPERIENZA
+          </span>
+          <h3 className="mt-2 font-extrabold text-[#5B2A1F]">{e.title}</h3>
+          {e.location && (
+            <div className="mt-1 inline-flex items-center gap-1 text-sm text-neutral-700">
+              <MapPin className="h-4 w-4 text-[#D54E30]" />
+              {e.location}
+            </div>
+          )}
+          {e.meta && <div className="mt-1 text-sm text-neutral-600">{e.meta}</div>}
+        </div>
+      </Link>
     </article>
   );
 }
@@ -805,7 +900,67 @@ export default function HomeBorgo() {
     { title: "Olio EVO del Garda", img: "https://images.unsplash.com/photo-1514515411904-65fa19574d07?q=80&w=1500&auto=format&fit=crop", priceFrom: 6, location: "Garda (VR) | Veneto" },
     { title: "Vino Montepulciano", img: "https://images.unsplash.com/photo-1524594081293-190a2fe0baae?q=80&w=1500&auto=format&fit=crop", priceFrom: 8, location: "Montepulciano (SI) | Toscana" },
   ];
-  const nearby = (BORGI_INDEX || []).filter((b) => b.slug !== slug).slice(0, 4);
+
+  // Esperienze: mappo i POI "cosa fare"; se vuoto mostro fallback
+  const esperienze = useMemo(() => {
+    const base = (thingsToDo || []).slice(0, 8).map((p) => ({
+      id: p.id,
+      title: p.name,
+      img: p.cover || "https://images.unsplash.com/photo-1526779259212-939e64788e3a?q=80&w=1500&auto=format&fit=crop",
+      priceFrom: p.priceFrom ?? null,
+      location: `${meta?.name || borgo?.name || slug} | ${borgo?.regione || meta?.regione || ""}`.replace(/\s+\|\s*$/, ""),
+      meta: p.duration || p.meta || "",
+      url: `/borghi/${slug}/poi/${p.id}`,
+    }));
+    if (base.length) return base;
+    return [
+      {
+        id: "exp1",
+        title: "Volo in mongolfiera all’alba",
+        img: "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1500&auto=format&fit=crop",
+        priceFrom: 245,
+        location: "Piana dei borghi | Basilicata",
+        meta: "3 ore · Guida certificata",
+      },
+      {
+        id: "exp2",
+        title: "E-bike tra i borghi",
+        img: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1500&auto=format&fit=crop",
+        priceFrom: 59,
+        location: "Val d’Agri | Basilicata",
+        meta: "1/2 giornata · Noleggio incluso",
+      },
+      {
+        id: "exp3",
+        title: "Tour centro storico guidato",
+        img: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?q=80&w=1500&auto=format&fit=crop",
+        priceFrom: 18,
+        location: `${meta?.name || borgo?.name || slug} | Basilicata`,
+        meta: "2 ore · Gruppi piccoli",
+      },
+      {
+        id: "exp4",
+        title: "Degustazione prodotti tipici",
+        img: "https://images.unsplash.com/photo-1526318472351-c75fcf070305?q=80&w=1500&auto=format&fit=crop",
+        priceFrom: 22,
+        location: "Cantina locale | Basilicata",
+        meta: "1h 30’ · 5 calici",
+      },
+    ];
+  }, [thingsToDo, meta, borgo, slug]);
+
+  // Borghi vicini + km (se disponibili)
+  const curLat = Number(borgo?.lat ?? meta?.lat ?? meta?.coords?.lat);
+  const curLng = Number(borgo?.lng ?? meta?.lng ?? meta?.coords?.lng);
+  const nearby = (BORGI_INDEX || [])
+    .filter((b) => b.slug !== slug)
+    .slice(0, 4)
+    .map((b) => {
+      const lat = Number(b.lat ?? b.coords?.lat);
+      const lng = Number(b.lng ?? b.coords?.lng);
+      const km = haversineKm(curLat, curLng, lat, lng);
+      return { ...b, __km: km };
+    });
 
   const navBase = [
     { key: "cosafare",   label: "Cosa fare",              to: `/borghi/${slug}/cosa-fare`,       icon: ListIcon,   ...colors.cosafare },
@@ -821,9 +976,23 @@ export default function HomeBorgo() {
   const infoHref = `/borghi/${slug}/info`;
   const donateHref = `/borghi/${slug}/sostieni`;
 
+  // pannello In breve
+  const [briefOpen, setBriefOpen] = useState(false);
+
   return (
     <>
       <TopBar slug={slug} />
+      {/* Bottone flottante “In breve” */}
+      <button
+        onClick={() => setBriefOpen(true)}
+        className="fixed right-4 bottom-24 sm:top-1/2 sm:-translate-y-1/2 sm:bottom-auto z-40 inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 shadow ring-1 ring-black/10 hover:bg-neutral-50"
+        aria-label="Apri In breve"
+      >
+        <Info className="h-4 w-4 text-[#6B271A]" />
+        <span className="font-semibold text-[#6B271A]">In breve</span>
+      </button>
+      <InBrevePanel open={briefOpen} onClose={() => setBriefOpen(false)} meta={meta} borgo={borgo} slug={slug} />
+
       <main className="min-h-screen bg-white pt-14">
         {/* HERO */}
         <HeroGallery
@@ -865,11 +1034,10 @@ export default function HomeBorgo() {
           </div>
         </section>
 
-        {/* DESCRIZIONE + IN BREVE */}
+        {/* DESCRIZIONE (In breve è nel pannello laterale) */}
         <DescriptionBlock text={descr} slug={slug} />
-        <InBreve meta={meta} borgo={borgo} slug={slug} />
 
-        {/* Video dei creator */}
+        {/* 1) Video dei creator */}
         <SectionHM title="Video dei creator" linkTo={`/borghi/${slug}/video`}>
           {(videos?.length ? videos : Array.from({ length: 4 }).map((_, i) => ({
             id: `mock-${i}`,
@@ -882,28 +1050,28 @@ export default function HomeBorgo() {
           ))}
         </SectionHM>
 
-        {/* Borghi da scoprire */}
-        <SectionHM title="Borghi da scoprire…" linkTo={`/cerca?tipo=borghi`}>
-          {nearby.map((b) => (
-            <DiscoverBorgoCardHM key={b.slug} b={b} />
+        {/* 2) Esperienze */}
+        <SectionHM title="Esperienze" linkTo={`/borghi/${slug}/esperienze`}>
+          {esperienze.map((e) => (
+            <ExperienceCard key={e.id} e={e} slug={slug} />
           ))}
         </SectionHM>
 
-        {/* Prossimi eventi */}
+        {/* 3) Eventi e Sagre */}
         <SectionHM title="Prossimi eventi" linkTo={`/borghi/${slug}/eventi`}>
           {eventi.map((ev, i) => (
             <HMEventPosterCard key={i} ev={ev} />
           ))}
         </SectionHM>
 
-        {/* Prodotti tipici */}
+        {/* 4) Prodotti tipici */}
         <SectionHM title="Prodotti tipici" linkTo={`/borghi/${slug}/prodotti-tipici`}>
           {prodottiTipici.map((p, i) => (
             <HMProductCard key={i} p={p} />
           ))}
         </SectionHM>
 
-        {/* Cosa fare (dal dataset POI) */}
+        {/* 5) (facoltativo) Cosa fare */}
         {thingsToDo?.length ? (
           <SectionHM title="Cosa fare" linkTo={`/borghi/${slug}/cosa-fare`}>
             {thingsToDo.slice(0, 8).map((p) => (
@@ -924,6 +1092,13 @@ export default function HomeBorgo() {
             ))}
           </SectionHM>
         ) : null}
+
+        {/* 6) Borghi vicini con km */}
+        <SectionHM title="Borghi vicini" linkTo={`/cerca?tipo=borghi`}>
+          {nearby.map((b) => (
+            <DiscoverBorgoCardHM key={b.slug} b={b} distanceKm={b.__km} />
+          ))}
+        </SectionHM>
 
         {/* Newsletter */}
         <NewsletterCTA slug={slug} />

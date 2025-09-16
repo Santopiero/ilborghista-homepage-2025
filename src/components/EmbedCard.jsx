@@ -1,243 +1,134 @@
 // src/components/EmbedCard.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 
-/* =======================
-   PROVIDERS WHITELIST
-======================= */
-const PROVIDERS = {
-  youtube: {
-    match: (url) => /(?:youtu\.be|youtube\.com)/i.test(url),
-    toEmbed: (url) => {
-      try {
-        const u = new URL(url);
-        if (u.hostname.includes("youtu.be")) {
-          const id = u.pathname.slice(1);
-          return id ? `https://www.youtube.com/embed/${id}?rel=0` : null;
-        }
-        const id = u.searchParams.get("v");
-        return id ? `https://www.youtube.com/embed/${id}?rel=0` : null;
-      } catch { return null; }
-    },
-    needsConsent: false,
-  },
-  vimeo: {
-    match: (url) => /vimeo\.com/i.test(url),
-    toEmbed: (url) => {
-      try {
-        const u = new URL(url);
-        const id = u.pathname.split("/").filter(Boolean).pop();
-        return id ? `https://player.vimeo.com/video/${id}` : null;
-      } catch { return null; }
-    },
-    needsConsent: false,
-  },
-  tiktok: {
-    match: (url) => /tiktok\.com/i.test(url),
-    toEmbed: (url) => url, // usiamo blockquote + script ufficiale
-    needsConsent: true,
-    script: "https://www.tiktok.com/embed.js",
-    scriptSelector: 'script[src="https://www.tiktok.com/embed.js"]',
-    blockquoteClass: "tiktok-embed",
-  },
-  instagram: {
-    match: (url) => /instagram\.com/i.test(url),
-    toEmbed: (url) => url, // blockquote + script ufficiale
-    needsConsent: true,
-    script: "https://www.instagram.com/embed.js",
-    scriptSelector: 'script[src="https://www.instagram.com/embed.js"]',
-    blockquoteClass: "instagram-media",
-  },
-};
-
-/* =======================
-   HOOK: lazy visibility
-======================= */
-function useIntersection(ref, rootMargin = "200px") {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    if (!ref.current) return;
-    const obs = new IntersectionObserver(
-      (entries) => entries.forEach((e) => e.isIntersecting && setVisible(true)),
-      { rootMargin }
-    );
-    obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [ref, rootMargin]);
-  return visible;
-}
-
-function ProviderBadge({ name }) {
-  return (
-    <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 border">
-      Fonte: {name}
-    </span>
-  );
-}
-
-/* =======================
-   COMPONENT
-======================= */
-export default function EmbedCard({
-  url = "",
-  title,
-  caption,
-  allowFullScreen = true,
-  aspect = "16/9",
-}) {
-  const containerRef = useRef(null);
-  const visible = useIntersection(containerRef);
-  const [consent, setConsent] = useState(() => {
-    try {
-      const j = localStorage.getItem("ib_embed_consent");
-      return j ? JSON.parse(j) : { instagram: false, tiktok: false };
-    } catch { return { instagram: false, tiktok: false }; }
-  });
-
-  const providerKey = useMemo(() => {
-    const key = Object.keys(PROVIDERS).find((k) => PROVIDERS[k].match(url));
-    return key || null;
-  }, [url]);
-
-  const provider = providerKey ? PROVIDERS[providerKey] : null;
-
-  // Carica script provider (IG/TikTok) solo dopo consenso
-  useEffect(() => {
-    if (!provider || !provider.needsConsent) return;
-    const ok = consent[providerKey] === true;
-    if (!ok) return;
-
-    const already = document.querySelector(provider.scriptSelector);
-    if (already) return;
-
+/** Carica uno script esterno una sola volta */
+function ensureScript(src, id) {
+  return new Promise((resolve, reject) => {
+    if (id && document.getElementById(id)) return resolve();
     const s = document.createElement("script");
-    s.src = provider.script;
+    if (id) s.id = id;
+    s.src = src;
     s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error(`Impossibile caricare ${src}`));
     document.body.appendChild(s);
-    // non rimuoviamo per permettere più embed nella pagina
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [providerKey, consent, provider]);
+  });
+}
 
-  // Rileva fallimento dell’embed social e mostra fallback interno
-  const [socialFailed, setSocialFailed] = useState(false);
+/** Riconoscimento provider */
+const isYouTube   = (u="") => /(?:youtu\.be|youtube\.com)/i.test(u);
+const isInstagram = (u="") => /instagram\.com/i.test(u);
+const isTikTok    = (u="") => /tiktok\.com/i.test(u);
+
+/** Normalizza URL YouTube in embed */
+function toYouTubeEmbed(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "youtu.be") {
+      return `https://www.youtube.com/embed/${u.pathname.slice(1)}`;
+    }
+    if (u.searchParams.get("v")) {
+      return `https://www.youtube.com/embed/${u.searchParams.get("v")}`;
+    }
+    // /shorts/ID → /embed/ID
+    const shorts = u.pathname.match(/\/shorts\/([^/]+)/);
+    if (shorts) return `https://www.youtube.com/embed/${shorts[1]}`;
+    return url;
+  } catch {
+    return url;
+  }
+}
+
+/** Componente principale */
+export default function EmbedCard({ url, title = "Anteprima", caption }) {
+  const containerRef = useRef(null);
+  const [error, setError] = useState("");
+  const safeUrl = (url || "").trim();
+
+  const provider = useMemo(() => {
+    if (!safeUrl) return "unknown";
+    if (isYouTube(safeUrl)) return "youtube";
+    if (isInstagram(safeUrl)) return "instagram";
+    if (isTikTok(safeUrl)) return "tiktok";
+    return "unknown";
+  }, [safeUrl]);
+
+  // Render provider-specific
   useEffect(() => {
-    if (!provider || !provider.needsConsent) return;
-    if (!consent[providerKey]) return;
-    setSocialFailed(false);
+    if (!safeUrl) return;
+    setError("");
 
-    const t = setTimeout(() => {
-      // euristica: se il blockquote è ancora lì e non è stato “trasformato”,
-      // potremmo considerare l’embed fallito (privato / non embeddabile).
-      const host = containerRef.current;
-      if (!host) return;
-      const block = host.querySelector(`.${provider.blockquoteClass}`);
-      if (block) {
-        // se non troviamo un iframe generato dal provider, fallback
-        const hasIframe = host.querySelector("iframe");
-        if (!hasIframe) setSocialFailed(true);
-      }
-    }, 4500);
+    // Instagram
+    if (provider === "instagram") {
+      // Requisiti:
+      // 1) Post/Reel pubblico
+      // 2) Script embed caricato
+      // NB: dal 2020 l’oEmbed ufficiale richiede token, ma il render client con blockquote + script funziona.
+      ensureScript("https://www.instagram.com/embed.js", "ig-embed-js")
+        .then(() => {
+          // Pulizia e nuovo blockquote
+          const node = containerRef.current;
+          if (!node) return;
+          node.innerHTML = `
+            <blockquote class="instagram-media" data-instgrm-permalink="${safeUrl}" data-instgrm-version="14" style="margin:0 auto; max-width:540px; width:100%;"></blockquote>
+          `;
+          // Trigger parse
+          window.instgrm && window.instgrm.Embeds && window.instgrm.Embeds.process();
+        })
+        .catch(() => setError("Impossibile incorporare il post di Instagram. Verifica che sia pubblico."));
+      return;
+    }
 
-    return () => clearTimeout(t);
-  }, [provider, providerKey, consent]);
+    // TikTok
+    if (provider === "tiktok") {
+      ensureScript("https://www.tiktok.com/embed.js", "tt-embed-js")
+        .then(() => {
+          const node = containerRef.current;
+          if (!node) return;
+          node.innerHTML = `
+            <blockquote class="tiktok-embed" cite="${safeUrl}" style="max-width:605px; min-width:325px;">
+              <section></section>
+            </blockquote>
+          `;
+          // lo script auto-parsa i blockquote
+        })
+        .catch(() => setError("Impossibile incorporare il video TikTok."));
+      return;
+    }
 
-  const grantConsent = () => {
-    const next = { ...consent, [providerKey]: true };
-    setConsent(next);
-    try { localStorage.setItem("ib_embed_consent", JSON.stringify(next)); } catch {}
-  };
-
-  /* =======================
-     RENDER
-  ====================== */
-  return (
-    <figure ref={containerRef} className="w-full max-w-full">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <ProviderBadge name={providerKey ?? "link"} />
-          {title ? <strong className="text-sm">{title}</strong> : null}
+    // YouTube non necessita script
+    if (provider === "youtube") {
+      const node = containerRef.current;
+      if (!node) return;
+      const src = toYouTubeEmbed(safeUrl);
+      node.innerHTML = `
+        <div style="position:relative; padding-top:56.25%;">
+          <iframe
+            src="${src}"
+            title="${title?.replace(/"/g, "&quot;") || "YouTube"}"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen
+            style="position:absolute; inset:0; width:100%; height:100%; border:0; border-radius:12px;"
+          ></iframe>
         </div>
-        {/* Nessun link esterno: restiamo sempre in piattaforma */}
-      </div>
+      `;
+      return;
+    }
 
-      <div className="relative w-full rounded-xl overflow-hidden border bg-white">
-        {/* Provider non riconosciuto → nessun redirect: mostriamo solo info */}
-        {!provider && (
-          <div className="p-4 text-sm leading-snug">
-            Contenuto esterno non supportato per l’incorporamento diretto.
-          </div>
-        )}
+    // fallback
+    const node = containerRef.current;
+    if (node) node.innerHTML = "";
+    setError("Formato non supportato. Inserisci un link YouTube / Instagram / TikTok.");
+  }, [safeUrl, provider, title]);
 
-        {/* YouTube / Vimeo → iframe diretto */}
-        {provider && !provider.needsConsent && visible && (
-          <div className="relative w-full" style={{ aspectRatio: aspect }}>
-            <iframe
-              src={provider.toEmbed(url) || ""}
-              title={title || "Video"}
-              loading="lazy"
-              className="absolute inset-0 w-full h-full"
-              frameBorder="0"
-              allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen={allowFullScreen}
-              referrerPolicy="strict-origin-when-cross-origin"
-            />
-          </div>
-        )}
-
-        {/* TikTok / Instagram → gate consenso + embed ufficiale (no uscita) */}
-        {provider && provider.needsConsent && (
-          <div className="p-3">
-            {consent[providerKey] ? (
-              socialFailed ? (
-                <div className="p-4 rounded-lg border bg-neutral-50 text-sm">
-                  Il contenuto di <b>{providerKey}</b> non può essere mostrato qui
-                  (post privato o embeddabile non disponibile).
-                </div>
-              ) : (
-                <div className="min-h-[360px]">
-                  {providerKey === "tiktok" && (
-                    <blockquote
-                      className="tiktok-embed"
-                      cite={url}
-                      style={{ maxWidth: "605px", minWidth: "325px", margin: "0 auto" }}
-                    >
-                      <section />
-                    </blockquote>
-                  )}
-                  {providerKey === "instagram" && (
-                    <blockquote
-                      className="instagram-media"
-                      data-instgrm-permalink={url}
-                      data-instgrm-version="14"
-                      style={{ background: "#FFF", border: 0, margin: 0, padding: 0 }}
-                    >
-                      <div />
-                    </blockquote>
-                  )}
-                </div>
-              )
-            ) : (
-              <div className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-neutral-50">
-                <div className="text-sm leading-snug">
-                  Per visualizzare questo contenuto di <b>{providerKey}</b> occorre il tuo
-                  consenso a caricare media da terze parti (cookie/trackers).
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={grantConsent}
-                    className="text-sm px-3 py-1.5 rounded-lg bg-black text-white"
-                  >
-                    Consenti e mostra
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {caption ? (
-        <figcaption className="mt-2 text-sm text-neutral-700">{caption}</figcaption>
+  return (
+    <div className="w-full rounded-xl border p-3 bg-white" style={{ borderColor: "#E1B671" }}>
+      <div ref={containerRef} />
+      {error ? (
+        <p className="mt-2 text-sm text-red-600">{error}</p>
+      ) : caption ? (
+        <p className="mt-2 text-xs opacity-80">{caption}</p>
       ) : null}
-    </figure>
+    </div>
   );
 }

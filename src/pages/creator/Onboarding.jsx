@@ -1,5 +1,5 @@
 // src/pages/creator/Onboarding.jsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import SuggestItineraryBtn from "../../components/SuggestItineraryBtn";
 import EmbedCard from "../../components/EmbedCard";
@@ -7,7 +7,7 @@ import {
   Menu, X, LogOut, Flag, MessageCircle, Upload, Youtube,
   BarChart2, Clock, ChevronRight, Crown, List, Bell,
   Compass, Map, Star, Medal, Trophy, Film,
-  Image as ImageIcon, Globe, Instagram, Link2, MapPin, CheckCircle2
+  Image as ImageIcon, Globe, Instagram, Link2, MapPin, CheckCircle2, Edit3, Trash2, Play
 } from "lucide-react";
 import {
   createVideoDraft,
@@ -15,7 +15,6 @@ import {
   publishVideo,
   scheduleVideo,
   listByOwner,
-  getPlayableUrl,
 } from "../../lib/creatorVideos";
 
 /* =======================
@@ -95,22 +94,11 @@ function useLevel(points) {
 }
 
 /* =======================
-   ICONA TIKTOK (inline)
-======================= */
-function TikTokIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
-      <path d="M208 96a63.8 63.8 0 01-37-12v76a64 64 0 11-64-64v32a32 32 0 1032 32V32h32a64 64 0 0037 12z"/>
-    </svg>
-  );
-}
-
-/* =======================
    DETECT provider link
 ======================= */
-const isYouTube = (u="") => /(?:youtu\.be|youtube\.com)/i.test(u);
-const isInstagram = (u="") => /instagram\.com/i.test(u);
-const isTikTok = (u="") => /tiktok\.com/i.test(u);
+const isYouTube = (u = "") => /(?:youtu\.be|youtube\.com)/i.test(u);
+const isInstagram = (u = "") => /instagram\.com/i.test(u);
+const isTikTok = (u = "") => /tiktok\.com/i.test(u);
 
 /* =======================
    PAGINA ONBOARDING
@@ -132,11 +120,33 @@ export default function Onboarding() {
   });
   const { level, next, pct, toNext } = useLevel(user.points);
 
-  // preferiti
-  const [favorites, setFavorites] = useState([
-    { id: "b1", label: "Castelmezzano", thumb: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=800&auto=format&fit=crop" },
-    { id: "b2", label: "Pietrapertosa",  thumb: "https://images.unsplash.com/photo-1501854140801-50d01698950b?q=80&w=800&auto=format&fit=crop" },
-  ]);
+  /* =======================
+     PREFERITI CATEGORIZZATI
+     - mobile: 2 card + anteprima terza (scroll)
+     - desktop: 3 visibili (scroll)
+     - nascondi categorie vuote
+  ======================== */
+  const [fav, setFav] = useState({
+    borghi: [
+      { id: "borgo:castelmezzano", label: "Castelmezzano", thumb: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=800&auto=format&fit=crop" },
+      { id: "borgo:pietrapertosa", label: "Pietrapertosa",  thumb: "https://images.unsplash.com/photo-1501854140801-50d01698950b?q=80&w=800&auto=format&fit=crop" },
+    ],
+    coseFare: [],
+    mangiareBere: [],
+    artigiani: [],
+    prodotti: [],
+  });
+
+  // helpers demo
+  const addDemoFav = (cat) => {
+    const demo = {
+      id: `${cat}:${Date.now()}`,
+      label: "Preferito demo",
+      thumb: FALLBACK_IMG,
+    };
+    setFav((f) => ({ ...f, [cat]: [demo, ...(f[cat] || [])] }));
+  };
+  const removeFav = (cat, id) => setFav((f) => ({ ...f, [cat]: (f[cat] || []).filter((x) => x.id !== id) }));
 
   // flusso creator a step
   // step 0: card CTA; step 1: Profilo; step 2: Strumenti
@@ -144,12 +154,14 @@ export default function Onboarding() {
 
   // profilo creator (per anteprima)
   const [creatorProfile, setCreatorProfile] = useState({
+    displayName: "",
+    bio: "",
+    region: "",
+    traits: [],
     coverUrl: "",
     avatarUrl: "",
-    displayName: "santopiero",
-    bio: "",
-    region: "Basilicata",
-    traits: [],
+    coverFile: null,
+    avatarFile: null,
     socials: { website: "", youtube: "", instagram: "", tiktok: "" },
   });
 
@@ -160,43 +172,52 @@ export default function Onboarding() {
 
   // form video
   const [form, setForm] = useState({
-    title: "", description: "", poiId: "", activity: "", tags: "",
-    url: "", file: null, thumbnail: FALLBACK_IMG, source: "link" // link | file
+    id: null, // per modifica
+    title: "",
+    description: "",
+    poiId: "",
+    activity: "",
+    tags: "",
+    url: "",
+    file: null,
+    thumbnail: FALLBACK_IMG,
+    source: "link", // link | file
   });
 
-  // preview player
+  // anteprima video (file o embed link)
   const [previewUrl, setPreviewUrl] = useState("");
 
   // contenuti (caricati da storage)
   const [videos, setVideos] = useState({ drafts: [], scheduled: [], published: [] });
 
+  // modale "dopo pubblicazione"
+  const [postPublish, setPostPublish] = useState({ open: false, redirectUrl: "" });
+
   // caricamento iniziale contenuti utente
   useEffect(() => {
+    reloadMine();
+  }, []);
+
+  const reloadMine = () => {
     const mine = listByOwner(OWNER_ID);
     setVideos({
       drafts: mine.filter(v => v.status === "draft"),
       scheduled: mine.filter(v => v.status === "scheduled"),
       published: mine.filter(v => v.status === "published"),
     });
-  }, []);
+  };
 
   // refresh preview al cambio input
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      if (form.source === "link") {
-        setPreviewUrl(form.url || "");
-      } else if (form.source === "file" && form.file) {
-        // costruiamo un "video fake" locale per riusare getPlayableUrl
-        const fake = { source: "file", videoKey: null };
-        // creo un blob URL provvisorio per la preview immediata
-        const local = URL.createObjectURL(form.file);
-        if (alive) setPreviewUrl(local);
-      } else {
-        setPreviewUrl("");
-      }
-    })();
-    return () => { alive = false; };
+    if (form.source === "link") {
+      setPreviewUrl(form.url || "");
+    } else if (form.source === "file" && form.file) {
+      const local = URL.createObjectURL(form.file);
+      setPreviewUrl(local);
+      return () => URL.revokeObjectURL(local);
+    } else {
+      setPreviewUrl("");
+    }
   }, [form.source, form.url, form.file]);
 
   // classifiche (mock)
@@ -235,39 +256,72 @@ export default function Onboarding() {
 
   const openCreatorFlow = () => {
     setUser(u => ({ ...u, isCreator: true }));
-    // animazione "lenta": prima Profilo, poi mostreremo Strumenti dopo salvataggio
     setStep(1);
-    // scroll dolce
     setTimeout(() => {
       document.getElementById("creator-profile")?.scrollIntoView({ behavior: "smooth" });
     }, 150);
   };
 
   // helper form → base payload
-  const parseTags = (s="") => s.split(",").map(t => t.trim()).filter(Boolean);
+  const parseTags = (s = "") => s.split(",").map(t => t.trim()).filter(Boolean);
 
-  // reset form
-  const resetForm = () => setForm({ title: "", description: "", poiId: "", activity: "", tags: "", url: "", file: null, thumbnail: FALLBACK_IMG, source: "link" });
-
-  // ricarica lista
-  const reloadMine = () => {
-    const mine = listByOwner(OWNER_ID);
-    setVideos({
-      drafts: mine.filter(v => v.status === "draft"),
-      scheduled: mine.filter(v => v.status === "scheduled"),
-      published: mine.filter(v => v.status === "published"),
+  // reset video form
+  const resetForm = () =>
+    setForm({
+      id: null,
+      title: "",
+      description: "",
+      poiId: "",
+      activity: "",
+      tags: "",
+      url: "",
+      file: null,
+      thumbnail: FALLBACK_IMG,
+      source: "link",
     });
+
+  /* =======================
+     SALVA PROFILO CREATOR
+     - obbligatori: Nome, Bio sintetica, Regione, ≥1 Caratteristica
+     - upload diretto avatar/cover (preview)
+  ======================== */
+  const handleSaveProfile = () => {
+    if (!creatorProfile.displayName.trim()) {
+      alert("Il campo Nome è obbligatorio.");
+      return;
+    }
+    if (!creatorProfile.bio.trim()) {
+      alert("La Bio sintetica è obbligatoria.");
+      return;
+    }
+    if (!creatorProfile.region.trim()) {
+      alert("La Regione è obbligatoria.");
+      return;
+    }
+    if (!creatorProfile.traits || creatorProfile.traits.length === 0) {
+      alert("Seleziona almeno una caratteristica.");
+      return;
+    }
+    setUser(u => ({ ...u, isCreator: true }));
+    setTimeout(() => setStep(2), 150);
+    setTimeout(() => document.getElementById("creator-tools")?.scrollIntoView({ behavior: "smooth" }), 250);
   };
 
-  // Azioni salvataggio / pubblicazione
+  /* =======================
+     AZIONI VIDEO (bozza / programma / pubblica / modifica)
+  ======================== */
   async function saveAs(status) {
-    // validazioni minime
+    // validazioni minime video
     if (!selectedBorgo) {
       alert("Seleziona un borgo.");
       return;
     }
     if (!form.title.trim()) {
       alert("Inserisci un titolo.");
+      return;
+    }
+    if (!form.description.trim()) {
+      alert("Inserisci una descrizione.");
       return;
     }
     if (form.source === "link" && !form.url.trim()) {
@@ -279,39 +333,73 @@ export default function Onboarding() {
       return;
     }
 
-    // crea bozza con eventuale file in IndexedDB
-    const draft = await createVideoDraft({
-      ownerId: OWNER_ID,
-      title: form.title.trim(),
-      description: form.description.trim(),
-      borgoSlug: selectedBorgo.slug,
-      poiId: form.poiId,
-      url: form.source === "link" ? form.url.trim() : "",
-      file: form.source === "file" ? form.file : null,
-      source: form.source,
-      thumbnail: form.thumbnail || FALLBACK_IMG,
-      tags: parseTags(form.tags),
-    });
+    // CREAZIONE o AGGIORNAMENTO
+    let id = form.id;
+    if (id) {
+      await updateVideo(id, {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        borgoSlug: selectedBorgo.slug,
+        poiId: form.poiId,
+        url: form.source === "link" ? form.url.trim() : "",
+        file: form.source === "file" ? form.file : null,
+        source: form.source,
+        thumbnail: form.thumbnail || FALLBACK_IMG,
+        tags: parseTags(form.tags),
+      });
+    } else {
+      const draft = await createVideoDraft({
+        ownerId: OWNER_ID,
+        title: form.title.trim(),
+        description: form.description.trim(),
+        borgoSlug: selectedBorgo.slug,
+        poiId: form.poiId,
+        url: form.source === "link" ? form.url.trim() : "",
+        file: form.source === "file" ? form.file : null,
+        source: form.source,
+        thumbnail: form.thumbnail || FALLBACK_IMG,
+        tags: parseTags(form.tags),
+      });
+      id = draft.id;
+    }
 
-    // promuovi di stato
     if (status === "draft") {
-      // ok così
+      // resta bozza
     } else if (status === "scheduled") {
-      scheduleVideo(draft.id);
+      scheduleVideo(id);
     } else if (status === "published") {
-      publishVideo(draft.id);
+      publishVideo(id);
       setUser(u => ({ ...u, videosPublished: u.videosPublished + 1, points: u.points + POINTS.video }));
       pushActivity("Video pubblicato", POINTS.video);
+      // prompt scelte post-pubblicazione
+      setPostPublish({
+        open: true,
+        redirectUrl: `/borghi/${selectedBorgo.slug}`, // es. pagina pubblica Viggiano / attività
+      });
     }
 
     reloadMine();
     resetForm();
-
-    if (status === "published") {
-      // redirect al tab “pubblicati” (se esiste la rotta), altrimenti resta qui
-      try { navigate("/creator/contenuti?tab=pubblicati", { replace: true }); } catch {}
-    }
   }
+
+  const onEditVideo = (v) => {
+    setStep(2);
+    setUser(u => ({ ...u, isCreator: true }));
+    setSelectedBorgoSlug(v.borgoSlug || "");
+    setForm({
+      id: v.id,
+      title: v.title || "",
+      description: v.description || "",
+      poiId: v.poiId || "",
+      activity: v.activity || "",
+      tags: (v.tags || []).join(", "),
+      url: v.url || "",
+      file: null,
+      thumbnail: v.thumbnail || FALLBACK_IMG,
+      source: v.source || (v.url ? "link" : "file"),
+    });
+    setTimeout(() => document.getElementById("creator-tools")?.scrollIntoView({ behavior: "smooth" }), 150);
+  };
 
   /* ================= HEADER ================= */
   return (
@@ -350,13 +438,15 @@ export default function Onboarding() {
                   const Icon = l.Icon;
                   return (
                     <div key={l.key} className="flex flex-col items-center text-xs" style={{ color: C.primaryDark }}>
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full border"
-                           title={l.name}
-                           style={{
-                             borderColor: active ? C.primary : C.gold,
-                             backgroundColor: active ? C.primary : "#fff",
-                             color: active ? "#fff" : C.primaryDark,
-                           }}>
+                      <div
+                        className="flex h-8 w-8 items-center justify-center rounded-full border"
+                        title={l.name}
+                        style={{
+                          borderColor: active ? C.primary : C.gold,
+                          backgroundColor: active ? C.primary : "#fff",
+                          color: active ? "#fff" : C.primaryDark,
+                        }}
+                      >
                         <Icon className="h-4 w-4" />
                       </div>
                       <span className="mt-1 opacity-70">{l.key}</span>
@@ -406,13 +496,15 @@ export default function Onboarding() {
                 const Icon = l.Icon;
                 return (
                   <div key={l.key} className="flex flex-col items-center">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full border"
-                         title={l.name}
-                         style={{
-                           borderColor: active ? C.primary : C.gold,
-                           backgroundColor: active ? C.primary : "#fff",
-                           color: active ? "#fff" : C.primaryDark,
-                         }}>
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-full border"
+                      title={l.name}
+                      style={{
+                        borderColor: active ? C.primary : C.gold,
+                        backgroundColor: active ? C.primary : "#fff",
+                        color: active ? "#fff" : C.primaryDark,
+                      }}
+                    >
                       <Icon className="h-5 w-5" />
                     </div>
                     <span className="mt-1 text-[10px] sm:text-[11px]" style={{ color: C.primaryDark }}>{l.key}</span>
@@ -421,56 +513,73 @@ export default function Onboarding() {
               })}
             </div>
 
-            {/* Preferiti */}
-            <div className="mt-5">
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-sm font-medium" style={{ color: C.primaryDark }}>I tuoi preferiti</h3>
-                <button onClick={()=>setFavorites(f => [{ id: "f_" + Date.now(), label: "Nuovo preferito", thumb: FALLBACK_IMG }, ...f])}
-                        className="rounded-lg border px-3 py-1.5 text-xs hover:opacity-90"
-                        style={{ borderColor: C.gold, color: C.primaryDark }}>
-                  Aggiungi preferito demo
-                </button>
-              </div>
-              {favorites.length ? (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {favorites.map(f => (
-                    <div key={f.id} className="overflow-hidden rounded-xl border" style={{ borderColor: C.gold }}>
-                      <div className="aspect-[16/10] w-full">
-                        <img src={f.thumb} alt={f.label} className="h-full w-full object-cover" />
-                      </div>
-                      <div className="flex items-center justify-between px-3 py-2 text-sm" style={{ color: C.primaryDark, backgroundColor: C.cream }}>
-                        <span className="truncate">{f.label}</span>
-                        <button onClick={() => setFavorites(x => x.filter(y => y.id !== f.id))} className="text-xs underline">Rimuovi</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm" style={{ color: C.primaryDark }}>Nessun preferito. Salva borghi, esperienze, eventi e prodotti tipici.</div>
-              )}
+            {/* Preferiti categorizzati */}
+            <div className="mt-6 space-y-6">
+              <FavSection
+                title="Borghi"
+                items={fav.borghi}
+                onRemove={(id) => removeFav("borghi", id)}
+                onAdd={() => addDemoFav("borghi")}
+              />
+              <FavSection
+                title="Cose da fare"
+                items={fav.coseFare}
+                onRemove={(id) => removeFav("coseFare", id)}
+                onAdd={() => addDemoFav("coseFare")}
+              />
+              <FavSection
+                title="Mangiare & Bere"
+                items={fav.mangiareBere}
+                onRemove={(id) => removeFav("mangiareBere", id)}
+                onAdd={() => addDemoFav("mangiareBere")}
+              />
+              <FavSection
+                title="Artigiani"
+                items={fav.artigiani}
+                onRemove={(id) => removeFav("artigiani", id)}
+                onAdd={() => addDemoFav("artigiani")}
+              />
+              <FavSection
+                title="Prodotti tipici"
+                items={fav.prodotti}
+                onRemove={(id) => removeFav("prodotti", id)}
+                onAdd={() => addDemoFav("prodotti")}
+              />
             </div>
 
             {/* Azioni rapide */}
-            <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <QuickBtn icon={Clock} label="Check-in (+2)" onClick={doCheckin} />
               <QuickBtn icon={Flag} label="Segnala evento (+5)" onClick={doReportEvent} />
               <QuickBtn icon={MessageCircle} label="Lascia feedback (+3)" onClick={doFeedback} />
               <QuickBtn icon={Film} label="Diventa creator" onClick={openCreatorFlow} />
             </div>
+
+            {/* CTA itinerario dentro riquadro utente */}
+            <div className="mt-4">
+              <div className="rounded-xl border p-3" style={{ borderColor: C.gold, backgroundColor: C.cream }}>
+                <div className="mb-2 h-2 rounded-full" style={{ backgroundColor: C.primary }} />
+                <SuggestItineraryBtn />
+              </div>
+            </div>
           </div>
 
           {/* CTA CREATOR */}
           {step === 0 && (
-            <div className="overflow-hidden rounded-2xl border p-6 sm:p-8"
-                 style={{ borderColor: C.gold, background: `linear-gradient(90deg, ${C.primary} 0%, ${C.primaryDark} 100%)` }}>
+            <div
+              className="overflow-hidden rounded-2xl border p-6 sm:p-8"
+              style={{ borderColor: C.gold, background: `linear-gradient(90deg, ${C.primary} 0%, ${C.primaryDark} 100%)` }}
+            >
               <div className="grid items-center gap-6 sm:grid-cols-3">
                 <div className="sm:col-span-2">
                   <h3 className="text-lg sm:text-xl font-semibold text-white">Carica il tuo primo video e diventa Creator</h3>
                   <p className="mt-1 text-white/90 text-sm">Racconta i tuoi borghi, ottieni <b>+20 punti</b> subito.</p>
                 </div>
-                <button onClick={openCreatorFlow}
-                        className="rounded-xl bg-white px-5 py-3 text-sm font-semibold hover:opacity-90"
-                        style={{ color: C.primaryDark }}>
+                <button
+                  onClick={openCreatorFlow}
+                  className="rounded-xl bg-white px-5 py-3 text-sm font-semibold hover:opacity-90"
+                  style={{ color: C.primaryDark }}
+                >
                   Inizia ora
                 </button>
               </div>
@@ -491,44 +600,123 @@ export default function Onboarding() {
                   )}
                 </div>
 
+                {/* Ordine: AVATAR -> COVER */}
                 <div className="grid gap-4 lg:grid-cols-3">
                   {/* form */}
                   <div className="lg:col-span-2 space-y-3">
-                    <Input label="Nome pubblico" value={creatorProfile.displayName}
-                           onChange={(v)=>setCreatorProfile(p=>({...p,displayName:v}))} placeholder="es. santopiero" />
-
-                    <Textarea label="Bio sintetica" value={creatorProfile.bio}
-                              onChange={(v)=>setCreatorProfile(p=>({...p,bio:v}))}
-                              placeholder="Racconto i borghi con focus su natura, cammini e sapori." maxLength={180} counter />
-
-                    <Input label="Regione" value={creatorProfile.region}
-                           onChange={(v)=>setCreatorProfile(p=>({...p,region:v}))} placeholder="Basilicata" icon={<MapPin className="h-4 w-4" style={{color:C.primaryDark}} />} />
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Input label="Cover URL" value={creatorProfile.coverUrl}
-                             onChange={(v)=>setCreatorProfile(p=>({...p,coverUrl:v}))} placeholder="https://…" icon={<ImageIcon className="h-4 w-4" style={{color:C.primaryDark}} />} />
-                      <Input label="Avatar URL" value={creatorProfile.avatarUrl}
-                             onChange={(v)=>setCreatorProfile(p=>({...p,avatarUrl:v}))} placeholder="https://…" icon={<ImageIcon className="h-4 w-4" style={{color:C.primaryDark}} />} />
+                    {/* AVATAR upload diretto */}
+                    <div>
+                      <Label>Avatar</Label>
+                      <div className="flex items-center gap-3">
+                        <div className="h-16 w-16 overflow-hidden rounded-full border" style={{ borderColor: C.gold }}>
+                          <img
+                            src={creatorProfile.avatarFile ? URL.createObjectURL(creatorProfile.avatarFile) : (creatorProfile.avatarUrl || "https://placehold.co/80x80?text=%20")}
+                            alt="avatar"
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm" style={{ borderColor: C.gold, color: C.primaryDark }}>
+                            <Upload className="h-4 w-4" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                setCreatorProfile(p => ({ ...p, avatarFile: file, avatarUrl: "" }));
+                              }}
+                              className="w-full"
+                            />
+                          </div>
+                          <div className="mt-2 text-xs opacity-70" style={{ color: C.primaryDark }}>Oppure URL:</div>
+                          <Input
+                            value={creatorProfile.avatarUrl}
+                            onChange={(v) => setCreatorProfile(p => ({ ...p, avatarUrl: v, avatarFile: null }))}
+                            placeholder="https://…"
+                            icon={<ImageIcon className="h-4 w-4" style={{ color: C.primaryDark }} />}
+                          />
+                        </div>
+                      </div>
                     </div>
 
+                    {/* COVER upload diretto */}
                     <div>
-                      <Label>Caratteristiche (per card pubblico)</Label>
+                      <Label>Cover</Label>
+                      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.gold }}>
+                        <div className="aspect-[3/1] w-full bg-neutral-100">
+                          <img
+                            src={creatorProfile.coverFile ? URL.createObjectURL(creatorProfile.coverFile) : (creatorProfile.coverUrl || "https://images.unsplash.com/photo-1533750349088-cd871a92f312?q=80&w=1200&auto=format&fit=crop")}
+                            alt="cover"
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm" style={{ borderColor: C.gold, color: C.primaryDark }}>
+                        <Upload className="h-4 w-4" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            setCreatorProfile(p => ({ ...p, coverFile: file, coverUrl: "" }));
+                          }}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="mt-2 text-xs opacity-70" style={{ color: C.primaryDark }}>Oppure URL:</div>
+                      <Input
+                        value={creatorProfile.coverUrl}
+                        onChange={(v) => setCreatorProfile(p => ({ ...p, coverUrl: v, coverFile: null }))}
+                        placeholder="https://…"
+                        icon={<ImageIcon className="h-4 w-4" style={{ color: C.primaryDark }} />}
+                      />
+                    </div>
+
+                    <Input
+                      label="Nome pubblico *"
+                      value={creatorProfile.displayName}
+                      onChange={(v) => setCreatorProfile(p => ({ ...p, displayName: v }))}
+                      placeholder="es. santopiero"
+                    />
+
+                    <Textarea
+                      label="Bio sintetica *"
+                      value={creatorProfile.bio}
+                      onChange={(v) => setCreatorProfile(p => ({ ...p, bio: v }))}
+                      placeholder="Racconto i borghi con focus su natura, cammini e sapori."
+                      maxLength={180}
+                      counter
+                    />
+
+                    <Input
+                      label="Regione *"
+                      value={creatorProfile.region}
+                      onChange={(v) => setCreatorProfile(p => ({ ...p, region: v }))}
+                      placeholder="Basilicata"
+                      icon={<MapPin className="h-4 w-4" style={{ color: C.primaryDark }} />}
+                    />
+
+                    <div>
+                      <Label>Caratteristiche (min 1)</Label>
                       <div className="flex flex-wrap gap-2">
                         {TRAIT_OPTS.map(t => {
-                          const active = (creatorProfile.traits||[]).includes(t);
+                          const active = (creatorProfile.traits || []).includes(t);
                           return (
-                            <button key={t} type="button"
-                              onClick={()=>setCreatorProfile(p=>{
-                                const set = new Set(p.traits||[]);
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setCreatorProfile(p => {
+                                const set = new Set(p.traits || []);
                                 set.has(t) ? set.delete(t) : set.add(t);
-                                return {...p, traits: Array.from(set)};
+                                return { ...p, traits: Array.from(set) };
                               })}
                               className="px-3 py-1.5 rounded-2xl text-sm border"
                               style={{
                                 borderColor: active ? C.primary : C.gold,
                                 backgroundColor: active ? C.primary : "#fff",
                                 color: active ? "#fff" : C.primaryDark,
-                              }}>
+                              }}
+                            >
                               {t}
                             </button>
                           );
@@ -537,25 +725,38 @@ export default function Onboarding() {
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <Input label="Sito web" value={creatorProfile.socials.website}
-                             onChange={(v)=>setCreatorProfile(p=>({...p,socials:{...p.socials,website:v}}))} placeholder="https://il-mi-sito.it" icon={<Globe className="h-4 w-4" style={{color:C.primaryDark}} />} />
-                      <Input label="YouTube" value={creatorProfile.socials.youtube}
-                             onChange={(v)=>setCreatorProfile(p=>({...p,socials:{...p.socials,youtube:v}}))} placeholder="https://youtube.com/…" icon={<Youtube className="h-4 w-4" style={{color:C.primaryDark}} />} />
-                      <Input label="Instagram" value={creatorProfile.socials.instagram}
-                             onChange={(v)=>setCreatorProfile(p=>({...p,socials:{...p.socials,instagram:v}}))} placeholder="https://instagram.com/…" icon={<Instagram className="h-4 w-4" style={{color:C.primaryDark}} />} />
-                      <Input label="TikTok" value={creatorProfile.socials.tiktok}
-                             onChange={(v)=>setCreatorProfile(p=>({...p,socials:{...p.socials,tiktok:v}}))} placeholder="https://tiktok.com/@…" icon={<Link2 className="h-4 w-4" style={{color:C.primaryDark}} />} />
+                      <Input
+                        label="Sito web"
+                        value={creatorProfile.socials.website}
+                        onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, website: v } }))}
+                        placeholder="https://il-mi-sito.it"
+                        icon={<Globe className="h-4 w-4" style={{ color: C.primaryDark }} />}
+                      />
+                      <Input
+                        label="YouTube"
+                        value={creatorProfile.socials.youtube}
+                        onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, youtube: v } }))}
+                        placeholder="https://youtube.com/…"
+                        icon={<Youtube className="h-4 w-4" style={{ color: C.primaryDark }} />}
+                      />
+                      <Input
+                        label="Instagram"
+                        value={creatorProfile.socials.instagram}
+                        onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, instagram: v } }))}
+                        placeholder="https://instagram.com/…"
+                        icon={<Instagram className="h-4 w-4" style={{ color: C.primaryDark }} />}
+                      />
+                      <Input
+                        label="TikTok"
+                        value={creatorProfile.socials.tiktok}
+                        onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, tiktok: v } }))}
+                        placeholder="https://tiktok.com/@…"
+                        icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />}
+                      />
                     </div>
 
                     <div className="flex gap-2">
-                      <BtnPrimary onClick={()=>{
-                        setUser(u=>({...u,isCreator:true}));
-                        // “svela” strumenti con un piccolo delay
-                        setTimeout(()=>setStep(2), 200);
-                        setTimeout(()=>document.getElementById("creator-tools")?.scrollIntoView({behavior:"smooth"}), 250);
-                      }}>
-                        Salva profilo
-                      </BtnPrimary>
+                      <BtnPrimary onClick={handleSaveProfile}>Salva e continua</BtnPrimary>
                       <Link to="/creator/me/preview" className="rounded-xl border px-4 py-2 text-sm hover:opacity-90" style={{ borderColor: C.gold, color: C.primaryDark }}>
                         Vedi profilo pubblico
                       </Link>
@@ -583,23 +784,23 @@ export default function Onboarding() {
                   <div className="grid gap-4 lg:grid-cols-3">
                     {/* form */}
                     <div className="lg:col-span-2 space-y-3">
-                      <Input value={form.title} onChange={(v)=>setForm(f=>({...f,title:v}))} placeholder="Titolo" />
-                      <Textarea value={form.description} onChange={(v)=>setForm(f=>({...f,description:v}))} placeholder="Descrizione (max 140)" maxLength={140} counter />
+                      <Input value={form.title} onChange={(v) => setForm(f => ({ ...f, title: v }))} placeholder="Titolo *" />
+                      <Textarea value={form.description} onChange={(v) => setForm(f => ({ ...f, description: v }))} placeholder="Descrizione * (max 140)" maxLength={140} counter />
 
                       <div className="grid gap-3 sm:grid-cols-2">
                         <Select
                           label="Borgo *"
                           value={selectedBorgoSlug}
-                          onChange={(v)=>{ setSelectedBorgoSlug(v); setForm(f=>({...f, poiId:"", activity:""})); }}
-                          options={[{value:"",label:"Seleziona borgo…"}, ...BORGI.map(b=>({value:b.slug,label:b.name}))]}
+                          onChange={(v) => { setSelectedBorgoSlug(v); setForm(f => ({ ...f, poiId: "", activity: "" })); }}
+                          options={[{ value: "", label: "Seleziona borgo…" }, ...BORGI.map(b => ({ value: b.slug, label: b.name }))]}
                         />
                         <Select
                           label="POI (opzionale)"
                           value={form.poiId}
-                          onChange={(v)=>setForm(f=>({...f, poiId:v}))}
+                          onChange={(v) => setForm(f => ({ ...f, poiId: v }))}
                           disabled={!selectedBorgo}
-                          options={[{value:"",label: selectedBorgo ? "Seleziona un POI…" : "Seleziona prima un borgo"},
-                            ...(selectedBorgo?.poi||[]).map(p=>({value:p.id,label:p.name}))]}
+                          options={[{ value: "", label: selectedBorgo ? "Seleziona un POI…" : "Seleziona prima un borgo" },
+                          ...(selectedBorgo?.poi || []).map(p => ({ value: p.id, label: p.name }))]}
                         />
                       </div>
 
@@ -609,14 +810,14 @@ export default function Onboarding() {
                           <Label>Link esterno</Label>
                           <div className="grid gap-2">
                             <div className="flex items-center gap-2">
-                              <input type="radio" id="src-link" checked={form.source==="link"} onChange={()=>setForm(f=>({...f,source:"link"}))} />
+                              <input type="radio" id="src-link" checked={form.source === "link"} onChange={() => setForm(f => ({ ...f, source: "link" }))} />
                               <label htmlFor="src-link" className="text-sm" style={{ color: C.primaryDark }}>YouTube / Instagram / TikTok</label>
                             </div>
                             <Input
                               label="URL"
-                              icon={<Link2 className="h-4 w-4" style={{color:C.primaryDark}}/>}
+                              icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />}
                               value={form.url}
-                              onChange={(v)=>setForm(f=>({...f,url:v}))}
+                              onChange={(v) => setForm(f => ({ ...f, url: v }))}
                               placeholder="https://youtube.com/... oppure https://instagram.com/... oppure https://www.tiktok.com/..."
                             />
                           </div>
@@ -625,7 +826,7 @@ export default function Onboarding() {
                         <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
                           <Label>Carica file dal PC</Label>
                           <div className="flex items-center gap-2">
-                            <input type="radio" id="src-file" checked={form.source==="file"} onChange={()=>setForm(f=>({...f,source:"file"}))} />
+                            <input type="radio" id="src-file" checked={form.source === "file"} onChange={() => setForm(f => ({ ...f, source: "file" }))} />
                             <label htmlFor="src-file" className="text-sm" style={{ color: C.primaryDark }}>Video locale (mp4, mov…)</label>
                           </div>
                           <div className="mt-2">
@@ -634,7 +835,7 @@ export default function Onboarding() {
                               <input
                                 type="file"
                                 accept="video/*"
-                                onChange={(e)=>setForm(f=>({...f, file: e.target.files?.[0] || null}))}
+                                onChange={(e) => setForm(f => ({ ...f, file: e.target.files?.[0] || null }))}
                                 className="w-full"
                               />
                             </div>
@@ -649,8 +850,8 @@ export default function Onboarding() {
                           <EmbedCard
                             url={form.url}
                             title={form.title || "Anteprima"}
-                            caption={isInstagram(form.url) || isTikTok(form.url)
-                              ? "Il contenuto viene mostrato qui con l'embed ufficiale (niente uscita dalla piattaforma)."
+                            caption={(isInstagram(form.url) || isTikTok(form.url) || isYouTube(form.url))
+                              ? "Il contenuto è riprodotto qui tramite embed ufficiale: resti sulla piattaforma."
                               : "Riproduzione incorporata in piattaforma."}
                           />
                         ) : null}
@@ -672,7 +873,7 @@ export default function Onboarding() {
                         <Label>Tag (facoltativi, separati da virgola)</Label>
                         <input
                           value={form.tags}
-                          onChange={(e)=>setForm(f=>({...f, tags: e.target.value}))}
+                          onChange={(e) => setForm(f => ({ ...f, tags: e.target.value }))}
                           className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none"
                           style={{ borderColor: C.gold, color: C.primaryDark }}
                           placeholder="es. natura, cammini, borgo"
@@ -681,16 +882,19 @@ export default function Onboarding() {
 
                       <div>
                         <Label>Miniatura (auto)</Label>
-                        <img src={form.thumbnail} alt="thumbnail"
-                             className="aspect-video w-full rounded-xl border object-cover"
-                             style={{ borderColor: C.gold }}
-                             onError={(e) => (e.currentTarget.src = FALLBACK_IMG)} />
+                        <img
+                          src={form.thumbnail}
+                          alt="thumbnail"
+                          className="aspect-video w-full rounded-xl border object-cover"
+                          style={{ borderColor: C.gold }}
+                          onError={(e) => (e.currentTarget.src = FALLBACK_IMG)}
+                        />
                       </div>
 
                       <div className="flex flex-wrap gap-2 pt-1">
-                        <BtnOutline onClick={()=>saveAs("draft")}>Salva come bozza</BtnOutline>
-                        <BtnOutline onClick={()=>saveAs("scheduled")}>Programma</BtnOutline>
-                        <BtnPrimary onClick={()=>saveAs("published")}>Pubblica (+20)</BtnPrimary>
+                        <BtnOutline onClick={() => saveAs("draft")}>{form.id ? "Aggiorna bozza" : "Salva come bozza"}</BtnOutline>
+                        <BtnOutline onClick={() => saveAs("scheduled")}>{form.id ? "Ripianifica" : "Programma"}</BtnOutline>
+                        <BtnPrimary onClick={() => saveAs("published")}>Pubblica (+20)</BtnPrimary>
                       </div>
                     </div>
 
@@ -708,9 +912,9 @@ export default function Onboarding() {
 
               {/* Riquadri Creator */}
               <div className="grid gap-4 md:grid-cols-3">
-                <ContentColumn title="Bozze" items={videos.drafts} empty="Nessuna bozza." />
-                <ContentColumn title="Programmato" items={videos.scheduled} empty="Nessun video programmato." />
-                <ContentColumn title="Pubblicati" items={videos.published} empty="Nessun video pubblicato." showPoints />
+                <ContentColumn title="Bozze" items={videos.drafts} empty="Nessuna bozza." onEdit={onEditVideo} />
+                <ContentColumn title="Programmato" items={videos.scheduled} empty="Nessun video programmato." onEdit={onEditVideo} />
+                <ContentColumn title="Pubblicati" items={videos.published} empty="Nessun video pubblicato." onEdit={onEditVideo} showPoints />
               </div>
             </>
           )}
@@ -722,8 +926,11 @@ export default function Onboarding() {
             <div className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Attività recente</div>
             <ul className="space-y-2 text-sm">
               {recent.length ? recent.map((a, i) => (
-                <li key={i} className="flex items-center justify-between rounded-lg border px-3 py-2"
-                    style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
+                <li
+                  key={i}
+                  className="flex items-center justify-between rounded-lg border px-3 py-2"
+                  style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}
+                >
                   <span>{a.label}</span>
                   <span>+{a.points} pt</span>
                 </li>
@@ -742,6 +949,23 @@ export default function Onboarding() {
           </div>
         </aside>
       </main>
+
+      {/* Modale post-pubblicazione */}
+      {postPublish.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setPostPublish({ open: false, redirectUrl: "" })} />
+          <div className="relative w-full max-w-md rounded-2xl border bg-white p-5" style={{ borderColor: C.gold }}>
+            <h4 className="text-base font-semibold" style={{ color: C.primaryDark }}>Video pubblicato correttamente ✅</h4>
+            <p className="mt-2 text-sm" style={{ color: C.primaryDark }}>
+              Vuoi restare nella tua area riservata o vedere la pagina pubblica dove è stato inserito il video?
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <BtnOutline onClick={() => setPostPublish({ open: false, redirectUrl: "" })}>Resta qui</BtnOutline>
+              <BtnPrimary onClick={() => navigate(postPublish.redirectUrl)}>Vai alla pagina pubblica</BtnPrimary>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -753,8 +977,10 @@ function MenuItem({ icon: Icon, label, href, to, danger }) {
   const Comp = to ? Link : (href ? "a" : "button");
   const props = to ? { to } : href ? { href } : {};
   return (
-    <Comp {...props}
-      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-neutral-50 ${danger ? "text-red-600" : ""}`}>
+    <Comp
+      {...props}
+      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-neutral-50 ${danger ? "text-red-600" : ""}`}
+    >
       <span className="flex items-center gap-2">
         <Icon className={`h-4 w-4 ${danger ? "text-red-600" : ""}`} />
         {label}
@@ -765,8 +991,7 @@ function MenuItem({ icon: Icon, label, href, to, danger }) {
 }
 function QuickBtn({ icon: Icon, label, onClick }) {
   return (
-    <button onClick={onClick} className="rounded-xl border bg-white px-3 py-2 text-sm hover:opacity-90"
-            style={{ borderColor: C.gold, color: C.primaryDark }}>
+    <button onClick={onClick} className="rounded-xl border bg-white px-3 py-2 text-sm hover:opacity-90" style={{ borderColor: C.gold, color: C.primaryDark }}>
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4" />
         {label}
@@ -776,8 +1001,7 @@ function QuickBtn({ icon: Icon, label, onClick }) {
 }
 function Pill({ icon: Icon, children }) {
   return (
-    <div className="flex items-center gap-2 rounded-full border px-3 py-1 text-sm"
-         style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
+    <div className="flex items-center gap-2 rounded-full border px-3 py-1 text-sm" style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
       <Icon className="h-4 w-4" />
       <span>{children}</span>
     </div>
@@ -791,7 +1015,53 @@ function RowStat({ icon: Icon, label, value }) {
     </div>
   );
 }
-function ContentColumn({ title, items, empty, showPoints }) {
+
+/* =======================
+   FAVORITES SECTION (scroll orizzontale)
+======================= */
+function FavSection({ title, items = [], onRemove, onAdd }) {
+  if (!items.length) return null;
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-sm font-medium" style={{ color: C.primaryDark }}>{title}</h3>
+        <button
+          onClick={onAdd}
+          className="rounded-lg border px-3 py-1.5 text-xs hover:opacity-90"
+          style={{ borderColor: C.gold, color: C.primaryDark }}
+        >
+          Aggiungi demo
+        </button>
+      </div>
+
+      {/* Mobile: 2.5 card visibili; Desktop: 3 card visibili */}
+      <ul className="flex gap-3 overflow-x-auto snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none]"
+          style={{ scrollbarWidth: "none" }}>
+        {items.map((f) => (
+          <li key={f.id} className="snap-start basis-[70%] sm:basis-[32%] shrink-0">
+            <div className="overflow-hidden rounded-xl border" style={{ borderColor: C.gold }}>
+              <div className="aspect-[16/10] w-full">
+                <img src={f.thumb} alt={f.label} className="h-full w-full object-cover" />
+              </div>
+              <div className="flex items-center justify-between px-3 py-2 text-sm" style={{ color: C.primaryDark, backgroundColor: C.cream }}>
+                <span className="truncate">{f.label}</span>
+                <button onClick={() => onRemove(f.id)} className="text-xs underline">Rimuovi</button>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/* =======================
+   CONTENUTI LISTE (bozze / programmati / pubblicati)
+   - anteprima sempre visibile (embed per link, <video> per file)
+   - modifica sempre consentita
+======================= */
+function ContentColumn({ title, items, empty, showPoints, onEdit }) {
   return (
     <div className="rounded-2xl border bg-white p-3" style={{ borderColor: C.gold }}>
       <div className="mb-2 flex items-center justify-between">
@@ -799,39 +1069,63 @@ function ContentColumn({ title, items, empty, showPoints }) {
         <span className="text-xs" style={{ color: C.primaryDark }}>{items.length}</span>
       </div>
       <div className="space-y-2">
-        {items.map(v => <VideoCard key={v.id} v={v} showPoints={showPoints} />)}
+        {items.map(v => <VideoCard key={v.id} v={v} showPoints={showPoints} onEdit={() => onEdit(v)} />)}
         {!items.length && <EmptyCard text={empty} />}
       </div>
     </div>
   );
 }
-function VideoCard({ v, showPoints = false }) {
+function VideoCard({ v, showPoints = false, onEdit }) {
+  const isLink = !!v.url;
   return (
     <div className="overflow-hidden rounded-xl border" style={{ borderColor: C.gold }}>
       <div className="aspect-video w-full bg-neutral-100">
-        <img src={v.thumbnail || FALLBACK_IMG} alt={v.title} className="h-full w-full object-cover"
-             onError={(e) => (e.currentTarget.src = FALLBACK_IMG)} />
+        {isLink ? (
+          <EmbedCard url={v.url} title={v.title} caption="Preview incorporata" />
+        ) : (
+          <img
+            src={v.thumbnail || FALLBACK_IMG}
+            alt={v.title}
+            className="h-full w-full object-cover"
+            onError={(e) => (e.currentTarget.src = FALLBACK_IMG)}
+          />
+        )}
       </div>
       <div className="p-2">
         <div className="truncate text-sm font-medium" style={{ color: C.primaryDark }}>{v.title}</div>
         <div className="mt-1 flex items-center justify-between text-xs" style={{ color: C.primaryDark }}>
           <span>{v.borgoSlug}{v.poiId ? ` · ${v.poiId}` : ""}</span>
-          <span>{v.views} v · {v.likes} ❤</span>
+          <span className="flex items-center gap-2">
+            <span>{v.views} v · {v.likes} ❤</span>
+          </span>
         </div>
         {showPoints && v.status === "published" && (
-          <div className="mt-2 rounded px-2 py-1 text-xs"
-               style={{ backgroundColor: C.cream, color: C.primaryDark }}>
+          <div className="mt-2 rounded px-2 py-1 text-xs" style={{ backgroundColor: C.cream, color: C.primaryDark }}>
             +20 pt (pubblicato)
           </div>
         )}
+        <div className="mt-2 flex gap-2">
+          <BtnOutline onClick={onEdit} className="!px-3 !py-1.5 text-xs">
+            <Edit3 className="h-3.5 w-3.5 mr-1" /> Modifica
+          </BtnOutline>
+          <a
+            href={isLink ? v.url : "#"}
+            target={isLink ? "_blank" : undefined}
+            rel="noreferrer"
+            className="rounded-xl border px-3 py-1.5 text-xs hover:opacity-90 inline-flex items-center"
+            style={{ borderColor: C.gold, color: C.primaryDark, pointerEvents: isLink ? "auto" : "none", opacity: isLink ? 1 : 0.6 }}
+            title={isLink ? "Apri link sorgente" : "Anteprima solo interna"}
+          >
+            <Play className="h-3.5 w-3.5 mr-1" /> Apri
+          </a>
+        </div>
       </div>
     </div>
   );
 }
 function EmptyCard({ text }) {
   return (
-    <div className="rounded-lg border border-dashed p-6 text-center text-sm"
-         style={{ borderColor: C.gold, color: C.primaryDark }}>
+    <div className="rounded-lg border border-dashed p-6 text-center text-sm" style={{ borderColor: C.gold, color: C.primaryDark }}>
       {text}
     </div>
   );
@@ -845,14 +1139,19 @@ function LeaderboardCard({ title, icon: Icon, items, mePoints }) {
       </div>
       <ol className="space-y-1 text-sm">
         {items.map((p, i) => (
-          <li key={i} className="flex items-center justify-between rounded-lg border px-3 py-2"
-              style={{ borderColor: C.light, backgroundColor: C.cream, color: C.primaryDark }}>
+          <li
+            key={i}
+            className="flex items-center justify-between rounded-lg border px-3 py-2"
+            style={{ borderColor: C.light, backgroundColor: C.cream, color: C.primaryDark }}
+          >
             <span>{i + 1}. {p.name} · <span className="opacity-80">{p.level}</span></span>
             <b>{p.points}</b>
           </li>
         ))}
-        <li className="mt-2 flex items-center justify-between rounded-lg border border-dashed px-3 py-2"
-            style={{ borderColor: C.gold, color: C.primaryDark }}>
+        <li
+          className="mt-2 flex items-center justify-between rounded-lg border border-dashed px-3 py-2"
+          style={{ borderColor: C.gold, color: C.primaryDark }}
+        >
           <span>Tu</span>
           <b>{mePoints}</b>
         </li>
@@ -867,22 +1166,26 @@ function Input({ label, value, onChange, placeholder, icon }) {
   return (
     <div>
       {label && <Label>{label}</Label>}
-      <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm"
-           style={{ borderColor: C.gold, color: C.primaryDark }}>
+      <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm" style={{ borderColor: C.gold, color: C.primaryDark }}>
         {icon}
-        <input className="w-full outline-none" value={value} onChange={(e)=>onChange(e.target.value)} placeholder={placeholder} />
+        <input className="w-full outline-none" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
       </div>
     </div>
   );
 }
-function Textarea({ label, value, onChange, placeholder, maxLength=180, counter=false }) {
+function Textarea({ label, value, onChange, placeholder, maxLength = 180, counter = false }) {
   return (
     <div>
       {label && <Label>{label}</Label>}
-      <textarea value={value} maxLength={maxLength} onChange={(e)=>onChange(e.target.value)} placeholder={placeholder}
+      <textarea
+        value={value}
+        maxLength={maxLength}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
         className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none"
-        style={{ borderColor: C.gold, color: C.primaryDark }} />
-      {counter && <div className="mt-1 text-right text-xs" style={{ color: C.primaryDark }}>{(value||"").length}/{maxLength}</div>}
+        style={{ borderColor: C.gold, color: C.primaryDark }}
+      />
+      {counter && <div className="mt-1 text-right text-xs" style={{ color: C.primaryDark }}>{(value || "").length}/{maxLength}</div>}
     </div>
   );
 }
@@ -890,9 +1193,13 @@ function Select({ label, value, onChange, options, disabled }) {
   return (
     <div>
       {label && <Label>{label}</Label>}
-      <select disabled={disabled} value={value} onChange={(e)=>onChange(e.target.value)}
-              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none disabled:bg-neutral-100"
-              style={{ borderColor: C.gold, color: C.primaryDark }}>
+      <select
+        disabled={disabled}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none disabled:bg-neutral-100"
+        style={{ borderColor: C.gold, color: C.primaryDark }}
+      >
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </div>
@@ -927,15 +1234,24 @@ function BtnOutline({ children, onClick, type = "button", className = "" }) {
 
 /* --- Card anteprima pubblica creator --- */
 function PublicCreatorCard({ profile, stats, palette }) {
-  const cover = profile.coverUrl || "https://images.unsplash.com/photo-1533750349088-cd871a92f312?q=80&w=1200&auto=format&fit=crop";
-  const avatar = profile.avatarUrl || "https://placehold.co/80x80?text=%20";
+  const cover = profile.coverFile
+    ? URL.createObjectURL(profile.coverFile)
+    : (profile.coverUrl || "https://images.unsplash.com/photo-1533750349088-cd871a92f312?q=80&w=1200&auto=format&fit=crop");
+  const avatar = profile.avatarFile
+    ? URL.createObjectURL(profile.avatarFile)
+    : (profile.avatarUrl || "https://placehold.co/80x80?text=%20");
   const traits = profile.traits || [];
   const socials = profile.socials || {};
 
   const IconBtn = ({ href, title, children }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer"
-       className="flex h-10 w-10 items-center justify-center rounded-full border hover:bg-neutral-50"
-       style={{ borderColor: palette.gold, color: palette.primaryDark }} title={title}>
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex h-10 w-10 items-center justify-center rounded-full border hover:bg-neutral-50"
+      style={{ borderColor: palette.gold, color: palette.primaryDark }}
+      title={title}
+    >
       {children}
     </a>
   );
@@ -955,12 +1271,16 @@ function PublicCreatorCard({ profile, stats, palette }) {
         <div className="font-semibold" style={{ color: palette.primaryDark }}>{profile.displayName || "creator"}</div>
 
         <div className="mt-2 flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1 text-xs rounded-full px-2 py-1"
-                style={{ backgroundColor: palette.cream, color: palette.primaryDark, border: `1px solid ${palette.gold}` }}>
+          <span
+            className="inline-flex items-center gap-1 text-xs rounded-full px-2 py-1"
+            style={{ backgroundColor: palette.cream, color: palette.primaryDark, border: `1px solid ${palette.gold}` }}
+          >
             <Film className="w-3 h-3" /> {stats.videos || 0} video
           </span>
-          <span className="inline-flex items-center gap-1 text-xs rounded-full px-2 py-1"
-                style={{ backgroundColor: palette.cream, color: palette.primaryDark, border: `1px solid ${palette.gold}` }}>
+          <span
+            className="inline-flex items-center gap-1 text-xs rounded-full px-2 py-1"
+            style={{ backgroundColor: palette.cream, color: palette.primaryDark, border: `1px solid ${palette.gold}` }}
+          >
             <BarChart2 className="w-3 h-3" /> {stats.views || 0} views
           </span>
         </div>
@@ -980,12 +1300,15 @@ function PublicCreatorCard({ profile, stats, palette }) {
           {socials.website   && <IconBtn href={socials.website}   title="Sito"><Globe className="w-5 h-5" /></IconBtn>}
           {socials.youtube   && <IconBtn href={socials.youtube}   title="YouTube"><Youtube className="w-5 h-5" /></IconBtn>}
           {socials.instagram && <IconBtn href={socials.instagram} title="Instagram"><Instagram className="w-5 h-5" /></IconBtn>}
-          {socials.tiktok    && <IconBtn href={socials.tiktok}    title="TikTok"><TikTokIcon className="w-5 h-5" /></IconBtn>}
+          {socials.tiktok    && <IconBtn href={socials.tiktok}    title="TikTok"><svg viewBox="0 0 256 256" className="w-5 h-5" fill="currentColor"><path d="M208 96a63.8 63.8 0 01-37-12v76a64 64 0 11-64-64v32a32 32 0 1032 32V32h32a64 64 0 0037 12z"/></svg></IconBtn>}
         </div>
 
         <div className="mt-4">
-          <Link to="/creator/me/preview" className="block rounded-xl border px-4 py-2 text-center text-sm hover:bg-neutral-50"
-                style={{ borderColor: palette.gold, color: palette.primaryDark }}>
+          <Link
+            to="/creator/me/preview"
+            className="block rounded-xl border px-4 py-2 text-center text-sm hover:bg-neutral-50"
+            style={{ borderColor: palette.gold, color: palette.primaryDark }}
+          >
             Vedi profilo
           </Link>
         </div>

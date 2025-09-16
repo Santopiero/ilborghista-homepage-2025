@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { Outlet } from "react-router-dom";
 
 /* ⬇️ usa la topbar DRY vera */
-import Topbar from "../components/Topbar.jsx"; // ← se il file ha un nome/percorso diverso, vedi note sotto
+import TopBar from "../components/TopBar.jsx"; // ✅ nome corretto, rispettando case-sensitive
 
 function TinyFallback() {
   return <div style={{ padding: 16 }}>Caricamento…</div>;
@@ -12,7 +12,7 @@ function TinyFallback() {
 export default function AppLayout() {
   return (
     <>
-      <Topbar />        {/* ✅ stessa barra che vedi nelle Regioni */}
+      <TopBar />        {/* ✅ stessa barra che vedi nelle Regioni */}
       <Suspense fallback={<TinyFallback />}>
         <Outlet />
       </Suspense>

@@ -22,3 +22,4 @@ if ("serviceWorker" in navigator) {
       .catch((err) => console.error("Errore registrazione Service Worker:", err));
   });
 }
+// trigger deploy 16439

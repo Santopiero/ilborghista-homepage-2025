@@ -2,22 +2,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import SuggestItineraryBtn from "../../components/SuggestItineraryBtn";
+import EmbedCard from "../../components/EmbedCard";
 import {
   Menu, X, LogOut, Flag, MessageCircle, Upload, Youtube,
   BarChart2, Clock, ChevronRight, Crown, List, Bell,
   Compass, Map, Star, Medal, Trophy, Film,
-  Image as ImageIcon, Globe, Instagram, Link2, MapPin
+  Image as ImageIcon, Globe, Instagram, Link2, MapPin, CheckCircle2
 } from "lucide-react";
-
-// >>> lib per i video (persistenza + azioni)
 import {
-  createFromOnboarding,
-  listByOwner,
-  listByStatus,
+  createVideoDraft,
+  updateVideo,
   publishVideo,
   scheduleVideo,
-  setBorgoAndPoi,
-  updateVideo,
+  listByOwner,
+  getPlayableUrl,
 } from "../../lib/creatorVideos";
 
 /* =======================
@@ -30,6 +28,8 @@ const C = {
   light: "#F4F4F4",
   gold: "#E1B671",
 };
+
+const OWNER_ID = "demo-user";
 
 /* =======================
    MOCK (Borgo → POI)
@@ -106,15 +106,20 @@ function TikTokIcon({ className }) {
 }
 
 /* =======================
+   DETECT provider link
+======================= */
+const isYouTube = (u="") => /(?:youtu\.be|youtube\.com)/i.test(u);
+const isInstagram = (u="") => /instagram\.com/i.test(u);
+const isTikTok = (u="") => /tiktok\.com/i.test(u);
+
+/* =======================
    PAGINA ONBOARDING
 ======================= */
 export default function Onboarding() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Identità utente (mock)
-  const OWNER_ID = "me"; // sostituisci con reale user id quando hai l’auth
-
+  // stato utente
   const [user, setUser] = useState({
     name: "Piero",
     points: 0,
@@ -123,7 +128,7 @@ export default function Onboarding() {
     videosPublished: 0,
     region: "Basilicata",
     streakDays: 0,
-    isCreator: true,
+    isCreator: false,
   });
   const { level, next, pct, toNext } = useLevel(user.points);
 
@@ -133,8 +138,9 @@ export default function Onboarding() {
     { id: "b2", label: "Pietrapertosa",  thumb: "https://images.unsplash.com/photo-1501854140801-50d01698950b?q=80&w=800&auto=format&fit=crop" },
   ]);
 
-  // toggle sezione creator
-  const [creatorOpen, setCreatorOpen] = useState(true);
+  // flusso creator a step
+  // step 0: card CTA; step 1: Profilo; step 2: Strumenti
+  const [step, setStep] = useState(0);
 
   // profilo creator (per anteprima)
   const [creatorProfile, setCreatorProfile] = useState({
@@ -146,41 +152,66 @@ export default function Onboarding() {
     traits: [],
     socials: { website: "", youtube: "", instagram: "", tiktok: "" },
   });
+
   const TRAIT_OPTS = ["Natura","Food","Storie locali","Cammini","Arte & Cultura","Family friendly","Drone","Vlog"];
 
-  // Borgo / POI selezionati per il form corrente
   const [selectedBorgoSlug, setSelectedBorgoSlug] = useState("");
   const selectedBorgo = useMemo(() => BORGI.find(b => b.slug === selectedBorgoSlug) || null, [selectedBorgoSlug]);
 
-  // form upload
-  const fileRef = useRef(null);
+  // form video
   const [form, setForm] = useState({
-    title: "",
-    description: "",
-    poiId: "",
-    activity: "",
-    tags: "",
-    url: "",
-    file: null,           // File reale
-    mode: "link",         // "link" | "file"
-    thumbnail: FALLBACK_IMG
+    title: "", description: "", poiId: "", activity: "", tags: "",
+    url: "", file: null, thumbnail: FALLBACK_IMG, source: "link" // link | file
   });
 
-  // contenuti caricati da storage
+  // preview player
+  const [previewUrl, setPreviewUrl] = useState("");
+
+  // contenuti (caricati da storage)
   const [videos, setVideos] = useState({ drafts: [], scheduled: [], published: [] });
 
-  // ====== loader da storage
-  const reloadVideos = () => {
+  // caricamento iniziale contenuti utente
+  useEffect(() => {
     const mine = listByOwner(OWNER_ID);
     setVideos({
       drafts: mine.filter(v => v.status === "draft"),
       scheduled: mine.filter(v => v.status === "scheduled"),
       published: mine.filter(v => v.status === "published"),
     });
-  };
-  useEffect(() => { reloadVideos(); }, []);
+  }, []);
 
-  // ====== stats
+  // refresh preview al cambio input
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (form.source === "link") {
+        setPreviewUrl(form.url || "");
+      } else if (form.source === "file" && form.file) {
+        // costruiamo un "video fake" locale per riusare getPlayableUrl
+        const fake = { source: "file", videoKey: null };
+        // creo un blob URL provvisorio per la preview immediata
+        const local = URL.createObjectURL(form.file);
+        if (alive) setPreviewUrl(local);
+      } else {
+        setPreviewUrl("");
+      }
+    })();
+    return () => { alive = false; };
+  }, [form.source, form.url, form.file]);
+
+  // classifiche (mock)
+  const leaderboardRegional = [
+    { name: "Paolo V.", level: "Ambasciatore", points: 740 },
+    { name: "Anna S.",  level: "Viaggiatore",  points: 520 },
+    { name: "Giorgio L.", level: "Esploratore", points: 300 },
+  ];
+  const leaderboardNational = [
+    { name: "Lucia R.", level: "Il Borghista", points: 1400 },
+    { name: "Marco D.", level: "Ambasciatore", points: 960 },
+    { name: "Ilaria F.", level: "Viaggiatore", points: 650 },
+  ];
+
+  // stats
   const stats = useMemo(() => {
     const all = [...videos.drafts, ...videos.scheduled, ...videos.published];
     return {
@@ -190,96 +221,97 @@ export default function Onboarding() {
     };
   }, [videos]);
 
-  // ====== attività recente
+  // attività recente
   const [recent, setRecent] = useState([]);
   const pushActivity = (label, points) => {
     setRecent(r => [{ label, points, ts: Date.now() }, ...r].slice(0, 8));
     if (points) setUser(u => ({ ...u, points: u.points + points }));
   };
 
-  // ====== azioni rapide
+  // azioni rapide
   const doCheckin = () => { setUser(u => ({ ...u, streakDays: u.streakDays + 1 })); pushActivity("Check-in giornaliero", POINTS.checkin); };
   const doReportEvent = () => { setUser(u => ({ ...u, eventsReported: u.eventsReported + 1 })); pushActivity("Segnalazione evento", POINTS.event); };
   const doFeedback = () => { setUser(u => ({ ...u, feedbackGiven: u.feedbackGiven + 1 })); pushActivity("Feedback lasciato", POINTS.feedback); };
-  const goToVideoUpload = () => { setCreatorOpen(true); document.getElementById("creator-tools")?.scrollIntoView({ behavior: "smooth" }); };
 
-  // ====== handlers form
-  const resetForm = () => {
-    setForm({
-      title: "",
-      description: "",
-      poiId: "",
-      activity: "",
-      tags: "",
-      url: "",
-      file: null,
-      mode: "link",
-      thumbnail: FALLBACK_IMG
-    });
-    setSelectedBorgoSlug("");
-    if (fileRef.current) fileRef.current.value = "";
+  const openCreatorFlow = () => {
+    setUser(u => ({ ...u, isCreator: true }));
+    // animazione "lenta": prima Profilo, poi mostreremo Strumenti dopo salvataggio
+    setStep(1);
+    // scroll dolce
+    setTimeout(() => {
+      document.getElementById("creator-profile")?.scrollIntoView({ behavior: "smooth" });
+    }, 150);
   };
 
-  const ensureBorgoSaved = async (id) => {
-    if (!id) return;
-    if (selectedBorgo) {
-      await setBorgoAndPoi(id, {
-        borgoSlug: selectedBorgo.slug,
-        borgoName: selectedBorgo.name,
-        poiId: form.poiId || "",
-      });
+  // helper form → base payload
+  const parseTags = (s="") => s.split(",").map(t => t.trim()).filter(Boolean);
+
+  // reset form
+  const resetForm = () => setForm({ title: "", description: "", poiId: "", activity: "", tags: "", url: "", file: null, thumbnail: FALLBACK_IMG, source: "link" });
+
+  // ricarica lista
+  const reloadMine = () => {
+    const mine = listByOwner(OWNER_ID);
+    setVideos({
+      drafts: mine.filter(v => v.status === "draft"),
+      scheduled: mine.filter(v => v.status === "scheduled"),
+      published: mine.filter(v => v.status === "published"),
+    });
+  };
+
+  // Azioni salvataggio / pubblicazione
+  async function saveAs(status) {
+    // validazioni minime
+    if (!selectedBorgo) {
+      alert("Seleziona un borgo.");
+      return;
     }
-  };
+    if (!form.title.trim()) {
+      alert("Inserisci un titolo.");
+      return;
+    }
+    if (form.source === "link" && !form.url.trim()) {
+      alert("Inserisci un link (YouTube/Instagram/TikTok) oppure scegli un file.");
+      return;
+    }
+    if (form.source === "file" && !form.file) {
+      alert("Seleziona un file video dal tuo PC.");
+      return;
+    }
 
-  const createDraftCommon = async () => {
-    const created = await createFromOnboarding({
+    // crea bozza con eventuale file in IndexedDB
+    const draft = await createVideoDraft({
       ownerId: OWNER_ID,
-      title: form.title,
-      description: form.description,
-      borgoSlug: selectedBorgo?.slug || "",
-      borgoName: selectedBorgo?.name || "",
-      poiId: form.poiId || "",
-      activity: form.activity,
-      tags: form.tags,
-      mode: form.mode,
-      file: form.mode === "file" ? form.file : undefined,
-      url: form.mode === "link" ? form.url : "",
-      thumbnail: form.thumbnail,
+      title: form.title.trim(),
+      description: form.description.trim(),
+      borgoSlug: selectedBorgo.slug,
+      poiId: form.poiId,
+      url: form.source === "link" ? form.url.trim() : "",
+      file: form.source === "file" ? form.file : null,
+      source: form.source,
+      thumbnail: form.thumbnail || FALLBACK_IMG,
+      tags: parseTags(form.tags),
     });
-    await ensureBorgoSaved(created.id);
-    reloadVideos();
-    return created;
-  };
 
-  const addAsDraft = async () => {
-    await createDraftCommon();
-    setUser(u => ({ ...u, isCreator: true }));
-    pushActivity("Video salvato in bozza", 0);
+    // promuovi di stato
+    if (status === "draft") {
+      // ok così
+    } else if (status === "scheduled") {
+      scheduleVideo(draft.id);
+    } else if (status === "published") {
+      publishVideo(draft.id);
+      setUser(u => ({ ...u, videosPublished: u.videosPublished + 1, points: u.points + POINTS.video }));
+      pushActivity("Video pubblicato", POINTS.video);
+    }
+
+    reloadMine();
     resetForm();
-  };
 
-  const addAsScheduled = async () => {
-    const v = await createDraftCommon();
-    await scheduleVideo(v.id, new Date().toISOString()); // demo
-    reloadVideos();
-    setUser(u => ({ ...u, isCreator: true }));
-    pushActivity("Video programmato", 0);
-    resetForm();
-  };
-
-  const addAsPublished = async () => {
-    const v = await createDraftCommon();
-    await publishVideo(v.id);
-    reloadVideos();
-    setUser(u => ({ ...u, isCreator: true, videosPublished: u.videosPublished + 1, points: u.points + POINTS.video }));
-    pushActivity("Video pubblicato", POINTS.video);
-    resetForm();
-    navigate("/creator/contenuti?tab=pubblicati", { replace: true });
-  };
-
-  // preferiti (demo)
-  const removeFav = id => setFavorites(f => f.filter(x => x.id !== id));
-  const addFavDemo = () => setFavorites(f => [{ id: "f_" + Date.now(), label: "Nuovo preferito", thumb: FALLBACK_IMG }, ...f]);
+    if (status === "published") {
+      // redirect al tab “pubblicati” (se esiste la rotta), altrimenti resta qui
+      try { navigate("/creator/contenuti?tab=pubblicati", { replace: true }); } catch {}
+    }
+  }
 
   /* ================= HEADER ================= */
   return (
@@ -311,22 +343,20 @@ export default function Onboarding() {
               <div className="my-2 border-t" style={{ borderColor: C.light }} />
               <MenuItem icon={Trophy} label="Livelli & Obiettivi" to="/livelli" />
 
-              {/* Stepper livelli compatto */}
+              {/* stepper livelli compatto */}
               <div className="ml-8 mt-2 flex items-center gap-3">
                 {LEVELS.map((l) => {
                   const active = l.name === level.name;
                   const Icon = l.Icon;
                   return (
                     <div key={l.key} className="flex flex-col items-center text-xs" style={{ color: C.primaryDark }}>
-                      <div
-                        className="flex h-8 w-8 items-center justify-center rounded-full border"
-                        title={l.name}
-                        style={{
-                          borderColor: active ? C.primary : C.gold,
-                          backgroundColor: active ? C.primary : "#fff",
-                          color: active ? "#fff" : C.primaryDark,
-                        }}
-                      >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full border"
+                           title={l.name}
+                           style={{
+                             borderColor: active ? C.primary : C.gold,
+                             backgroundColor: active ? C.primary : "#fff",
+                             color: active ? "#fff" : C.primaryDark,
+                           }}>
                         <Icon className="h-4 w-4" />
                       </div>
                       <span className="mt-1 opacity-70">{l.key}</span>
@@ -376,15 +406,13 @@ export default function Onboarding() {
                 const Icon = l.Icon;
                 return (
                   <div key={l.key} className="flex flex-col items-center">
-                    <div
-                      className="flex h-10 w-10 items-center justify-center rounded-full border"
-                      title={l.name}
-                      style={{
-                        borderColor: active ? C.primary : C.gold,
-                        backgroundColor: active ? C.primary : "#fff",
-                        color: active ? "#fff" : C.primaryDark,
-                      }}
-                    >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full border"
+                         title={l.name}
+                         style={{
+                           borderColor: active ? C.primary : C.gold,
+                           backgroundColor: active ? C.primary : "#fff",
+                           color: active ? "#fff" : C.primaryDark,
+                         }}>
                       <Icon className="h-5 w-5" />
                     </div>
                     <span className="mt-1 text-[10px] sm:text-[11px]" style={{ color: C.primaryDark }}>{l.key}</span>
@@ -397,7 +425,9 @@ export default function Onboarding() {
             <div className="mt-5">
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="text-sm font-medium" style={{ color: C.primaryDark }}>I tuoi preferiti</h3>
-                <button onClick={addFavDemo} className="rounded-lg border px-3 py-1.5 text-xs hover:opacity-90" style={{ borderColor: C.gold, color: C.primaryDark }}>
+                <button onClick={()=>setFavorites(f => [{ id: "f_" + Date.now(), label: "Nuovo preferito", thumb: FALLBACK_IMG }, ...f])}
+                        className="rounded-lg border px-3 py-1.5 text-xs hover:opacity-90"
+                        style={{ borderColor: C.gold, color: C.primaryDark }}>
                   Aggiungi preferito demo
                 </button>
               </div>
@@ -410,7 +440,7 @@ export default function Onboarding() {
                       </div>
                       <div className="flex items-center justify-between px-3 py-2 text-sm" style={{ color: C.primaryDark, backgroundColor: C.cream }}>
                         <span className="truncate">{f.label}</span>
-                        <button onClick={() => removeFav(f.id)} className="text-xs underline">Rimuovi</button>
+                        <button onClick={() => setFavorites(x => x.filter(y => y.id !== f.id))} className="text-xs underline">Rimuovi</button>
                       </div>
                     </div>
                   ))}
@@ -425,34 +455,12 @@ export default function Onboarding() {
               <QuickBtn icon={Clock} label="Check-in (+2)" onClick={doCheckin} />
               <QuickBtn icon={Flag} label="Segnala evento (+5)" onClick={doReportEvent} />
               <QuickBtn icon={MessageCircle} label="Lascia feedback (+3)" onClick={doFeedback} />
-              <QuickBtn icon={Film} label="Carica video (+20)" onClick={goToVideoUpload} />
-            </div>
-
-            {/* Prossimi obiettivi + CTA itinerario */}
-            <div className="mt-5">
-              <div className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Prossimi obiettivi</div>
-              <ul className="space-y-1 text-sm">
-                <li className="flex items-center justify-between rounded-lg border px-3 py-2" style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
-                  <span>Passa a “{next ? next.name : level.name}”</span>
-                  <span>{toNext} pt</span>
-                </li>
-                <li className="flex items-center justify-between rounded-lg border px-3 py-2" style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
-                  <span>Pubblica un video</span>
-                  <span>+{POINTS.video} pt</span>
-                </li>
-              </ul>
-
-              <div className="mt-4 rounded-xl p-3" style={{ background: `linear-gradient(90deg, ${C.primary} 0%, ${C.primaryDark} 100%)` }}>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div className="text-white/90 text-sm">Hai un’idea di percorso tra borghi? Suggeriscilo alla community.</div>
-                  <SuggestItineraryBtn className="w-full sm:w-auto" />
-                </div>
-              </div>
+              <QuickBtn icon={Film} label="Diventa creator" onClick={openCreatorFlow} />
             </div>
           </div>
 
-          {/* CTA CREATOR (nascosta se già creator) */}
-          {!user.isCreator && !creatorOpen && (
+          {/* CTA CREATOR */}
+          {step === 0 && (
             <div className="overflow-hidden rounded-2xl border p-6 sm:p-8"
                  style={{ borderColor: C.gold, background: `linear-gradient(90deg, ${C.primary} 0%, ${C.primaryDark} 100%)` }}>
               <div className="grid items-center gap-6 sm:grid-cols-3">
@@ -460,7 +468,7 @@ export default function Onboarding() {
                   <h3 className="text-lg sm:text-xl font-semibold text-white">Carica il tuo primo video e diventa Creator</h3>
                   <p className="mt-1 text-white/90 text-sm">Racconta i tuoi borghi, ottieni <b>+20 punti</b> subito.</p>
                 </div>
-                <button onClick={() => setCreatorOpen(true)}
+                <button onClick={openCreatorFlow}
                         className="rounded-xl bg-white px-5 py-3 text-sm font-semibold hover:opacity-90"
                         style={{ color: C.primaryDark }}>
                   Inizia ora
@@ -470,11 +478,18 @@ export default function Onboarding() {
           )}
 
           {/* SEZIONE CREATOR */}
-          {(user.isCreator || creatorOpen) && (
+          {(user.isCreator && step >= 1) && (
             <>
-              {/* Profilo Creator */}
-              <div className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
-                <h3 className="text-base font-semibold mb-3" style={{ color: C.primaryDark }}>Profilo Creator</h3>
+              {/* Profilo Creator (STEP 1) */}
+              <div id="creator-profile" className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Profilo Creator</h3>
+                  {step === 2 && (
+                    <span className="inline-flex items-center gap-1 text-[13px] text-emerald-700">
+                      <CheckCircle2 className="h-4 w-4" /> salvato
+                    </span>
+                  )}
+                </div>
 
                 <div className="grid gap-4 lg:grid-cols-3">
                   {/* form */}
@@ -533,9 +548,15 @@ export default function Onboarding() {
                     </div>
 
                     <div className="flex gap-2">
-                      <BtnPrimary onClick={()=>setUser(u=>({...u,isCreator:true}))}>Salva profilo</BtnPrimary>
-                      <Link to="/creator/me/preview" className="rounded-xl border px-4 py-2 text-sm hover:opacity-90"
-                            style={{ borderColor: C.gold, color: C.primaryDark }}>
+                      <BtnPrimary onClick={()=>{
+                        setUser(u=>({...u,isCreator:true}));
+                        // “svela” strumenti con un piccolo delay
+                        setTimeout(()=>setStep(2), 200);
+                        setTimeout(()=>document.getElementById("creator-tools")?.scrollIntoView({behavior:"smooth"}), 250);
+                      }}>
+                        Salva profilo
+                      </BtnPrimary>
+                      <Link to="/creator/me/preview" className="rounded-xl border px-4 py-2 text-sm hover:opacity-90" style={{ borderColor: C.gold, color: C.primaryDark }}>
                         Vedi profilo pubblico
                       </Link>
                     </div>
@@ -548,100 +569,142 @@ export default function Onboarding() {
                 </div>
               </div>
 
-              {/* Strumenti upload video */}
-              <div id="creator-tools" className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Strumenti da Creator</h3>
-                  <div className="flex gap-2 text-xs" style={{ color: C.primaryDark }}>
-                    <Pill icon={Film}>Video: {stats.total}</Pill>
-                    <Pill icon={BarChart2}>Visualizzazioni: {stats.views}</Pill>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 lg:grid-cols-3">
-                  {/* form */}
-                  <div className="lg:col-span-2 space-y-3">
-                    <Input value={form.title} onChange={(v)=>setForm(f=>({...f,title:v}))} placeholder="Titolo" />
-                    <Textarea value={form.description} onChange={(v)=>setForm(f=>({...f,description:v}))} placeholder="Descrizione (max 140)" maxLength={140} counter />
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Select
-                        label="Borgo"
-                        value={selectedBorgoSlug}
-                        onChange={(v)=>{ setSelectedBorgoSlug(v); setForm(f=>({...f, poiId:"", activity:""})); }}
-                        options={[{value:"",label:"Seleziona borgo…"}, ...BORGI.map(b=>({value:b.slug,label:b.name}))]}
-                      />
-                      <Select
-                        label="POI (opzionale)"
-                        value={form.poiId}
-                        onChange={(v)=>setForm(f=>({...f, poiId:v}))}
-                        disabled={!selectedBorgo}
-                        options={[{value:"",label: selectedBorgo ? "Seleziona un POI…" : "Seleziona prima un borgo"},
-                          ...(selectedBorgo?.poi||[]).map(p=>({value:p.id,label:p.name}))]}
-                      />
+              {/* Strumenti upload video (STEP 2) */}
+              {step >= 2 && (
+                <div id="creator-tools" className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Strumenti da Creator</h3>
+                    <div className="flex gap-2 text-xs" style={{ color: C.primaryDark }}>
+                      <Pill icon={Film}>Video: {stats.total}</Pill>
+                      <Pill icon={BarChart2}>Visualizzazioni: {stats.views}</Pill>
                     </div>
+                  </div>
 
-                    {/* Sorgente: Link o File */}
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <Label>URL YouTube/Vimeo</Label>
-                        <div className={`flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm ${form.mode==="link" ? "" : "opacity-60"}`}
-                             style={{ borderColor: C.gold, color: C.primaryDark }}>
-                          <Youtube className="h-4 w-4" style={{color:C.primaryDark}} />
-                          <input
-                            disabled={form.mode !== "link"}
-                            className="w-full outline-none"
-                            value={form.url}
-                            onChange={(e)=>setForm(f=>({...f,url:e.target.value, mode:"link"}))}
-                            placeholder="https://youtube.com/..."
-                          />
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    {/* form */}
+                    <div className="lg:col-span-2 space-y-3">
+                      <Input value={form.title} onChange={(v)=>setForm(f=>({...f,title:v}))} placeholder="Titolo" />
+                      <Textarea value={form.description} onChange={(v)=>setForm(f=>({...f,description:v}))} placeholder="Descrizione (max 140)" maxLength={140} counter />
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Select
+                          label="Borgo *"
+                          value={selectedBorgoSlug}
+                          onChange={(v)=>{ setSelectedBorgoSlug(v); setForm(f=>({...f, poiId:"", activity:""})); }}
+                          options={[{value:"",label:"Seleziona borgo…"}, ...BORGI.map(b=>({value:b.slug,label:b.name}))]}
+                        />
+                        <Select
+                          label="POI (opzionale)"
+                          value={form.poiId}
+                          onChange={(v)=>setForm(f=>({...f, poiId:v}))}
+                          disabled={!selectedBorgo}
+                          options={[{value:"",label: selectedBorgo ? "Seleziona un POI…" : "Seleziona prima un borgo"},
+                            ...(selectedBorgo?.poi||[]).map(p=>({value:p.id,label:p.name}))]}
+                        />
+                      </div>
+
+                      {/* switch sorgente */}
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
+                          <Label>Link esterno</Label>
+                          <div className="grid gap-2">
+                            <div className="flex items-center gap-2">
+                              <input type="radio" id="src-link" checked={form.source==="link"} onChange={()=>setForm(f=>({...f,source:"link"}))} />
+                              <label htmlFor="src-link" className="text-sm" style={{ color: C.primaryDark }}>YouTube / Instagram / TikTok</label>
+                            </div>
+                            <Input
+                              label="URL"
+                              icon={<Link2 className="h-4 w-4" style={{color:C.primaryDark}}/>}
+                              value={form.url}
+                              onChange={(v)=>setForm(f=>({...f,url:v}))}
+                              placeholder="https://youtube.com/... oppure https://instagram.com/... oppure https://www.tiktok.com/..."
+                            />
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
+                          <Label>Carica file dal PC</Label>
+                          <div className="flex items-center gap-2">
+                            <input type="radio" id="src-file" checked={form.source==="file"} onChange={()=>setForm(f=>({...f,source:"file"}))} />
+                            <label htmlFor="src-file" className="text-sm" style={{ color: C.primaryDark }}>Video locale (mp4, mov…)</label>
+                          </div>
+                          <div className="mt-2">
+                            <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm" style={{ borderColor: C.gold, color: C.primaryDark }}>
+                              <Upload className="h-4 w-4" />
+                              <input
+                                type="file"
+                                accept="video/*"
+                                onChange={(e)=>setForm(f=>({...f, file: e.target.files?.[0] || null}))}
+                                className="w-full"
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
 
-                      <div>
-                        <Label>Oppure carica un file</Label>
-                        <div className={`flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm ${form.mode==="file" ? "" : "opacity-60"}`}
-                             style={{ borderColor: C.gold, color: C.primaryDark }}>
-                          <Upload className="h-4 w-4" style={{color:C.primaryDark}} />
-                          <input
-                            ref={fileRef}
-                            type="file"
-                            accept="video/*"
-                            className="w-full text-sm"
-                            onChange={(e)=> {
-                              const file = e.target.files?.[0] || null;
-                              setForm(f=>({...f, file, mode: file ? "file" : f.mode }));
-                            }}
+                      {/* Anteprima incorporata, nessun redirect */}
+                      <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
+                        <Label>Anteprima</Label>
+                        {form.source === "link" && !!form.url ? (
+                          <EmbedCard
+                            url={form.url}
+                            title={form.title || "Anteprima"}
+                            caption={isInstagram(form.url) || isTikTok(form.url)
+                              ? "Il contenuto viene mostrato qui con l'embed ufficiale (niente uscita dalla piattaforma)."
+                              : "Riproduzione incorporata in piattaforma."}
                           />
-                        </div>
+                        ) : null}
+
+                        {form.source === "file" && form.file ? (
+                          <div className="mt-2">
+                            <video src={previewUrl} controls playsInline className="w-full rounded-xl border" style={{ borderColor: C.gold }} />
+                          </div>
+                        ) : null}
+
+                        {!form.url && !form.file && (
+                          <div className="text-sm" style={{ color: C.primaryDark }}>
+                            Inserisci un link (YouTube/Instagram/TikTok) oppure seleziona un file dal tuo PC per vedere l’anteprima.
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label>Tag (facoltativi, separati da virgola)</Label>
+                        <input
+                          value={form.tags}
+                          onChange={(e)=>setForm(f=>({...f, tags: e.target.value}))}
+                          className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none"
+                          style={{ borderColor: C.gold, color: C.primaryDark }}
+                          placeholder="es. natura, cammini, borgo"
+                        />
+                      </div>
+
+                      <div>
+                        <Label>Miniatura (auto)</Label>
+                        <img src={form.thumbnail} alt="thumbnail"
+                             className="aspect-video w-full rounded-xl border object-cover"
+                             style={{ borderColor: C.gold }}
+                             onError={(e) => (e.currentTarget.src = FALLBACK_IMG)} />
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <BtnOutline onClick={()=>saveAs("draft")}>Salva come bozza</BtnOutline>
+                        <BtnOutline onClick={()=>saveAs("scheduled")}>Programma</BtnOutline>
+                        <BtnPrimary onClick={()=>saveAs("published")}>Pubblica (+20)</BtnPrimary>
                       </div>
                     </div>
 
-                    <div>
-                      <Label>Miniatura (auto)</Label>
-                      <img src={form.thumbnail} alt="thumbnail"
-                           className="aspect-video w-full rounded-xl border object-cover"
-                           style={{ borderColor: C.gold }}
-                           onError={(e) => (e.currentTarget.src = FALLBACK_IMG)} />
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      <BtnOutline onClick={addAsDraft}>Bozza</BtnOutline>
-                      <BtnOutline onClick={addAsScheduled}>Programma</BtnOutline>
-                      <BtnPrimary onClick={addAsPublished}>Pubblica (+20)</BtnPrimary>
-                    </div>
-                  </div>
-
-                  {/* Statistiche base */}
-                  <div className="space-y-3">
-                    <div className="rounded-xl border p-3 text-sm" style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
-                      <div className="mb-2 font-medium">Statistiche base</div>
-                      <RowStat icon={Film} label="Video totali" value={stats.total} />
-                      <RowStat icon={BarChart2} label="Visualizzazioni" value={stats.views} />
+                    {/* Statistiche base */}
+                    <div className="space-y-3">
+                      <div className="rounded-xl border p-3 text-sm" style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
+                        <div className="mb-2 font-medium">Statistiche base</div>
+                        <RowStat icon={Film} label="Video totali" value={stats.total} />
+                        <RowStat icon={BarChart2} label="Visualizzazioni" value={stats.views} />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Riquadri Creator */}
               <div className="grid gap-4 md:grid-cols-3">
@@ -673,16 +736,8 @@ export default function Onboarding() {
               <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Classifiche</h3>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <LeaderboardCard title="Regionale" icon={Crown} items={[
-                { name: "Paolo V.", level: "Ambasciatore", points: 740 },
-                { name: "Anna S.",  level: "Viaggiatore",  points: 520 },
-                { name: "Giorgio L.", level: "Esploratore", points: 300 },
-              ]} mePoints={user.points} />
-              <LeaderboardCard title="Nazionale" icon={BarChart2} items={[
-                { name: "Lucia R.", level: "Il Borghista", points: 1400 },
-                { name: "Marco D.", level: "Ambasciatore", points: 960 },
-                { name: "Ilaria F.", level: "Viaggiatore", points: 650 },
-              ]} mePoints={user.points} />
+              <LeaderboardCard title="Regionale" icon={Crown} items={leaderboardRegional} mePoints={user.points} />
+              <LeaderboardCard title="Nazionale" icon={BarChart2} items={leaderboardNational} mePoints={user.points} />
             </div>
           </div>
         </aside>
@@ -760,10 +815,10 @@ function VideoCard({ v, showPoints = false }) {
       <div className="p-2">
         <div className="truncate text-sm font-medium" style={{ color: C.primaryDark }}>{v.title}</div>
         <div className="mt-1 flex items-center justify-between text-xs" style={{ color: C.primaryDark }}>
-          <span>{v.borgoName || v.borgoSlug || "—"}{v.poiId ? ` · ${v.poiId}` : ""}</span>
+          <span>{v.borgoSlug}{v.poiId ? ` · ${v.poiId}` : ""}</span>
           <span>{v.views} v · {v.likes} ❤</span>
         </div>
-        {showPoints && (
+        {showPoints && v.status === "published" && (
           <div className="mt-2 rounded px-2 py-1 text-xs"
                style={{ backgroundColor: C.cream, color: C.primaryDark }}>
             +20 pt (pubblicato)
@@ -843,6 +898,8 @@ function Select({ label, value, onChange, options, disabled }) {
     </div>
   );
 }
+
+/* --- Bottoni riutilizzabili (LOCAL) --- */
 function BtnPrimary({ children, onClick, type = "button", className = "" }) {
   return (
     <button
@@ -918,7 +975,7 @@ function PublicCreatorCard({ profile, stats, palette }) {
           ))}
         </div>
 
-        {/* icone social */}
+        {/* Social icons only */}
         <div className="mt-4 flex items-center gap-3">
           {socials.website   && <IconBtn href={socials.website}   title="Sito"><Globe className="w-5 h-5" /></IconBtn>}
           {socials.youtube   && <IconBtn href={socials.youtube}   title="YouTube"><Youtube className="w-5 h-5" /></IconBtn>}

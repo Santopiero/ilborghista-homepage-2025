@@ -1,21 +1,22 @@
-// src/pages/HomeBorgo.jsx
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   findBorgoBySlug,
   listPoiByBorgo,
-  // getVideosByBorgo, // (rimosso: ora arriva da creatorVideos)
-  // getVideosByPoi,   // non usato qui
   syncBorgoBundle,
   isFavorite,
   toggleFavorite,
   slugify,
 } from "../lib/store";
+import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
+
+/* ====== NUOVO: prendo i video pubblicati dal modulo creatorVideos ====== */
 import {
-  listPublishedByBorgoSlug as getVideosByBorgo,
+  getVideosByBorgo as getVideosByBorgoLocal,
+  getVideosByPoi as getVideosByPoiLocal,
   getPlayableUrl,
 } from "../lib/creatorVideos";
-import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
+
 import {
   ChevronLeft, ChevronRight, Share2, Heart, Film, CalendarDays, Route, ShoppingBag,
   List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Search, Menu, X,
@@ -31,6 +32,7 @@ const isSleep = (p) =>
 const isArtigiano = (p) =>
   /(artigian|laborator|bottega|ceramic|liutaio|tessil|falegn|orafo)/i.test(p.type || p.name || "");
 
+// Mostra/nasconde "Installa l’app" se è già A2HS
 const isStandalone = () =>
   typeof window !== "undefined" &&
   (window.matchMedia?.("(display-mode: standalone)").matches ||
@@ -41,7 +43,14 @@ const fmtPrice = (n) => {
   try { return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n); }
   catch { return `€ ${Math.round(n)}`; }
 };
-
+function withUtm(url, partner) {
+  if (!url) return "#";
+  const u = new URL(url, window.location.origin);
+  u.searchParams.set("utm_source", "ilborghista");
+  u.searchParams.set("utm_medium", "partner");
+  u.searchParams.set("utm_campaign", (partner || "esperienze").toLowerCase());
+  return u.toString();
+}
 function getYouTubeId(url = "") {
   try {
     const u = new URL(url);
@@ -53,7 +62,23 @@ function getYouTubeId(url = "") {
 const getYouTubeThumb = (url = "") =>
   getYouTubeId(url) ? `https://i.ytimg.com/vi/${getYouTubeId(url)}/hqdefault.jpg` : "";
 
-/* ================= Favorite hook ================= */
+// Haversine in km
+function kmBetween(a, b) {
+  if (!a?.lat || !a?.lng || !b?.lat || !b?.lng) return null;
+  const R = 6371;
+  const toRad = (x) => (x * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  const d = 2 * R * Math.asin(Math.sqrt(s));
+  return Math.round(d);
+}
+
+/* ================= Small Favorite Hook ================= */
 function useFavorite(type, id, data) {
   const [fav, setFav] = useState(() => {
     try { return isFavorite?.(type, id) ?? false; } catch { return false; }
@@ -76,14 +101,15 @@ function useFavorite(type, id, data) {
 }
 
 /* ================= TopBar ================= */
-// (INVARIATA)
 function TopBar({ slug }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState("");
 
-  useEffect(() => { try { console.info("TopBar v2 mounted"); } catch {} }, []);
+  useEffect(() => {
+    try { console.info("TopBar v2 mounted"); } catch {}
+  }, []);
 
   const infoHref = `/borghi/${slug}/info`;
   const donateHref = `/borghi/${slug}/sostieni`;
@@ -99,10 +125,11 @@ function TopBar({ slug }) {
     <>
       <header data-topbar="v2" className="fixed inset-x-0 top-0 z-50 border-b bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
-          <Link to="/" className="inline-flex items-center">
+          <Link to="/" aria-label="Vai alla home di Il Borghista" className="inline-flex items-center">
             <span className="text-lg font-extrabold tracking-tight text-[#6B271A]">Il Borghista</span>
           </Link>
 
+          {/* Ricerca desktop */}
           <form onSubmit={onSubmit} className="relative hidden w-[46%] md:block">
             <input
               type="search"
@@ -115,6 +142,7 @@ function TopBar({ slug }) {
           </form>
 
           <div className="flex items-center gap-2">
+            {/* Ricerca mobile */}
             <button
               aria-label="Apri la ricerca"
               onClick={() => setSearchOpen((v) => !v)}
@@ -122,6 +150,8 @@ function TopBar({ slug }) {
             >
               <Search className="h-5 w-5" />
             </button>
+
+            {/* Hamburger */}
             <button
               aria-label="Apri il menu"
               onClick={() => setMenuOpen(true)}
@@ -132,6 +162,7 @@ function TopBar({ slug }) {
           </div>
         </div>
 
+        {/* Ricerca mobile */}
         {searchOpen && (
           <div className="border-t bg-white md:hidden">
             <form onSubmit={onSubmit} className="mx-auto max-w-6xl px-4 py-2 sm:px-6">
@@ -151,32 +182,94 @@ function TopBar({ slug }) {
         )}
       </header>
 
+      {/* Drawer menu */}
       {menuOpen && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/30" onClick={() => setMenuOpen(false)} />
           <nav className="absolute right-0 top-0 h-full w-80 max-w-[85%] bg-white shadow-xl" aria-label="Menu principale">
             <div className="flex items-center justify-between border-b p-4">
               <span className="text-base font-bold text-[#6B271A]">Menu</span>
-              <button aria-label="Chiudi menu" onClick={() => setMenuOpen(false)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border">
+              <button
+                aria-label="Chiudi menu"
+                onClick={() => setMenuOpen(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <ul className="p-2">
-              <li><Link to="/auth" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><LogIn className="h-4 w-4" /> Accedi / Registrati</Link></li>
-              <li className="sm:hidden"><Link to={`/borghi/${slug}/info`} className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><Info className="h-4 w-4" /> Info</Link></li>
-              <li className="sm:hidden"><Link to={`/borghi/${slug}/sostieni`} className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><HandHeart className="h-4 w-4" /> Sostieni il borgo</Link></li>
-              <li><Link to="/creator" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><Users className="h-4 w-4" /> I nostri creator</Link></li>
-              <li><Link to="/contatti" className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50" onClick={() => setMenuOpen(false)}><MessageCircle className="h-4 w-4" /> Contattaci</Link></li>
+              <li>
+                <Link
+                  to="/auth"
+                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <LogIn className="h-4 w-4" /> Accedi / Registrati
+                </Link>
+              </li>
+
+              {/* Info & Sostieni — SOLO mobile */}
+              <li className="sm:hidden">
+                <Link
+                  to={infoHref}
+                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Info className="h-4 w-4" /> Info
+                </Link>
+              </li>
+              <li className="sm:hidden">
+                <Link
+                  to={donateHref}
+                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <HandHeart className="h-4 w-4" /> Sostieni il borgo
+                </Link>
+              </li>
+
+              <li>
+                <Link
+                  to="/creator"
+                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Users className="h-4 w-4" /> I nostri creator
+                </Link>
+              </li>
+
+              <li>
+                <Link
+                  to="/contatti"
+                  className="flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <MessageCircle className="h-4 w-4" /> Contattaci
+                </Link>
+              </li>
+
+              {/* Installa l’app: SOLO mobile e se non già installata */}
               {typeof window !== "undefined" && !isStandalone() && (
                 <li className="mt-1 sm:hidden">
-                  <button onClick={() => { setMenuOpen(false); window.__openInstallModal?.(); }} className="w-full flex items-center gap-2 rounded-lg px-3 py-3 bg-[#0b3a53] text-white font-medium hover:opacity-90">
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      window.__openInstallModal?.();
+                    }}
+                    className="w-full flex items-center gap-2 rounded-lg px-3 py-3 bg-[#0b3a53] text-white font-medium hover:opacity-90"
+                  >
                     <Smartphone className="h-4 w-4" /> Installa l’app
                   </button>
                 </li>
               )}
+
               <li className="mt-2 border-t pt-2">
-                <Link to="/registrazione-creator" className="flex items-center justify-center rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white" onClick={() => setMenuOpen(false)}>
+                <Link
+                  to="/registrazione-creator"
+                  className="flex items-center justify-center rounded-xl bg-[#D54E30] px-4 py-2 font-semibold text-white"
+                  onClick={() => setMenuOpen(false)}
+                >
                   Diventa Creator del Borgo
                 </Link>
               </li>
@@ -200,24 +293,43 @@ function HScrollWithArrows({ children, className = "" }) {
 
   return (
     <div className={`relative ${className}`}>
-      <button aria-label="Scorri a sinistra" onClick={() => scrollBy(-1)} className="absolute left-0 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5 hover:bg-neutral-50 md:flex">
+      <button
+        aria-label="Scorri a sinistra"
+        onClick={() => scrollBy(-1)}
+        className="absolute left-0 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5 hover:bg-neutral-50 md:flex"
+      >
         <ChevronLeft className="h-5 w-5" />
       </button>
-      <button aria-label="Scorri a destra" onClick={() => scrollBy(1)} className="absolute right-0 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5 hover:bg-neutral-50 md:flex">
+      <button
+        aria-label="Scorri a destra"
+        onClick={() => scrollBy(1)}
+        className="absolute right-0 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5 hover:bg-neutral-50 md:flex"
+      >
         <ChevronRight className="h-5 w-5" />
       </button>
-      <div ref={ref} role="list" className="scrollbar-none -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 md:snap-none" style={{ WebkitOverflowScrolling: "touch" }}>
+
+      <div
+        ref={ref}
+        role="list"
+        className="scrollbar-none -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 md:snap-none"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
         {children}
       </div>
     </div>
   );
 }
 
-/* ================= Hero overlay & gallery ================= */
+/* ================= Hero overlay ================= */
 function HeroOverlay({ mapsUrl }) {
   return (
     <div className="absolute left-4 right-4 top-16 z-20 flex items-start justify-between">
-      <a href={mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-sm font-semibold text-[#6B271A] shadow ring-1 ring-black/5 hover:bg-white">
+      <a
+        href={mapsUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-sm font-semibold text-[#6B271A] shadow ring-1 ring-black/5 hover:bg-white"
+      >
         <MapPinned className="h-4 w-4" />
         <span className="hidden md:inline">Apri mappa</span>
       </a>
@@ -225,21 +337,29 @@ function HeroOverlay({ mapsUrl }) {
   );
 }
 
+/* ================= Hero Gallery ================= */
 function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras = null, favType, favId, favData }) {
   const [i, setI] = useState(0);
   const n = gallery?.length || 0;
   const hasMany = n > 1;
   const current = n ? gallery[i] : { src: fallback, name: title };
+
+  // Preferiti del borgo
   const [isFav, onFavToggle] = useFavorite(favType, favId, favData);
 
+  // Swipe mobile
   const t = useRef({ x: 0, t: 0 });
-  const onTouchStart = (e) => { const a = e.touches?.[0]; if (!a) return; t.current = { x: a.clientX, t: Date.now() }; };
+  const onTouchStart = (e) => {
+    const a = e.touches?.[0]; if (!a) return;
+    t.current = { x: a.clientX, t: Date.now() };
+  };
   const onTouchEnd = (e) => {
     const dx = (e.changedTouches?.[0]?.clientX || 0) - t.current.x;
     const dt = Date.now() - t.current.t;
     if (Math.abs(dx) > 40 && dt < 500 && hasMany) setI((v) => (dx < 0 ? (v + 1) % n : (v - 1 + n) % n));
   };
 
+  // Precarica ±1
   useEffect(() => {
     if (!n) return;
     const next = new Image(); next.src = gallery[(i + 1) % n]?.src || "";
@@ -248,33 +368,68 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
 
   return (
     <section className="relative">
-      <div className="relative h-72 w-full overflow-hidden md:h-[560px] lg:h-[680px]" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      {/* Mobile invariato, desktop più alto */}
+      <div
+        className="relative h-72 w-full overflow-hidden md:h-[560px] lg:h-[680px]"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         <img src={current?.src || fallback} alt={current?.name || title} className="h-full w-full object-cover" loading="eager" decoding="async" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
+
+        {/* overlay */}
         {overlay}
+
+        {/* label foto & contatore */}
         {current?.name ? <div className="absolute left-3 top-3 z-10 rounded-md bg-black/55 px-2 py-1 text-xs text-white">{current.name}</div> : null}
         <div className="absolute right-3 top-3 z-10 rounded-md bg-black/55 px-2 py-1 text-xs text-white">{n ? `${i + 1} / ${n}` : "1 / 1"}</div>
+
+        {/* azioni mobile */}
         <div className="md:hidden absolute right-3 bottom-3 z-10 flex flex-col gap-2">
-          <button aria-label="Condividi" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#6B271A] shadow ring-1 ring-black/5"><Share2 className="h-5 w-5" /></button>
-          <button aria-label={isFav ? "Rimuovi dai preferiti" : "Salva nei preferiti"} onClick={onFavToggle} className={`inline-flex h-10 w-10 items-center justify-center rounded-full shadow ring-1 ring-black/5 ${isFav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}><Heart className="h-5 w-5" fill={isFav ? "currentColor" : "none"} /></button>
+          <button aria-label="Condividi" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#6B271A] shadow ring-1 ring-black/5">
+            <Share2 className="h-5 w-5" />
+          </button>
+          <button
+            aria-label={isFav ? "Rimuovi dai preferiti" : "Salva nei preferiti"}
+            onClick={onFavToggle}
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-full shadow ring-1 ring-black/5 ${isFav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
+          >
+            <Heart className="h-5 w-5" fill={isFav ? "currentColor" : "none"} />
+          </button>
         </div>
+
+        {/* frecce desktop */}
         {hasMany && (
           <>
-            <button aria-label="Foto precedente" onClick={() => setI((v) => (v - 1 + n) % n)} className="absolute left-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow hover:bg-white md:flex"><ChevronLeft className="h-5 w-5" /></button>
-            <button aria-label="Foto successiva" onClick={() => setI((v) => (v + 1) % n)} className="absolute right-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow hover:bg-white md:flex"><ChevronRight className="h-5 w-5" /></button>
+            <button aria-label="Foto precedente" onClick={() => setI((v) => (v - 1 + n) % n)} className="absolute left-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow hover:bg-white md:flex">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button aria-label="Foto successiva" onClick={() => setI((v) => (v + 1) % n)} className="absolute right-3 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow hover:bg-white md:flex">
+              <ChevronRight className="h-5 w-5" />
+            </button>
           </>
         )}
       </div>
 
+      {/* Titolo + extra */}
       <div className="absolute inset-x-0 bottom-4">
         <div className="mx-auto flex max-w-6xl items-end justify-between gap-2 px-4 sm:px-6">
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-extrabold text-white drop-shadow md:text-4xl">{title}</h1>
-            <div className="hidden md:flex items-center gap-2">{leftExtras}</div>
+            <div className="hidden md:flex items-center gap-2">
+              {/* extras vengono passati dal parent */}
+            </div>
           </div>
           <div className="hidden items-center gap-2 sm:flex">
-            <button className="inline-flex h-10 items-center gap-2 rounded-xl border bg-white/90 px-3 text-[#6B271A] hover:bg-white"><Share2 className="h-4 w-4" /> Condividi</button>
-            <button onClick={onFavToggle} className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 hover:bg-white ${isFav ? "bg-[#D54E30] text-white border-[#D54E30]" : "bg-white/90 text-[#6B271A]"}`}><Heart className="h-4 w-4" fill={isFav ? "currentColor" : "none"} /> {isFav ? "Salvato" : "Salva"}</button>
+            <button className="inline-flex h-10 items-center gap-2 rounded-xl border bg-white/90 px-3 text-[#6B271A] hover:bg-white">
+              <Share2 className="h-4 w-4" /> Condividi
+            </button>
+            <button
+              onClick={() => {}}
+              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 bg-white/90 text-[#6B271A] hover:bg-white`}
+            >
+              <Heart className="h-4 w-4" /> Salva
+            </button>
           </div>
         </div>
       </div>
@@ -282,15 +437,64 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
   );
 }
 
-/* ================= Descrizione, In breve, etc. ================= */
+/* ================= NAV (pallotte) ================= */
+const colors = {
+  cosafare:   { bg: "#2E7D32", color: "#ffffff" },
+  mangiare:   { bg: "#C81E3C", color: "#ffffff" },
+  eventi:     { bg: "#F4B000", color: "#ffffff" },
+  artigiani:  { bg: "#9A5B2D", color: "#ffffff" },
+  trasporti:  { bg: "#1649D7", color: "#ffffff" },
+  esperienze: { bg: "#4ada48ff", color:"#ffffff"},
+  dormire:    { bg: "#EC6A9E", color: "#ffffff" },
+  prodotti:   { bg: "#8C6A18", color: "#ffffff" },
+};
+
+function NavBall({ to, label, icon: Icon, bg, color }) {
+  return (
+    <Link to={to} aria-label={label} title={label} className="flex items-center gap-1.5 shrink-0">
+      <span
+        className="inline-flex h-10 w-10 items-center justify-center rounded-full shadow ring-1 ring-black/5"
+        style={{ background: bg, color }}
+      >
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="hidden sm:inline text-[13.5px] leading-none text-[#1A1818] whitespace-nowrap">
+        {label}
+      </span>
+    </Link>
+  );
+}
+function NavTileMobile({ to, label, icon: Icon, bg, color, gradient }) {
+  return (
+    <Link
+      to={to}
+      aria-label={label}
+      className="flex items-center gap-2 rounded-2xl border bg-white p-2 shadow-sm hover:shadow ring-1 ring-transparent hover:ring-[#6B271A]/20 active:scale-[0.99] transition"
+    >
+      <span
+        className="relative inline-flex h-11 w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5"
+        style={{ background: gradient ? undefined : bg, color }}
+      >
+        {gradient ? <span className="absolute inset-0 rounded-full" style={{ background: colors.esperienze.bg }} /> : null}
+        <Icon className="h-5 w-5 relative" aria-hidden="true" />
+      </span>
+      <span className="text-[15px] leading-tight font-extrabold text-[#5B2A1F]">
+        {label}
+      </span>
+    </Link>
+  );
+}
 const Divider = () => <span className="mx-1 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
 
+/* ================= Descrizione (solo testo) ================= */
 function DescriptionBlock({ text, slug }) {
   const KEY = `descr-expanded:${slug}`;
   const [expanded, setExpanded] = useState(() => {
     try { return sessionStorage.getItem(KEY) === "1"; } catch { return false; }
   });
-  useEffect(() => { try { sessionStorage.setItem(KEY, expanded ? "1" : "0"); } catch {} }, [expanded]);
+  useEffect(() => {
+    try { sessionStorage.setItem(KEY, expanded ? "1" : "0"); } catch {}
+  }, [expanded]);
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
@@ -305,6 +509,7 @@ function DescriptionBlock({ text, slug }) {
   );
 }
 
+/* ================= “In breve” ================= */
 function SmallGallery({ items = [] }) {
   const ref = useRef(null);
   const scrollBy = (dx) => ref.current && ref.current.scrollBy({ left: dx, behavior: "smooth" });
@@ -326,7 +531,6 @@ function SmallGallery({ items = [] }) {
     </div>
   );
 }
-
 function InBreve({ meta, borgo, slug }) {
   const regione = borgo?.regione || meta?.regione || meta?.region;
   const provincia = borgo?.provincia || meta?.provincia || meta?.province;
@@ -348,8 +552,8 @@ function InBreve({ meta, borgo, slug }) {
   );
 }
 
-/* ================== CARD “HM” ================== */
-function CreatorCardHM({ v, borgoName }) {
+/* ================== CARD “HM” con player interno ================== */
+function CreatorCardHM({ v, borgoName, onOpen }) {
   const th = v.thumbnail || getYouTubeThumb(v.youtubeUrl || v.url);
   const name =
     v.creatorName || v.author || v.owner || v.channel ||
@@ -359,21 +563,15 @@ function CreatorCardHM({ v, borgoName }) {
     id: v.id, title: v.title, thumbnail: th, url: v.youtubeUrl || v.url, borgoName
   });
 
-  const isFile = v.source === "file";
-  const targetHref = isFile ? "#" : (v.youtubeUrl || v.url || "#");
-
-  const handleOpen = async (e) => {
-    if (!isFile) return;
-    e.preventDefault();
-    try {
-      const playUrl = await getPlayableUrl(v);
-      if (playUrl) window.open(playUrl, "_blank", "noopener,noreferrer");
-    } catch {}
-  };
-
   return (
-    <article className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
-      <a href={targetHref} onClick={handleOpen} className="block">
+    <article
+      className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+      <button
+        type="button"
+        onClick={() => onOpen?.(v)}
+        className="block text-left w-full"
+        title={v.title}
+      >
         <div className="relative aspect-[16/9] w-full overflow-hidden rounded-t-3xl">
           {th ? (
             <img src={th} alt={v.title || name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
@@ -386,13 +584,13 @@ function CreatorCardHM({ v, borgoName }) {
             type="button"
             aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
             className={`absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
-            onClick={(e)=>{ e.preventDefault(); toggleFav(); }}
+            onClick={(e)=>{ e.stopPropagation(); toggleFav(e); }}
           >
             <Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} />
           </button>
         </div>
         <div className="p-4">
-          <div className="font-extrabold text-[#5B2A1F]">{name}</div>
+          <div className="font-extrabold text-[#5B2A1F] line-clamp-2">{v.title || name}</div>
           <div className="mt-1 flex items-center gap-1 text-sm text-neutral-600">
             <MapPin className="h-4 w-4 text-[#D54E30]" />
             {borgoName}
@@ -401,8 +599,43 @@ function CreatorCardHM({ v, borgoName }) {
             <User className="h-4 w-4" />
           </span>
         </div>
-      </a>
+      </button>
     </article>
+  );
+}
+
+function DiscoverBorgoCardHM({ b, distanceKm }) {
+  const [fav, toggleFav] = useFavorite("borgo", b.slug, { slug: b.slug, name: b.name, hero: b.hero });
+  return (
+    <Link
+      to={`/borghi/${b.slug}`}
+      className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-[28px] bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5"
+    >
+      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-t-[28px]">
+        <img src={b.hero} alt={b.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+        <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-[#5B2A1F] shadow ring-1 ring-black/5">
+          {b.name}
+        </span>
+        <button
+          aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+          onClick={(e)=>{e.preventDefault(); toggleFav(e);}}
+          className={`absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
+        >
+          <Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} />
+        </button>
+      </div>
+      <div className="p-4">
+        <h3 className="font-extrabold text-[#5B2A1F]">Scopri {b.name}</h3>
+        <div className="mt-1 text-sm text-neutral-600">
+          {b.subtitle || "Itinerari, eventi e sapori del territorio"}
+        </div>
+        <div className="mt-2 inline-flex items-center gap-2 text-sm text-neutral-700">
+          <Star className="h-4 w-4 text-[#E6B800]" />
+          <span>4,6 <span className="text-neutral-500">(128)</span></span>
+          {Number.isFinite(distanceKm) ? <span className="text-neutral-500">· {distanceKm} km</span> : null}
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -412,14 +645,36 @@ function HMEventPosterCard({ ev }) {
   return (
     <article className="snap-center shrink-0 w-[68%] xs:w-[54%] sm:w-[38%] md:w-[28%] lg:w-[22%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
       <div className="relative aspect-[2/3] w-full overflow-hidden">
-        <img src={ev.img} alt={ev.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-        {ev.tag && (<span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-extrabold text-[#5B2A1F] shadow ring-1 ring-black/5">{ev.tag}</span>)}
-        <button aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"} onClick={toggleFav} className={`absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}><Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} /></button>
+        <img
+          src={ev.img}
+          alt={ev.title}
+          className="h-full w-full object-cover"
+          loading="lazy"
+          decoding="async"
+        />
+        {ev.tag && (
+          <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-extrabold text-[#5B2A1F] shadow ring-1 ring-black/5">
+            {ev.tag}
+          </span>
+        )}
+        <button
+          aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+          onClick={toggleFav}
+          className={`absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
+        >
+          <Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} />
+        </button>
       </div>
+
       <div className="p-4">
         <h3 className="font-extrabold text-[#5B2A1F]">{ev.title}</h3>
         {ev.date && <div className="mt-2 text-sm text-neutral-700">{ev.date}</div>}
-        {ev.place && (<div className="mt-1 inline-flex items-center gap-1 text-sm text-neutral-700"><MapPin className="h-4 w-4 text-[#D54E30]" />{ev.place}</div>)}
+        {ev.place && (
+          <div className="mt-1 inline-flex items-center gap-1 text-sm text-neutral-700">
+            <MapPin className="h-4 w-4 text-[#D54E30]" />
+            {ev.place}
+          </div>
+        )}
         {ev.meta && <div className="mt-1 text-sm text-neutral-700">{ev.meta}</div>}
       </div>
     </article>
@@ -433,64 +688,48 @@ function HMProductCard({ p }) {
     <article className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
       <div className="relative aspect-[16/9] w-full overflow-hidden rounded-3xl rounded-b-none">
         <img src={p.img} alt={p.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-        {p.priceFrom != null && (<span className="absolute right-3 top-3 rounded-full bg-[#D54E30] px-3 py-1 text-xs font-extrabold text-white shadow ring-1 ring-[#E1B671]">da {fmtPrice(p.priceFrom).replace(/\s?EUR?/, "").trim()}</span>)}
-        <button aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"} onClick={toggleFav} className={`absolute left-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}><Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} /></button>
+        {p.priceFrom != null && (
+          <span className="absolute right-3 top-3 rounded-full bg-[#D54E30] px-3 py-1 text-xs font-extrabold text-white shadow ring-1 ring-[#E1B671]">
+            da {fmtPrice(p.priceFrom).replace(/\s?EUR?/, "").trim()}
+          </span>
+        )}
+        <button
+          aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
+          onClick={toggleFav}
+          className={`absolute left-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
+        >
+          <Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} />
+        </button>
       </div>
       <div className="p-4">
         <h3 className="font-extrabold text-[#5B2A1F]">{p.title}</h3>
-        <div className="mt-2 inline-flex items-center gap-1 text-sm text-neutral-700"><MapPin className="h-4 w-4 text-[#D54E30]" />{p.location}</div>
+        <div className="mt-2 inline-flex items-center gap-1 text-sm text-neutral-700">
+          <MapPin className="h-4 w-4 text-[#D54E30]" />
+          {p.location}
+        </div>
       </div>
     </article>
   );
 }
 
-/* ================= Nav balls / tiles & wrapper ================= */
-const colors = {
-  cosafare:   { bg: "#2E7D32", color: "#ffffff" },
-  mangiare:   { bg: "#C81E3C", color: "#ffffff" },
-  eventi:     { bg: "#F4B000", color: "#ffffff" },
-  artigiani:  { bg: "#9A5B2D", color: "#ffffff" },
-  trasporti:  { bg: "#1649D7", color: "#ffffff" },
-  esperienze: { bg: "#4ada48ff", color: "#ffffff"},
-  dormire:    { bg: "#EC6A9E", color: "#ffffff" },
-  prodotti:   { bg: "#8C6A18", color: "#ffffff" },
-};
-
-function NavBall({ to, label, icon: Icon, bg, color }) {
-  return (
-    <Link to={to} aria-label={label} title={label} className="flex items-center gap-1.5 shrink-0">
-      <span className="inline-flex h-10 w-10 items-center justify-center rounded-full shadow ring-1 ring-black/5" style={{ background: bg, color }}>
-        <Icon className="h-5 w-5" aria-hidden="true" />
-      </span>
-      <span className="hidden sm:inline text-[13.5px] leading-none text-[#1A1818] whitespace-nowrap">{label}</span>
-    </Link>
-  );
-}
-function NavTileMobile({ to, label, icon: Icon, bg, color, gradient }) {
-  return (
-    <Link to={to} aria-label={label} className="flex items-center gap-2 rounded-2xl border bg-white p-2 shadow-sm hover:shadow ring-1 ring-transparent hover:ring-[#6B271A]/20 active:scale-[0.99] transition">
-      <span className="relative inline-flex h-11 w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5" style={{ background: gradient ? undefined : bg, color }}>
-        {gradient ? <span className="absolute inset-0 rounded-full" style={{ background: colors.esperienze.bg }} /> : null}
-        <Icon className="h-5 w-5 relative" aria-hidden="true" />
-      </span>
-      <span className="text-[15px] leading-tight font-extrabold text-[#5B2A1F]">{label}</span>
-    </Link>
-  );
-}
-
+/* ================= Section wrapper ================= */
 function SectionHM({ title, linkTo, children }) {
   return (
     <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-xl font-extrabold text-[#5B2A1F]">{title}</h2>
-        {linkTo && <Link to={linkTo} className="text-sm font-semibold underline">Vedi tutti</Link>}
+        {linkTo && (
+          <Link to={linkTo} className="text-sm font-semibold underline">
+            Vedi tutti
+          </Link>
+        )}
       </div>
       <HScrollWithArrows>{children}</HScrollWithArrows>
     </section>
   );
 }
 
-/* ================= Newsletter CTA ================= */
+/* ================= Newsletter ================= */
 function NewsletterCTA({ slug }) {
   const [email, setEmail] = useState("");
   const [privacy, setPrivacy] = useState(false);
@@ -531,7 +770,7 @@ function NewsletterCTA({ slug }) {
             <h3 className="text-lg font-extrabold text-[#6B271A]">Rimani aggiornato sui borghi</h3>
             <p className="mt-0.5 text-sm text-neutral-600">Eventi, esperienze e novità de Il Borghista. Niente spam, promesso.</p>
             <form onSubmit={onSubmit} className="mt-3 grid gap-2 sm:flex sm:items-center">
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="La tua email" className="w-full rounded-xl border px-3 py-2 text-sm outline-none focus:border-[#6B271A] sm:max-w-md" required inputMode="email" autoComplete="email" />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="La tua email" aria-label="Email per iscriverti alla newsletter" className="w-full rounded-xl border px-3 py-2 text-sm outline-none focus:border-[#6B271A] sm:max-w-md" required inputMode="email" autoComplete="email" />
               <button type="submit" disabled={loading} className="inline-flex h-11 items-center justify-center rounded-xl bg-[#6B271A] px-4 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-60">
                 {loading ? "Iscrizione..." : "Iscrivimi"}
               </button>
@@ -585,44 +824,79 @@ export default function HomeBorgo() {
   const place = (meta?.name || borgo?.name || slug) + " " + ((borgo?.provincia || meta?.provincia || "") + " " + (borgo?.regione || meta?.regione || "")).trim();
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
 
-  // ✅ solo i video pubblicati del borgo, dalla nuova libreria
-  const videos = useMemo(() => getVideosByBorgo(slug), [slug, syncTick]);
+  /* ====== VIDEO: presi dalla libreria creatorVideos (pubblicati per slug) ====== */
+  const videos = useMemo(() => getVideosByBorgoLocal(slug), [slug, syncTick]);
 
   const allPoi = useMemo(() => listPoiByBorgo(slug), [slug, syncTick]);
-  const thingsToDo = useMemo(() => allPoi.filter((p) =>
-    !isFoodDrink(p) && !isSleep(p) && !isArtigiano(p)
-  ), [allPoi]);
+  const eatDrink = useMemo(() => allPoi.filter(isFoodDrink), [allPoi]);
+  const sleep = useMemo(() => allPoi.filter(isSleep), [allPoi]);
+  const artigiani = useMemo(() => allPoi.filter(isArtigiano), [allPoi]);
+  const thingsToDo = useMemo(() => allPoi.filter((p) => !isFoodDrink(p) && !isSleep(p) && !isArtigiano(p)), [allPoi]);
 
   const eventi = [
     { title: "La festa della Madonna Nera", img: "https://images.unsplash.com/photo-1553877522-43269d4ea984?q=80&w=1500&auto=format&fit=crop", tag: "SAGRA", date: "9–10 agosto 2025", place: "Viggiano (PZ) · Santuario", meta: "Ore 21:00 · Navette gratuite" },
     { title: "Sapori in Piazza", img: "https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?q=80&w=1500&auto=format&fit=crop", tag: "SAGRA", date: "15 agosto 2025", place: "Viggiano (PZ) · Centro storico", meta: "Ingresso libero" },
     { title: "Concerto d’estate", img: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1500&auto=format&fit=crop", tag: "", date: "22 agosto 2025", place: "Viggiano (PZ) · Arena", meta: "Ore 21:30" },
   ];
+  const prodottiTipici = [
+    { title: "Formaggio di malga", img: "https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=1500&auto=format&fit=crop", priceFrom: 7, location: "Asiago (VI) | Veneto" },
+    { title: "Salumi tipici",      img: "https://images.unsplash.com/photo-1505575972945-280b8f1e5d16?q=80&w=1500&auto=format&fit=crop", priceFrom: 9, location: "Norcia (PG) | Umbria" },
+    { title: "Olio EVO del Garda", img: "https://images.unsplash.com/photo-1514515411904-65fa19574d07?q=80&w=1500&auto=format&fit=crop", priceFrom: 6, location: "Garda (VR) | Veneto" },
+    { title: "Vino Montepulciano", img: "https://images.unsplash.com/photo-1524594081293-190a2fe0baae?q=80&w=1500&auto=format&fit=crop", priceFrom: 8, location: "Montepulciano (SI) | Toscana" },
+  ];
 
-  // Borghi vicini
+  // Borghi vicini con distanza (se disponibili le coordinate)
   const here = { lat: borgo?.lat ?? meta?.lat, lng: borgo?.lng ?? meta?.lng };
   const nearbyRaw = (BORGI_INDEX || []).filter((b) => b.slug !== slug);
   const nearby = nearbyRaw
-    .map((b) => ({ ...b, _km: (here.lat && here.lng && b.lat && b.lng) ? Math.round((() => {
-      const R = 6371, toRad = (x) => (x * Math.PI) / 180;
-      const dLat = toRad(b.lat - here.lat), dLon = toRad(b.lng - here.lng);
-      const lat1 = toRad(here.lat), lat2 = toRad(b.lat);
-      const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
-      return 2*R*Math.asin(Math.sqrt(s));
-    })()) : null }))
-    .sort((a, b) => (a._km ?? Infinity) - (b._km ?? Infinity))
+    .map((b) => ({ ...b, _km: kmBetween(here, { lat: b.lat, lng: b.lng }) }))
+    .sort((a, b) => {
+      if (a._km == null && b._km == null) return 0;
+      if (a._km == null) return 1;
+      if (b._km == null) return -1;
+      return a._km - b._km;
+    })
     .slice(0, 4);
 
   const navBase = [
-    { key: "cosafare",   label: "Cosa fare",              to: `/borghi/${slug}/cosa-fare`,       icon: ListIcon,   bg: "#2E7D32", color: "#fff" },
-    { key: "mangiare",   label: "Mangiare e Bere",        to: `/borghi/${slug}/mangiare-bere`,   icon: Utensils,   bg: "#C81E3C", color: "#fff" },
-    { key: "eventi",     label: "Eventi e Sagre",         to: `/borghi/${slug}/eventi`,          icon: CalendarDays, bg: "#F4B000", color: "#fff" },
-    { key: "artigiani",  label: "Artigiani",              to: `/borghi/${slug}/artigiani`,       icon: Hammer,     bg: "#9A5B2D", color: "#fff" },
-    { key: "trasporti",  label: "Trasporti",              to: `/borghi/${slug}/trasporti`,       icon: Bus,        bg: "#1649D7", color: "#fff" },
-    { key: "esperienze", label: "Esperienze e Itinerari", to: `/borghi/${slug}/esperienze`,      icon: Route,      bg: "#4ada48ff", color: "#fff" },
-    { key: "dormire",    label: "Dormire",                to: `/borghi/${slug}/dormire`,         icon: BedDouble,  bg: "#EC6A9E", color: "#fff" },
-    { key: "prodotti",   label: "Prodotti tipici",        to: `/borghi/${slug}/prodotti-tipici`, icon: ShoppingBag, bg: "#8C6A18", color: "#fff" },
+    { key: "cosafare",   label: "Cosa fare",              to: `/borghi/${slug}/cosa-fare`,       icon: ListIcon,   ...colors.cosafare },
+    { key: "mangiare",   label: "Mangiare e Bere",        to: `/borghi/${slug}/mangiare-bere`,   icon: Utensils,   ...colors.mangiare },
+    { key: "eventi",     label: "Eventi e Sagre",         to: `/borghi/${slug}/eventi`,          icon: CalendarDays, ...colors.eventi },
+    { key: "artigiani",  label: "Artigiani",              to: `/borghi/${slug}/artigiani`,       icon: Hammer,     ...colors.artigiani },
+    { key: "trasporti",  label: "Trasporti",              to: `/borghi/${slug}/trasporti`,       icon: Bus,        ...colors.trasporti },
+    { key: "esperienze", label: "Esperienze e Itinerari", to: `/borghi/${slug}/esperienze`,      icon: Route,      ...colors.esperienze },
+    { key: "dormire",    label: "Dormire",                to: `/borghi/${slug}/dormire`,         icon: BedDouble,  ...colors.dormire },
+    { key: "prodotti",   label: "Prodotti tipici",        to: `/borghi/${slug}/prodotti-tipici`, icon: ShoppingBag, ...colors.prodotti },
   ];
+
+  const infoHref = `/borghi/${slug}/info`;
+  const donateHref = `/borghi/${slug}/sostieni`;
+
+  /* ====== Player interno (modal) per video link/file senza redirect ====== */
+  const [openVid, setOpenVid] = useState(null);
+  const [playUrl, setPlayUrl] = useState("");
+
+  async function openVideo(v) {
+    setOpenVid(v);
+    try {
+      if (v?.source === "file") {
+        const url = await getPlayableUrl(v);
+        setPlayUrl(url || "");
+      } else {
+        setPlayUrl(v?.url || "");
+      }
+    } catch {
+      setPlayUrl(v?.url || "");
+    }
+  }
+  function closeVideo() {
+    setOpenVid(null);
+    setPlayUrl("");
+  }
+
+  const isInstagram = (u="") => /instagram\.com/i.test(u);
+  const isTikTok = (u="") => /tiktok\.com/i.test(u);
+  const isYouTube = (u="") => /(?:youtu\.be|youtube\.com)/i.test(u);
 
   return (
     <>
@@ -633,11 +907,17 @@ export default function HomeBorgo() {
           title={title}
           gallery={gallery}
           fallback={gallery?.[0]?.src}
-          overlay={<HeroOverlay mapsUrl={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((meta?.name || borgo?.name || slug) + " " + ((borgo?.provincia || meta?.provincia || "") + " " + (borgo?.regione || meta?.regione || "")).trim())}`} />}
+          overlay={<HeroOverlay mapsUrl={mapsUrl} />}
           leftExtras={
             <>
-              <Link to={`/borghi/${slug}/info`} className="inline-flex h-10 items-center gap-1.5 rounded-full border bg-white/90 px-3 text-[#6B271A] hover:bg-white"><Info className="h-4 w-4" /><span className="font-semibold">Info</span></Link>
-              <Link to={`/borghi/${slug}/sostieni`} className="inline-flex h-10 items-center gap-1.5 rounded-full bg-[#06B6D4] px-3 text-white hover:opacity-95"><HandHeart className="h-4 w-4" /><span className="font-semibold">Sostieni il borgo</span></Link>
+              <Link to={infoHref} aria-label={`Informazioni su ${title}`} className="inline-flex h-10 items-center gap-1.5 rounded-full border bg-white/90 px-3 text-[#6B271A] hover:bg-white">
+                <Info className="h-4 w-4" />
+                <span className="font-semibold">Info</span>
+              </Link>
+              <Link to={donateHref} aria-label={`Sostieni ${title}`} className="inline-flex h-10 items-center gap-1.5 rounded-full bg-[#06B6D4] px-3 text-white hover:opacity-95">
+                <HandHeart className="h-4 w-4" />
+                <span className="font-semibold">Sostieni il borgo</span>
+              </Link>
             </>
           }
           favType="borgo"
@@ -649,13 +929,13 @@ export default function HomeBorgo() {
         <section className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
           <div className="grid grid-cols-2 gap-2 sm:hidden">
             {navBase.map((n) => (
-              <NavTileMobile key={n.key} to={n.to} label={n.label} icon={n.icon} bg={n.bg} color={n.color} />
+              <NavTileMobile key={n.key} to={n.to} label={n.label} icon={n.icon} bg={n.bg} color={n.color} gradient={n.gradient} />
             ))}
           </div>
           <div className="hidden items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex" style={{ WebkitOverflowScrolling: "touch" }}>
             {navBase.map((n, i) => (
               <React.Fragment key={n.key}>
-                <NavBall to={n.to} label={n.label} icon={n.icon} bg={n.bg} color={n.color} />
+                <NavBall to={n.to} label={n.label} icon={n.icon} bg={n.gradient ? undefined : n.bg} color={n.color} />
                 {i < navBase.length - 1 ? <Divider /> : null}
               </React.Fragment>
             ))}
@@ -665,11 +945,17 @@ export default function HomeBorgo() {
         {/* DESCRIZIONE */}
         <DescriptionBlock text={descr} slug={slug} />
 
+        {/* ====== ORDINE RICHIESTO ====== */}
         {/* 1) Video dei creator */}
         {videos?.length ? (
           <SectionHM title="Video dei creator" linkTo={`/borghi/${slug}/video`}>
             {videos.map((v) => (
-              <CreatorCardHM key={v.id} v={v} borgoName={meta?.name || borgo?.name || slug} />
+              <CreatorCardHM
+                key={v.id}
+                v={v}
+                borgoName={meta?.name || borgo?.name || slug}
+                onOpen={openVideo}
+              />
             ))}
           </SectionHM>
         ) : null}
@@ -680,8 +966,17 @@ export default function HomeBorgo() {
             {thingsToDo.slice(0, 8).map((p) => (
               <li key={p.id} className="list-none">
                 <CreatorCardHM
-                  v={{ id: p.id, title: p.name, url: `/borghi/${slug}/poi/${p.id}`, thumbnail: p.cover || "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop", creatorName: p.name }}
+                  v={{
+                    id: p.id,
+                    title: p.name,
+                    url: `/borghi/${slug}/poi/${p.id}`,
+                    thumbnail:
+                      p.cover ||
+                      "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop",
+                    creatorName: p.name,
+                  }}
                   borgoName={meta?.name || borgo?.name || slug}
+                  onOpen={()=>{}}
                 />
               </li>
             ))}
@@ -689,35 +984,96 @@ export default function HomeBorgo() {
         ) : null}
 
         {/* 3) Prossimi eventi */}
-        <SectionHM title="Prossimi eventi" linkTo={`/borghi/${slug}/eventi`}>
-          {[
-            { title: "La festa della Madonna Nera", img: "https://images.unsplash.com/photo-1553877522-43269d4ea984?q=80&w=1500&auto=format&fit=crop", tag: "SAGRA", date: "9–10 agosto 2025", place: "Viggiano (PZ) · Santuario", meta: "Ore 21:00 · Navette gratuite" },
-            { title: "Sapori in Piazza", img: "https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?q=80&w=1500&auto=format&fit=crop", tag: "SAGRA", date: "15 agosto 2025", place: "Viggiano (PZ) · Centro storico", meta: "Ingresso libero" },
-            { title: "Concerto d’estate", img: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1500&auto=format&fit=crop", tag: "", date: "22 agosto 2025", place: "Viggiano (PZ) · Arena", meta: "Ore 21:30" },
-          ].map((ev, i) => <HMEventPosterCard key={i} ev={ev} />)}
-        </SectionHM>
-
-        {/* 4) In breve */}
-        <InBreve meta={meta} borgo={borgo} slug={slug} />
-
-        {/* 5) Borghi vicini */}
-        {nearby?.length ? (
-          <SectionHM title="Borghi vicini" linkTo={`/cerca?tipo=borghi`}>
-            {nearby.map((b) => (
-              <Link key={b.slug} to={`/borghi/${b.slug}`} className="contents">
-                <div className="contents">
-                  {/* riuso card compatta sopra */}
-                </div>
-              </Link>
+        {eventi?.length ? (
+          <SectionHM title="Prossimi eventi" linkTo={`/borghi/${slug}/eventi`}>
+            {eventi.map((ev, i) => (
+              <HMEventPosterCard key={i} ev={ev} />
             ))}
           </SectionHM>
         ) : null}
 
-        {/* 6) Prodotti tipici (placeholder dimostrativo) */}
-        {/* Puoi riattivare la sezione prodotti se già pronta */}
+        {/* 4) Prodotti tipici */}
+        {prodottiTipici?.length ? (
+          <SectionHM title="Prodotti tipici" linkTo={`/borghi/${slug}/prodotti-tipici`}>
+            {prodottiTipici.map((p, i) => (
+              <HMProductCard key={i} p={p} />
+            ))}
+          </SectionHM>
+        ) : null}
 
+        {/* 5) In breve */}
+        <InBreve meta={meta} borgo={borgo} slug={slug} />
+
+        {/* 6) Borghi vicini */}
+        {nearby?.length ? (
+          <SectionHM title="Borghi vicini" linkTo={`/cerca?tipo=borghi`}>
+            {nearby.map((b) => (
+              <DiscoverBorgoCardHM key={b.slug} b={b} distanceKm={b._km ?? undefined} />
+            ))}
+          </SectionHM>
+        ) : null}
+
+        {/* Newsletter */}
         <NewsletterCTA slug={slug} />
       </main>
+
+      {/* ===== MODALE PLAYER ===== */}
+      {openVid && (
+        <div className="fixed inset-0 z-[60]">
+          <div className="absolute inset-0 bg-black/60" onClick={closeVideo} />
+          <div className="absolute left-1/2 top-1/2 w-[96%] max-w-3xl -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-3 shadow-xl">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="pr-6">
+                <div className="text-sm text-neutral-600">{meta?.name || borgo?.name || slug}</div>
+                <h3 className="text-lg font-bold text-[#5B2A1F] line-clamp-2">{openVid.title}</h3>
+              </div>
+              <button className="inline-flex h-9 w-9 items-center justify-center rounded-full border" onClick={closeVideo} aria-label="Chiudi">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="relative aspect-video w-full overflow-hidden rounded-xl border bg-black/5" style={{borderColor:"#E1B671"}}>
+              {/* link esterni: resto in piattaforma */}
+              {openVid.source === "link" && isYouTube(playUrl) && (
+                <iframe
+                  src={`https://www.youtube.com/embed/${getYouTubeId(playUrl)}?rel=0`}
+                  title={openVid.title || "Video"}
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full"
+                  frameBorder="0"
+                  allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+              )}
+              {openVid.source === "link" && (isInstagram(playUrl) || isTikTok(playUrl)) && (
+                // uso EmbedCard se già in pagina; qui semplifico: iframe non ufficiale è sconsigliato,
+                // quindi per coerenza potresti importare EmbedCard e usarlo. Manteniamo semplice:
+                <div className="absolute inset-0 overflow-auto p-2">
+                  {/* Per incorporare correttamente IG/TikTok, preferisci una pagina dedicata o un componente EmbedCard. */}
+                  <p className="text-sm text-center text-neutral-700">
+                    Questo contenuto viene incorporato con il player ufficiale nella pagina dei Creator.
+                  </p>
+                  <div className="mt-2">
+                    {/* se vuoi, rimpiazza questo paragrafo con <EmbedCard url={playUrl} aspect="16/9" /> */}
+                    <EmbedCard url={playUrl} title={openVid.title} aspect="16/9" />
+                  </div>
+                </div>
+              )}
+
+              {/* file locali */}
+              {openVid.source === "file" && (
+                <video
+                  src={playUrl}
+                  controls
+                  playsInline
+                  className="absolute inset-0 h-full w-full rounded-xl"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

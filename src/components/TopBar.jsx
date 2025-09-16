@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Search, Menu, X, LogIn, Users, MessageCircle, Smartphone,
-  Info, HandHeart,
+  Info, HandHeart, BarChart2, FolderOpen
 } from "lucide-react";
 
 const isStandalone = () =>
@@ -14,7 +14,7 @@ const isStandalone = () =>
 /**
  * TopBar riutilizzabile:
  * - slug (opz) per aggiungere voci “Info” e “Sostieni il borgo”
- * - user (opz) per cambiare le voci del menu (loggato / ospite)
+ * - user (opz) per cambiare alcune voci del menu (loggato / ospite)
  */
 export default function TopBar({ slug, user }) {
   const navigate = useNavigate();
@@ -33,6 +33,17 @@ export default function TopBar({ slug, user }) {
     setSearchOpen(false);
     navigate(to);
   };
+
+  // helper per gestire le voci che richiedono autenticazione
+  function goProtected(to) {
+    setMenuOpen(false);
+    if (!user) {
+      const next = encodeURIComponent(to);
+      navigate(`/auth?next=${next}`);
+      return;
+    }
+    navigate(to);
+  }
 
   return (
     <>
@@ -146,7 +157,25 @@ export default function TopBar({ slug, user }) {
                 </>
               )}
 
-              {/* Info & Sostieni (se slug è presente, quindi pagina borgo) */}
+              {/* Nuove voci DRY: compaiono per tutti, ma protette se non loggato */}
+              <li>
+                <button
+                  onClick={() => goProtected("/creator/miei-contenuti")}
+                  className="w-full text-left flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                >
+                  <FolderOpen className="h-4 w-4" /> I miei contenuti
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => goProtected("/creator/statistiche")}
+                  className="w-full text-left flex items-center gap-2 rounded-lg px-3 py-3 hover:bg-neutral-50"
+                >
+                  <BarChart2 className="h-4 w-4" /> Statistiche
+                </button>
+              </li>
+
+              {/* Info & Sostieni (se slug presente) */}
               {slug && (
                 <>
                   <li className="sm:hidden">

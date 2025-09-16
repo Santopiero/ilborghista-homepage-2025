@@ -378,7 +378,6 @@ export default function HomepageMockup() {
   const [searchOpen, setSearchOpen] = useState(false); // ONLY mobile
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
-  thead: null;
   const debounceTimer = useRef(null);
 
   useEffect(() => {
@@ -635,7 +634,7 @@ export default function HomepageMockup() {
             className="w-full h-full object-cover"
             onError={onImgErr}
           />
-          <div className="absolute top-2 left-2 max-w-[82%] px-2.5 py-1 rounded-lg bg-white text-[#6B271A] text-sm font-semibold shadow">
+        <div className="absolute top-2 left-2 max-w-[82%] px-2.5 py-1 rounded-lg bg-white text-[#6B271A] text-sm font-semibold shadow">
             <span className="block truncate">{name}</span>
           </div>
           <FavoriteButton id={`borgo:${b.slug}`} className="absolute top-2 right-2" />
@@ -647,7 +646,7 @@ export default function HomepageMockup() {
               to={`/borghi/${b.slug}/eventi`}
               className="flex items-center gap-2 text-sm text-gray-700 hover:underline"
             >
-              <Clock size={16} className="text-[#6B271A]" aria-hidden="true" />
+              <Clock size={16} className="text-[#6B271A]}" aria-hidden="true" />
               <span>{currentEvent} – in corso</span>
             </Link>
           )}
@@ -962,7 +961,7 @@ export default function HomepageMockup() {
           <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Menu">
             <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
             <aside
-              className="absolute right-0 top-0 h-full w-[min(85vw,22rem)] bg-white shadow-2xl ring-1 ring-black/10 flex flex-col"
+              className="absolute right-0 top-0 h.full w-[min(85vw,22rem)] bg-white shadow-2xl ring-1 ring-black/10 flex flex-col"
             >
               <div className="flex items-center justify-between border-b p-4">
                 <span className="text-base font-bold text-[#6B271A]">Menu</span>
@@ -1105,18 +1104,18 @@ export default function HomepageMockup() {
               {REGIONS.map((r) => {
                 const active = activeRegion === r.slug;
                 return (
-                  <button
+                  <Link
                     key={r.slug}
-                    onClick={() => toggleRegion(r.slug)}
-                    aria-pressed={active}
+                    to={`/regioni/${r.slug}`}
                     className={`snap-start inline-flex items-center px-3 py-1.5 rounded-full text-sm border whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A] ${
                       active
                         ? "bg-[#6B271A] text-white border-[#6B271A]"
                         : "bg-white text-[#6B271A] border-[#E1B671]"
                     }`}
+                    aria-label={`Apri ${r.label}`}
                   >
                     {r.label}
-                  </button>
+                  </Link>
                 );
               })}
             </div>
@@ -1131,10 +1130,9 @@ export default function HomepageMockup() {
             {REGIONS.map((r) => {
               const active = activeRegion === r.slug;
               return (
-                <button
+                <Link
                   key={r.slug}
-                  onClick={() => toggleRegion(r.slug)}
-                  aria-pressed={active}
+                  to={`/regioni/${r.slug}`}
                   className={`inline-flex items-center px-3 py-2 rounded-full text-sm border whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6B271A] ${
                     active
                       ? "bg-[#6B271A] text-white border-[#6B271A]"
@@ -1143,7 +1141,7 @@ export default function HomepageMockup() {
                   title={r.label}
                 >
                   {r.label}
-                </button>
+                </Link>
               );
             })}
           </div>
@@ -1382,7 +1380,7 @@ export default function HomepageMockup() {
         </section>
 
         {/* ESPERIENZE */}
-        <section className="max-w-6xl mx-auto px-4 sm:px-6">
+        <section className="max-w-6xl mx.auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Esperienze</h2>
             <Link to="/esperienze" className="text-sm font-semibold underline">

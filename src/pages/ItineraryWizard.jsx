@@ -2,9 +2,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  Search,
-  Menu,
-  X,
   Calendar,
   MapPin,
   AlertTriangle,
@@ -14,7 +11,10 @@ import {
   ChevronDown,
   Trash2,
   PlusCircle,
+  X,
 } from "lucide-react";
+
+import TopBar from "../components/TopBar";
 import {
   createDraft,
   getItinerary,
@@ -344,76 +344,59 @@ export default function ItineraryWizard() {
   /* ====== RENDER ====== */
   return (
     <div className="min-h-dvh bg-white">
-      {/* Top bar — costante */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b">
-        <div className="mx-auto flex h-14 max-w-3xl items-center gap-2 px-4">
-          <Link to="/" className="shrink-0 font-extrabold tracking-tight text-[#6B271A]">
-            Il Borghista
-          </Link>
-          <form className="relative mx-2 flex-1">
-            <input
-              type="search"
-              placeholder="Cerca esperienze…"
-              className="w-full rounded-full border px-4 py-2 pl-9 text-sm outline-none focus:border-[#6B271A]"
-            />
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
-          </form>
-          <button type="button" aria-label="Menu" className="inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white">
-            <Menu className="h-5 w-5" />
+      {/* TopBar standard (DRY) */}
+      <TopBar variant="generic" />
+
+      {/* Tabs scrollabili + azioni (sticky sotto la TopBar) */}
+      <div className="sticky top-14 z-30 bg-white border-b">
+        <div
+          className="mx-auto max-w-3xl px-4 py-2 flex items-center gap-2 overflow-x-auto"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
+          {[1, 2, 3, 4].map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setStep(n)}
+              className="px-3 py-1.5 rounded-xl text-sm border shrink-0"
+              style={{
+                borderColor: step === n ? C.primary : C.gold,
+                backgroundColor: step === n ? C.primary : "#FFFFFF",
+                color: step === n ? "#FFFFFF" : C.primaryDark,
+              }}
+            >
+              {["Dettagli", "Tappe", "Consigli", "Anteprima"][n - 1]}
+            </button>
+          ))}
+        </div>
+
+        {/* Stato + Pubblica */}
+        <div className="mx-auto max-w-3xl px-4 pb-3 flex items-center justify-between">
+          <span className="text-sm" style={{ color: C.primaryDark }}>
+            Bozza salvata automaticamente
+          </span>
+          <button
+            type="button"
+            onClick={handlePublish}
+            className="px-3 py-1.5 rounded-xl"
+            style={{ backgroundColor: C.primary, color: "#fff" }}
+          >
+            Pubblica
           </button>
         </div>
 
-        {/* Tabs scrollabili */}
-        <div className="border-t bg-white">
-          <div
-            className="mx-auto max-w-3xl px-4 py-2 flex items-center gap-2 overflow-x-auto"
-            style={{ WebkitOverflowScrolling: "touch" }}
-          >
-            {[1, 2, 3, 4].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setStep(n)}
-                className="px-3 py-1.5 rounded-xl text-sm border shrink-0"
-                style={{
-                  borderColor: step === n ? C.primary : C.gold,
-                  backgroundColor: step === n ? C.primary : "#FFFFFF",
-                  color: step === n ? "#FFFFFF" : C.primaryDark,
-                }}
-              >
-                {["Dettagli", "Tappe", "Consigli", "Anteprima"][n - 1]}
-              </button>
-            ))}
-          </div>
-
-          {/* Stato + Pubblica */}
-          <div className="mx-auto max-w-3xl px-4 pb-3 flex items-center justify-between">
-            <span className="text-sm" style={{ color: C.primaryDark }}>
-              Bozza salvata automaticamente
-            </span>
-            <button
-              type="button"
-              onClick={handlePublish}
-              className="px-3 py-1.5 rounded-xl"
-              style={{ backgroundColor: C.primary, color: "#fff" }}
+        {quotaWarn && (
+          <div className="mx-auto max-w-3xl px-4 pb-3">
+            <div
+              className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm"
+              style={{ borderColor: C.gold, background: "#FFF5F2", color: C.primaryDark }}
             >
-              Pubblica
-            </button>
-          </div>
-
-          {quotaWarn && (
-            <div className="mx-auto max-w-3xl px-4 pb-3">
-              <div
-                className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm"
-                style={{ borderColor: C.gold, background: "#FFF5F2", color: C.primaryDark }}
-              >
-                <AlertTriangle className="w-4 h-4" />
-                Spazio quasi pieno. Le foto sono su IndexedDB; se persiste, rimuovi qualche immagine.
-              </div>
+              <AlertTriangle className="w-4 h-4" />
+              Spazio quasi pieno. Le foto sono su IndexedDB; se persiste, rimuovi qualche immagine.
             </div>
-          )}
-        </div>
-      </header>
+          </div>
+        )}
+      </div>
 
       <main className="mx-auto max-w-3xl px-4 py-6">
         {/* STEP 1 - Dettagli */}

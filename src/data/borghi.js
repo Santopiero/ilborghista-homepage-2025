@@ -19,9 +19,9 @@ export const BORGI_BY_SLUG = {
 
     // HERO → galleria con nome foto + swipe/frecce/contatore
     gallery: [
-      { src: "https://picsum.photos/id/1018/1600/900", name: "Veduta dal Belvedere" },
-      { src: "https://picsum.photos/id/1025/1600/900", name: "Santuario" },
-      { src: "https://picsum.photos/id/1036/1600/900", name: "Centro storico" },
+      { src: "https://www.ilborghista.it/immaginiutente/borgo_fotogallery/31.jpg", name: "Veduta dal Belvedere" },
+      { src: "https://www.ilborghista.it/immaginiutente/borgo_fotogallery/4211.jpg", name: "Santuario" },
+      { src: "https://www.ilborghista.it/immaginiutente/borgo_fotogallery/2509.jpg", name: "Centro storico" },
     ],
 
     // Sezione “In breve” gestibile da backend

@@ -1,3 +1,4 @@
+// src/pages/HomeBorgo.jsx
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
@@ -13,15 +14,15 @@ import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
 /* ====== Video creator ====== */
 import {
   getVideosByBorgo as getVideosByBorgoLocal,
-  getVideosByPoi as getVideosByPoiLocal, // eventualmente usabile in altre sezioni
+  // getVideosByPoi as getVideosByPoiLocal, // se servirà in altre sezioni
   getPlayableUrl,
 } from "../lib/creatorVideos";
 
-/* ====== Safe embed ====== */
+/* ====== Safe embed (YouTube/TikTok/IG/FB/Vimeo con policy sicure) ====== */
 import SafeEmbed from "../components/SafeEmbed.jsx";
 
 import {
-  ChevronLeft, ChevronRight, Share2, Heart, Film, CalendarDays, Route, ShoppingBag,
+  ChevronLeft, ChevronRight, Share2, Heart, CalendarDays, Route, ShoppingBag,
   List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Search, Menu, X,
   LogIn, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned,
   MapPin, Star, Bus, Info, HandHeart, User, Smartphone
@@ -79,6 +80,20 @@ function kmBetween(a, b) {
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
   const d = 2 * R * Math.asin(Math.sqrt(s));
   return Math.round(d);
+}
+
+/* ====== Helpers per ordinamento video ====== */
+function tsOf(v = {}) {
+  // prova vari campi; fallback a 0
+  const candidates = [v.publishedAt, v.createdAt, v.updatedAt, v.ts, v.date];
+  for (const c of candidates) {
+    const t = +new Date(c || 0);
+    if (!Number.isNaN(t) && t > 0) return t;
+  }
+  return 0;
+}
+function orderVideosLatest(list = []) {
+  return [...list].sort((a, b) => tsOf(b) - tsOf(a));
 }
 
 /* ================= Small Favorite Hook ================= */
@@ -373,7 +388,7 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
     <section className="relative">
       {/* Mobile invariato, desktop più alto */}
       <div
-        className="relative h-72 w-full overflow-hidden md:h[560px] lg:h-[680px] md:h-[560px]"
+        className="relative h-72 w-full overflow-hidden md:h-[560px] lg:h-[680px]"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
@@ -829,6 +844,7 @@ export default function HomeBorgo() {
 
   /* ====== VIDEO: presi dalla libreria creatorVideos (pubblicati per slug) ====== */
   const videos = useMemo(() => getVideosByBorgoLocal(slug), [slug, syncTick]);
+  const videosLatest = useMemo(() => orderVideosLatest(videos).slice(0, 4), [videos]);
 
   const allPoi = useMemo(() => listPoiByBorgo(slug), [slug, syncTick]);
   const eatDrink = useMemo(() => allPoi.filter(isFoodDrink), [allPoi]);
@@ -944,11 +960,12 @@ export default function HomeBorgo() {
         {/* DESCRIZIONE */}
         <DescriptionBlock text={descr} slug={slug} />
 
-        {/* ====== ORDINE RICHIESTO ====== */}
-        {/* 1) Video dei creator */}
-        {videos?.length ? (
+        {/* ====== SEZIONI ====== */}
+
+        {/* 1) Video dei creator — ultimi 4 ordinati per data */}
+        {videosLatest?.length ? (
           <SectionHM title="Video dei creator" linkTo={`/borghi/${slug}/video`}>
-            {videos.map((v) => (
+            {videosLatest.map((v) => (
               <CreatorCardHM
                 key={v.id}
                 v={v}
@@ -1026,12 +1043,19 @@ export default function HomeBorgo() {
                 <div className="text-sm text-neutral-600">{meta?.name || borgo?.name || slug}</div>
                 <h3 className="text-lg font-bold text-[#5B2A1F] line-clamp-2">{openVid.title}</h3>
               </div>
-              <button className="inline-flex h-9 w-9 items-center justify-center rounded-full border" onClick={closeVideo} aria-label="Chiudi">
+              <button
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border"
+                onClick={closeVideo}
+                aria-label="Chiudi"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="relative aspect-video w-full overflow-hidden rounded-xl border bg-black/5" style={{borderColor:"#E1B671"}}>
+            <div
+              className="relative aspect-video w-full overflow-hidden rounded-xl border bg-black/5"
+              style={{ borderColor: "#E1B671" }}
+            >
               {/* File locali: player nativo */}
               {openVid.source === "file" ? (
                 <video
@@ -1041,7 +1065,7 @@ export default function HomeBorgo() {
                   className="absolute inset-0 h-full w-full rounded-xl"
                 />
               ) : (
-                // Link esterni: SafeEmbed (gestisce YouTube/Vimeo/TikTok/FB/Instagram + fallback)
+                // Link esterni: SafeEmbed gestisce YouTube/Vimeo/TikTok/FB/IG (referrer policy sicura)
                 <div className="absolute inset-0">
                   <SafeEmbed url={playUrl} title={openVid.title} caption="" />
                 </div>

@@ -49,6 +49,8 @@ const Regione = lazy(() => import("./pages/Regione.jsx"));
 const Esperienze = lazy(() => import("./pages/Esperienze"));
 const ItinerariConsigliati = lazy(() => import("./pages/ItinerariConsigliati"));
 const ItineraryWizard = lazy(() => import("./pages/ItineraryWizard"));
+/* ✅ Nuova pagina: Video del borgo */
+const VideoBorgo = lazy(() => import("./pages/VideoBorgo.jsx"));
 
 /* ✅ Layout con Topbar DRY */
 const AppLayout = lazy(() => import("./layouts/AppLayout.jsx"));
@@ -139,7 +141,9 @@ export default function App() {
             <Route path="/borghi/:slug/dormire" element={<RouteErrorBoundary><SectionPlaceholder title="Dove Dormire" /></RouteErrorBoundary>} />
             <Route path="/borghi/:slug/cosa-fare" element={<RouteErrorBoundary><SectionPlaceholder title="Cosa Fare" /></RouteErrorBoundary>} />
             <Route path="/borghi/:slug/info-utili" element={<RouteErrorBoundary><SectionPlaceholder title="Info Utili" /></RouteErrorBoundary>} />
-            <Route path="/borghi/:slug/video" element={<RouteErrorBoundary><SectionPlaceholder title="Video del borgo" /></RouteErrorBoundary>} />
+
+            {/* ✅ Video del borgo (NUOVA PAGINA) */}
+            <Route path="/borghi/:slug/video" element={<RouteErrorBoundary><VideoBorgo /></RouteErrorBoundary>} />
 
             {/* Placeholder per link del menu a panino */}
             <Route path="/notifiche" element={<RouteErrorBoundary><SectionPlaceholder title="Notifiche" /></RouteErrorBoundary>} />

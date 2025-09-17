@@ -7,7 +7,8 @@ import {
   Menu, X, LogOut, Flag, MessageCircle, Upload, Youtube,
   BarChart2, Clock, ChevronRight, Crown, List, Bell,
   Compass, Map, Star, Medal, Trophy, Film,
-  Image as ImageIcon, Globe, Instagram, Link2, MapPin, CheckCircle2, Edit3, Trash2, Play
+  Globe, Instagram, Link2, MapPin, CheckCircle2, Edit3, Play,
+  ChevronDown, ChevronUp
 } from "lucide-react";
 import {
   createVideoDraft,
@@ -101,6 +102,22 @@ const isInstagram = (u = "") => /instagram\.com/i.test(u);
 const isTikTok = (u = "") => /tiktok\.com/i.test(u);
 
 /* =======================
+   UTILS: persist panel state
+======================= */
+const PANEL_KEYS = {
+  profile: "ob_panel_profile",
+  tools: "ob_panel_tools",
+  recent: "ob_panel_recent",
+  ranks: "ob_panel_ranks",
+};
+const loadOpen = (k, def = true) => {
+  try { const v = localStorage.getItem(k); return v == null ? def : v === "1"; } catch { return def; }
+};
+const saveOpen = (k, open) => {
+  try { localStorage.setItem(k, open ? "1" : "0"); } catch {}
+};
+
+/* =======================
    PAGINA ONBOARDING
 ======================= */
 export default function Onboarding() {
@@ -122,9 +139,6 @@ export default function Onboarding() {
 
   /* =======================
      PREFERITI CATEGORIZZATI
-     - mobile: 2 card + anteprima terza (scroll)
-     - desktop: 3 visibili (scroll)
-     - nascondi categorie vuote
   ======================== */
   const [fav, setFav] = useState({
     borghi: [
@@ -136,35 +150,36 @@ export default function Onboarding() {
     artigiani: [],
     prodotti: [],
   });
-
-  // helpers demo
   const addDemoFav = (cat) => {
-    const demo = {
-      id: `${cat}:${Date.now()}`,
-      label: "Preferito demo",
-      thumb: FALLBACK_IMG,
-    };
+    const demo = { id: `${cat}:${Date.now()}`, label: "Preferito demo", thumb: FALLBACK_IMG };
     setFav((f) => ({ ...f, [cat]: [demo, ...(f[cat] || [])] }));
   };
   const removeFav = (cat, id) => setFav((f) => ({ ...f, [cat]: (f[cat] || []).filter((x) => x.id !== id) }));
 
   // flusso creator a step
-  // step 0: card CTA; step 1: Profilo; step 2: Strumenti
+  // step 0: CTA; step 1: Profilo; step 2: Strumenti
   const [step, setStep] = useState(0);
 
-  // profilo creator (per anteprima)
+  // pannelli (accordion) – persistenza
+  const [openProfile, setOpenProfile] = useState(loadOpen(PANEL_KEYS.profile, true));
+  const [openTools, setOpenTools] = useState(loadOpen(PANEL_KEYS.tools, false));
+  const [openRecent, setOpenRecent] = useState(loadOpen(PANEL_KEYS.recent, true));
+  const [openRanks, setOpenRanks] = useState(loadOpen(PANEL_KEYS.ranks, true));
+  useEffect(() => saveOpen(PANEL_KEYS.profile, openProfile), [openProfile]);
+  useEffect(() => saveOpen(PANEL_KEYS.tools, openTools), [openTools]);
+  useEffect(() => saveOpen(PANEL_KEYS.recent, openRecent), [openRecent]);
+  useEffect(() => saveOpen(PANEL_KEYS.ranks, openRanks), [openRanks]);
+
+  // profilo creator (solo file upload)
   const [creatorProfile, setCreatorProfile] = useState({
     displayName: "",
     bio: "",
     region: "",
     traits: [],
-    coverUrl: "",
-    avatarUrl: "",
     coverFile: null,
     avatarFile: null,
     socials: { website: "", youtube: "", instagram: "", tiktok: "" },
   });
-
   const TRAIT_OPTS = ["Natura","Food","Storie locali","Cammini","Arte & Cultura","Family friendly","Drone","Vlog"];
 
   const [selectedBorgoSlug, setSelectedBorgoSlug] = useState("");
@@ -172,7 +187,7 @@ export default function Onboarding() {
 
   // form video
   const [form, setForm] = useState({
-    id: null, // per modifica
+    id: null,
     title: "",
     description: "",
     poiId: "",
@@ -183,8 +198,6 @@ export default function Onboarding() {
     thumbnail: FALLBACK_IMG,
     source: "link", // link | file
   });
-
-  // anteprima video (file o embed link)
   const [previewUrl, setPreviewUrl] = useState("");
 
   // contenuti (caricati da storage)
@@ -194,10 +207,7 @@ export default function Onboarding() {
   const [postPublish, setPostPublish] = useState({ open: false, redirectUrl: "" });
 
   // caricamento iniziale contenuti utente
-  useEffect(() => {
-    reloadMine();
-  }, []);
-
+  useEffect(() => { reloadMine(); }, []);
   const reloadMine = () => {
     const mine = listByOwner(OWNER_ID);
     setVideos({
@@ -207,17 +217,14 @@ export default function Onboarding() {
     });
   };
 
-  // refresh preview al cambio input
+  // refresh preview
   useEffect(() => {
-    if (form.source === "link") {
-      setPreviewUrl(form.url || "");
-    } else if (form.source === "file" && form.file) {
+    if (form.source === "link") setPreviewUrl(form.url || "");
+    else if (form.source === "file" && form.file) {
       const local = URL.createObjectURL(form.file);
       setPreviewUrl(local);
       return () => URL.revokeObjectURL(local);
-    } else {
-      setPreviewUrl("");
-    }
+    } else setPreviewUrl("");
   }, [form.source, form.url, form.file]);
 
   // classifiche (mock)
@@ -252,88 +259,48 @@ export default function Onboarding() {
   // azioni rapide
   const doCheckin = () => { setUser(u => ({ ...u, streakDays: u.streakDays + 1 })); pushActivity("Check-in giornaliero", POINTS.checkin); };
   const doReportEvent = () => { setUser(u => ({ ...u, eventsReported: u.eventsReported + 1 })); pushActivity("Segnalazione evento", POINTS.event); };
-  const doFeedback = () => { setUser(u => ({ ...u, feedbackGiven: u.feedbackGiven + 1 })); pushActivity("Feedback lasciato", POINTS.feedback); };
+  const doFeedback = () => { setUser(u => ({ ...u,feedbackGiven: u.feedbackGiven + 1 })); pushActivity("Feedback lasciato", POINTS.feedback); };
 
   const openCreatorFlow = () => {
     setUser(u => ({ ...u, isCreator: true }));
     setStep(1);
-    setTimeout(() => {
-      document.getElementById("creator-profile")?.scrollIntoView({ behavior: "smooth" });
-    }, 150);
+    setOpenProfile(true);
+    setOpenTools(false);
+    setTimeout(() => document.getElementById("creator-profile")?.scrollIntoView({ behavior: "smooth" }), 150);
   };
 
-  // helper form → base payload
   const parseTags = (s = "") => s.split(",").map(t => t.trim()).filter(Boolean);
-
-  // reset video form
-  const resetForm = () =>
-    setForm({
-      id: null,
-      title: "",
-      description: "",
-      poiId: "",
-      activity: "",
-      tags: "",
-      url: "",
-      file: null,
-      thumbnail: FALLBACK_IMG,
-      source: "link",
-    });
+  const resetForm = () => setForm({
+    id: null, title: "", description: "", poiId: "", activity: "",
+    tags: "", url: "", file: null, thumbnail: FALLBACK_IMG, source: "link",
+  });
 
   /* =======================
      SALVA PROFILO CREATOR
-     - obbligatori: Nome, Bio sintetica, Regione, ≥1 Caratteristica
-     - upload diretto avatar/cover (preview)
   ======================== */
   const handleSaveProfile = () => {
-    if (!creatorProfile.displayName.trim()) {
-      alert("Il campo Nome è obbligatorio.");
-      return;
-    }
-    if (!creatorProfile.bio.trim()) {
-      alert("La Bio sintetica è obbligatoria.");
-      return;
-    }
-    if (!creatorProfile.region.trim()) {
-      alert("La Regione è obbligatoria.");
-      return;
-    }
-    if (!creatorProfile.traits || creatorProfile.traits.length === 0) {
-      alert("Seleziona almeno una caratteristica.");
-      return;
-    }
+    if (!creatorProfile.displayName.trim()) return alert("Il campo Nome è obbligatorio.");
+    if (!creatorProfile.bio.trim()) return alert("La Bio sintetica è obbligatoria.");
+    if (!creatorProfile.region.trim()) return alert("La Regione è obbligatoria.");
+    if (!creatorProfile.traits || creatorProfile.traits.length === 0) return alert("Seleziona almeno una caratteristica.");
+
     setUser(u => ({ ...u, isCreator: true }));
-    setTimeout(() => setStep(2), 150);
-    setTimeout(() => document.getElementById("creator-tools")?.scrollIntoView({ behavior: "smooth" }), 250);
+    setStep(2);
+    setOpenProfile(false);
+    setOpenTools(true);
+    setTimeout(() => document.getElementById("creator-tools")?.scrollIntoView({ behavior: "smooth" }), 200);
   };
 
   /* =======================
-     AZIONI VIDEO (bozza / programma / pubblica / modifica)
+     AZIONI VIDEO
   ======================== */
   async function saveAs(status) {
-    // validazioni minime video
-    if (!selectedBorgo) {
-      alert("Seleziona un borgo.");
-      return;
-    }
-    if (!form.title.trim()) {
-      alert("Inserisci un titolo.");
-      return;
-    }
-    if (!form.description.trim()) {
-      alert("Inserisci una descrizione.");
-      return;
-    }
-    if (form.source === "link" && !form.url.trim()) {
-      alert("Inserisci un link (YouTube/Instagram/TikTok) oppure scegli un file.");
-      return;
-    }
-    if (form.source === "file" && !form.file) {
-      alert("Seleziona un file video dal tuo PC.");
-      return;
-    }
+    if (!selectedBorgo) return alert("Seleziona un borgo.");
+    if (!form.title.trim()) return alert("Inserisci un titolo.");
+    if (!form.description.trim()) return alert("Inserisci una descrizione.");
+    if (form.source === "link" && !form.url.trim()) return alert("Inserisci un link o carica un file.");
+    if (form.source === "file" && !form.file) return alert("Seleziona un file video dal tuo PC.");
 
-    // CREAZIONE o AGGIORNAMENTO
     let id = form.id;
     if (id) {
       await updateVideo(id, {
@@ -363,21 +330,14 @@ export default function Onboarding() {
       id = draft.id;
     }
 
-    if (status === "draft") {
-      // resta bozza
-    } else if (status === "scheduled") {
+    if (status === "scheduled") {
       scheduleVideo(id);
     } else if (status === "published") {
       publishVideo(id);
       setUser(u => ({ ...u, videosPublished: u.videosPublished + 1, points: u.points + POINTS.video }));
       pushActivity("Video pubblicato", POINTS.video);
-      // prompt scelte post-pubblicazione
-      setPostPublish({
-        open: true,
-        redirectUrl: `/borghi/${selectedBorgo.slug}`, // es. pagina pubblica Viggiano / attività
-      });
+      setPostPublish({ open: true, redirectUrl: `/borghi/${selectedBorgo.slug}` });
     }
-
     reloadMine();
     resetForm();
   }
@@ -385,6 +345,8 @@ export default function Onboarding() {
   const onEditVideo = (v) => {
     setStep(2);
     setUser(u => ({ ...u, isCreator: true }));
+    setOpenProfile(false);
+    setOpenTools(true);
     setSelectedBorgoSlug(v.borgoSlug || "");
     setForm({
       id: v.id,
@@ -431,10 +393,10 @@ export default function Onboarding() {
               <div className="my-2 border-t" style={{ borderColor: C.light }} />
               <MenuItem icon={Trophy} label="Livelli & Obiettivi" to="/livelli" />
 
-              {/* stepper livelli compatto */}
+              {/* stepper livelli compatto (solo nel menu) */}
               <div className="ml-8 mt-2 flex items-center gap-3">
                 {LEVELS.map((l) => {
-                  const active = l.name === level.name;
+                  const active = user.points >= l.min && user.points <= l.max;
                   const Icon = l.Icon;
                   return (
                     <div key={l.key} className="flex flex-col items-center text-xs" style={{ color: C.primaryDark }}>
@@ -489,78 +451,18 @@ export default function Onboarding() {
               </div>
             </div>
 
-            {/* livelli icone */}
-            <div className="mt-4 flex items-center justify-center gap-2">
-              {LEVELS.map((l) => {
-                const active = l.name === level.name;
-                const Icon = l.Icon;
-                return (
-                  <div key={l.key} className="flex flex-col items-center">
-                    <div
-                      className="flex h-10 w-10 items-center justify-center rounded-full border"
-                      title={l.name}
-                      style={{
-                        borderColor: active ? C.primary : C.gold,
-                        backgroundColor: active ? C.primary : "#fff",
-                        color: active ? "#fff" : C.primaryDark,
-                      }}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <span className="mt-1 text-[10px] sm:text-[11px]" style={{ color: C.primaryDark }}>{l.key}</span>
-                  </div>
-                );
-              })}
+            {/* Messaggio livelli (senza icone in questa sezione) */}
+            <div className="mt-3 text-xs text-center" style={{ color: C.primaryDark }}>
+              Avanza di livello completando azioni. <Link to="/livelli" className="underline">Scopri i livelli</Link>
             </div>
 
             {/* Preferiti categorizzati */}
             <div className="mt-6 space-y-6">
-              <FavSection
-                title="Borghi"
-                items={fav.borghi}
-                onRemove={(id) => removeFav("borghi", id)}
-                onAdd={() => addDemoFav("borghi")}
-              />
-              <FavSection
-                title="Cose da fare"
-                items={fav.coseFare}
-                onRemove={(id) => removeFav("coseFare", id)}
-                onAdd={() => addDemoFav("coseFare")}
-              />
-              <FavSection
-                title="Mangiare & Bere"
-                items={fav.mangiareBere}
-                onRemove={(id) => removeFav("mangiareBere", id)}
-                onAdd={() => addDemoFav("mangiareBere")}
-              />
-              <FavSection
-                title="Artigiani"
-                items={fav.artigiani}
-                onRemove={(id) => removeFav("artigiani", id)}
-                onAdd={() => addDemoFav("artigiani")}
-              />
-              <FavSection
-                title="Prodotti tipici"
-                items={fav.prodotti}
-                onRemove={(id) => removeFav("prodotti", id)}
-                onAdd={() => addDemoFav("prodotti")}
-              />
-            </div>
-
-            {/* Azioni rapide */}
-            <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <QuickBtn icon={Clock} label="Check-in (+2)" onClick={doCheckin} />
-              <QuickBtn icon={Flag} label="Segnala evento (+5)" onClick={doReportEvent} />
-              <QuickBtn icon={MessageCircle} label="Lascia feedback (+3)" onClick={doFeedback} />
-              <QuickBtn icon={Film} label="Diventa creator" onClick={openCreatorFlow} />
-            </div>
-
-            {/* CTA itinerario dentro riquadro utente */}
-            <div className="mt-4">
-              <div className="rounded-xl border p-3" style={{ borderColor: C.gold, backgroundColor: C.cream }}>
-                <div className="mb-2 h-2 rounded-full" style={{ backgroundColor: C.primary }} />
-                <SuggestItineraryBtn />
-              </div>
+              <FavSection title="Borghi" items={fav.borghi} onRemove={(id) => removeFav("borghi", id)} onAdd={() => addDemoFav("borghi")} />
+              <FavSection title="Cose da fare" items={fav.coseFare} onRemove={(id) => removeFav("coseFare", id)} onAdd={() => addDemoFav("coseFare")} />
+              <FavSection title="Mangiare & Bere" items={fav.mangiareBere} onRemove={(id) => removeFav("mangiareBere", id)} onAdd={() => addDemoFav("mangiareBere")} />
+              <FavSection title="Artigiani" items={fav.artigiani} onRemove={(id) => removeFav("artigiani", id)} onAdd={() => addDemoFav("artigiani")} />
+              <FavSection title="Prodotti tipici" items={fav.prodotti} onRemove={(id) => removeFav("prodotti", id)} onAdd={() => addDemoFav("prodotti")} />
             </div>
           </div>
 
@@ -586,31 +488,38 @@ export default function Onboarding() {
             </div>
           )}
 
+          {/* Azioni rapide (sotto la CTA) */}
+          <div className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
+            <div className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Azioni rapide</div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <QuickBtn icon={Clock} label="Check-in (+2)" onClick={doCheckin} />
+              <QuickBtn icon={Flag} label="Segnala evento (+5)" onClick={doReportEvent} />
+              <QuickBtn icon={MessageCircle} label="Lascia feedback (+3)" onClick={doFeedback} />
+              <QuickBtn icon={Film} label="Diventa creator" onClick={openCreatorFlow} />
+            </div>
+          </div>
+
           {/* SEZIONE CREATOR */}
-          {(user.isCreator && step >= 1) && (
+          {(user.isCreator && (step >= 1)) && (
             <>
               {/* Profilo Creator (STEP 1) */}
-              <div id="creator-profile" className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Profilo Creator</h3>
-                  {step === 2 && (
-                    <span className="inline-flex items-center gap-1 text-[13px] text-emerald-700">
-                      <CheckCircle2 className="h-4 w-4" /> salvato
-                    </span>
-                  )}
-                </div>
-
-                {/* Ordine: AVATAR -> COVER */}
+              <AccordionSection
+                id="creator-profile"
+                title="Profilo Creator"
+                open={openProfile}
+                setOpen={setOpenProfile}
+                rightEl={step === 2 ? <span className="inline-flex items-center gap-1 text-[13px] text-emerald-700"><CheckCircle2 className="h-4 w-4" /> salvato</span> : null}
+              >
                 <div className="grid gap-4 lg:grid-cols-3">
                   {/* form */}
                   <div className="lg:col-span-2 space-y-3">
-                    {/* AVATAR upload diretto */}
+                    {/* AVATAR (solo upload da PC) */}
                     <div>
                       <Label>Avatar</Label>
                       <div className="flex items-center gap-3">
                         <div className="h-16 w-16 overflow-hidden rounded-full border" style={{ borderColor: C.gold }}>
                           <img
-                            src={creatorProfile.avatarFile ? URL.createObjectURL(creatorProfile.avatarFile) : (creatorProfile.avatarUrl || "https://placehold.co/80x80?text=%20")}
+                            src={creatorProfile.avatarFile ? URL.createObjectURL(creatorProfile.avatarFile) : "https://placehold.co/80x80?text=%20"}
                             alt="avatar"
                             className="h-full w-full object-cover"
                           />
@@ -623,29 +532,22 @@ export default function Onboarding() {
                               accept="image/*"
                               onChange={(e) => {
                                 const file = e.target.files?.[0] || null;
-                                setCreatorProfile(p => ({ ...p, avatarFile: file, avatarUrl: "" }));
+                                setCreatorProfile(p => ({ ...p, avatarFile: file }));
                               }}
                               className="w-full"
                             />
                           </div>
-                          <div className="mt-2 text-xs opacity-70" style={{ color: C.primaryDark }}>Oppure URL:</div>
-                          <Input
-                            value={creatorProfile.avatarUrl}
-                            onChange={(v) => setCreatorProfile(p => ({ ...p, avatarUrl: v, avatarFile: null }))}
-                            placeholder="https://…"
-                            icon={<ImageIcon className="h-4 w-4" style={{ color: C.primaryDark }} />}
-                          />
                         </div>
                       </div>
                     </div>
 
-                    {/* COVER upload diretto */}
+                    {/* COVER (solo upload da PC) */}
                     <div>
                       <Label>Cover</Label>
                       <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.gold }}>
                         <div className="aspect-[3/1] w-full bg-neutral-100">
                           <img
-                            src={creatorProfile.coverFile ? URL.createObjectURL(creatorProfile.coverFile) : (creatorProfile.coverUrl || "https://images.unsplash.com/photo-1533750349088-cd871a92f312?q=80&w=1200&auto=format&fit=crop")}
+                            src={creatorProfile.coverFile ? URL.createObjectURL(creatorProfile.coverFile) : "https://images.unsplash.com/photo-1533750349088-cd871a92f312?q=80&w=1200&auto=format&fit=crop"}
                             alt="cover"
                             className="h-full w-full object-cover"
                           />
@@ -658,43 +560,16 @@ export default function Onboarding() {
                           accept="image/*"
                           onChange={(e) => {
                             const file = e.target.files?.[0] || null;
-                            setCreatorProfile(p => ({ ...p, coverFile: file, coverUrl: "" }));
+                            setCreatorProfile(p => ({ ...p, coverFile: file }));
                           }}
                           className="w-full"
                         />
                       </div>
-                      <div className="mt-2 text-xs opacity-70" style={{ color: C.primaryDark }}>Oppure URL:</div>
-                      <Input
-                        value={creatorProfile.coverUrl}
-                        onChange={(v) => setCreatorProfile(p => ({ ...p, coverUrl: v, coverFile: null }))}
-                        placeholder="https://…"
-                        icon={<ImageIcon className="h-4 w-4" style={{ color: C.primaryDark }} />}
-                      />
                     </div>
 
-                    <Input
-                      label="Nome pubblico *"
-                      value={creatorProfile.displayName}
-                      onChange={(v) => setCreatorProfile(p => ({ ...p, displayName: v }))}
-                      placeholder="es. santopiero"
-                    />
-
-                    <Textarea
-                      label="Bio sintetica *"
-                      value={creatorProfile.bio}
-                      onChange={(v) => setCreatorProfile(p => ({ ...p, bio: v }))}
-                      placeholder="Racconto i borghi con focus su natura, cammini e sapori."
-                      maxLength={180}
-                      counter
-                    />
-
-                    <Input
-                      label="Regione *"
-                      value={creatorProfile.region}
-                      onChange={(v) => setCreatorProfile(p => ({ ...p, region: v }))}
-                      placeholder="Basilicata"
-                      icon={<MapPin className="h-4 w-4" style={{ color: C.primaryDark }} />}
-                    />
+                    <Input label="Nome pubblico *" value={creatorProfile.displayName} onChange={(v) => setCreatorProfile(p => ({ ...p, displayName: v }))} placeholder="es. santopiero" />
+                    <Textarea label="Bio sintetica *" value={creatorProfile.bio} onChange={(v) => setCreatorProfile(p => ({ ...p, bio: v }))} placeholder="Racconto i borghi con focus su natura, cammini e sapori." maxLength={180} counter />
+                    <Input label="Regione *" value={creatorProfile.region} onChange={(v) => setCreatorProfile(p => ({ ...p, region: v }))} placeholder="Basilicata" icon={<MapPin className="h-4 w-4" style={{ color: C.primaryDark }} />} />
 
                     <div>
                       <Label>Caratteristiche (min 1)</Label>
@@ -725,192 +600,167 @@ export default function Onboarding() {
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <Input
-                        label="Sito web"
-                        value={creatorProfile.socials.website}
-                        onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, website: v } }))}
-                        placeholder="https://il-mi-sito.it"
-                        icon={<Globe className="h-4 w-4" style={{ color: C.primaryDark }} />}
-                      />
-                      <Input
-                        label="YouTube"
-                        value={creatorProfile.socials.youtube}
-                        onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, youtube: v } }))}
-                        placeholder="https://youtube.com/…"
-                        icon={<Youtube className="h-4 w-4" style={{ color: C.primaryDark }} />}
-                      />
-                      <Input
-                        label="Instagram"
-                        value={creatorProfile.socials.instagram}
-                        onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, instagram: v } }))}
-                        placeholder="https://instagram.com/…"
-                        icon={<Instagram className="h-4 w-4" style={{ color: C.primaryDark }} />}
-                      />
-                      <Input
-                        label="TikTok"
-                        value={creatorProfile.socials.tiktok}
-                        onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, tiktok: v } }))}
-                        placeholder="https://tiktok.com/@…"
-                        icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />}
-                      />
+                      <Input label="Sito web" value={creatorProfile.socials.website} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, website: v } }))} placeholder="https://il-mi-sito.it" icon={<Globe className="h-4 w-4" style={{ color: C.primaryDark }} />} />
+                      <Input label="YouTube" value={creatorProfile.socials.youtube} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, youtube: v } }))} placeholder="https://youtube.com/…" icon={<Youtube className="h-4 w-4" style={{ color: C.primaryDark }} />} />
+                      <Input label="Instagram" value={creatorProfile.socials.instagram} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, instagram: v } }))} placeholder="https://instagram.com/…" icon={<Instagram className="h-4 w-4" style={{ color: C.primaryDark }} />} />
+                      <Input label="TikTok" value={creatorProfile.socials.tiktok} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, tiktok: v } }))} placeholder="https://tiktok.com/@…" icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />} />
                     </div>
 
                     <div className="flex gap-2">
                       <BtnPrimary onClick={handleSaveProfile}>Salva e continua</BtnPrimary>
-                      <Link to="/creator/me/preview" className="rounded-xl border px-4 py-2 text-sm hover:opacity-90" style={{ borderColor: C.gold, color: C.primaryDark }}>
-                        Vedi profilo pubblico
-                      </Link>
                     </div>
                   </div>
 
                   {/* Anteprima pubblica */}
                   <div>
+                    <h4 className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Anteprima profilo</h4>
                     <PublicCreatorCard profile={creatorProfile} stats={{ videos: stats.total, views: stats.views }} palette={C} />
                   </div>
                 </div>
-              </div>
+              </AccordionSection>
 
               {/* Strumenti upload video (STEP 2) */}
-              {step >= 2 && (
-                <div id="creator-tools" className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Strumenti da Creator</h3>
-                    <div className="flex gap-2 text-xs" style={{ color: C.primaryDark }}>
-                      <Pill icon={Film}>Video: {stats.total}</Pill>
-                      <Pill icon={BarChart2}>Visualizzazioni: {stats.views}</Pill>
-                    </div>
+              <AccordionSection
+                id="creator-tools"
+                title="Strumenti da Creator"
+                open={openTools}
+                setOpen={setOpenTools}
+                rightEl={
+                  <div className="hidden sm:flex gap-2 text-xs" style={{ color: C.primaryDark }}>
+                    <Pill icon={Film}>Video: {stats.total}</Pill>
+                    <Pill icon={BarChart2}>Visualizzazioni: {stats.views}</Pill>
                   </div>
+                }
+              >
+                <div className="grid gap-4 lg:grid-cols-3">
+                  {/* form */}
+                  <div className="lg:col-span-2 space-y-3">
+                    <Input value={form.title} onChange={(v) => setForm(f => ({ ...f, title: v }))} placeholder="Titolo *" />
+                    <Textarea value={form.description} onChange={(v) => setForm(f => ({ ...f, description: v }))} placeholder="Descrizione * (max 140)" maxLength={140} counter />
 
-                  <div className="grid gap-4 lg:grid-cols-3">
-                    {/* form */}
-                    <div className="lg:col-span-2 space-y-3">
-                      <Input value={form.title} onChange={(v) => setForm(f => ({ ...f, title: v }))} placeholder="Titolo *" />
-                      <Textarea value={form.description} onChange={(v) => setForm(f => ({ ...f, description: v }))} placeholder="Descrizione * (max 140)" maxLength={140} counter />
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Select
+                        label="Borgo *"
+                        value={selectedBorgoSlug}
+                        onChange={(v) => { setSelectedBorgoSlug(v); setForm(f => ({ ...f, poiId: "", activity: "" })); }}
+                        options={[{ value: "", label: "Seleziona borgo…" }, ...BORGI.map(b => ({ value: b.slug, label: b.name }))]}
+                      />
+                      <Select
+                        label="POI (opzionale)"
+                        value={form.poiId}
+                        onChange={(v) => setForm(f => ({ ...f, poiId: v }))}
+                        disabled={!selectedBorgo}
+                        options={[{ value: "", label: selectedBorgo ? "Seleziona un POI…" : "Seleziona prima un borgo" },
+                        ...(selectedBorgo?.poi || []).map(p => ({ value: p.id, label: p.name }))]}
+                      />
+                    </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Select
-                          label="Borgo *"
-                          value={selectedBorgoSlug}
-                          onChange={(v) => { setSelectedBorgoSlug(v); setForm(f => ({ ...f, poiId: "", activity: "" })); }}
-                          options={[{ value: "", label: "Seleziona borgo…" }, ...BORGI.map(b => ({ value: b.slug, label: b.name }))]}
-                        />
-                        <Select
-                          label="POI (opzionale)"
-                          value={form.poiId}
-                          onChange={(v) => setForm(f => ({ ...f, poiId: v }))}
-                          disabled={!selectedBorgo}
-                          options={[{ value: "", label: selectedBorgo ? "Seleziona un POI…" : "Seleziona prima un borgo" },
-                          ...(selectedBorgo?.poi || []).map(p => ({ value: p.id, label: p.name }))]}
-                        />
+                    {/* switch sorgente */}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
+                        <Label>Link esterno</Label>
+                        <div className="grid gap-2">
+                          <div className="flex items-center gap-2">
+                            <input type="radio" id="src-link" checked={form.source === "link"} onChange={() => setForm(f => ({ ...f, source: "link" }))} />
+                            <label htmlFor="src-link" className="text-sm" style={{ color: C.primaryDark }}>YouTube / Instagram / TikTok</label>
+                          </div>
+                          <Input
+                            label="URL"
+                            icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />}
+                            value={form.url}
+                            onChange={(v) => setForm(f => ({ ...f, url: v }))}
+                            placeholder="https://youtube.com/... oppure https://instagram.com/... oppure https://www.tiktok.com/..."
+                          />
+                        </div>
                       </div>
 
-                      {/* switch sorgente */}
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
-                          <Label>Link esterno</Label>
-                          <div className="grid gap-2">
-                            <div className="flex items-center gap-2">
-                              <input type="radio" id="src-link" checked={form.source === "link"} onChange={() => setForm(f => ({ ...f, source: "link" }))} />
-                              <label htmlFor="src-link" className="text-sm" style={{ color: C.primaryDark }}>YouTube / Instagram / TikTok</label>
-                            </div>
-                            <Input
-                              label="URL"
-                              icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />}
-                              value={form.url}
-                              onChange={(v) => setForm(f => ({ ...f, url: v }))}
-                              placeholder="https://youtube.com/... oppure https://instagram.com/... oppure https://www.tiktok.com/..."
+                      <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
+                        <Label>Carica file dal PC</Label>
+                        <div className="flex items-center gap-2">
+                          <input type="radio" id="src-file" checked={form.source === "file"} onChange={() => setForm(f => ({ ...f, source: "file" }))} />
+                          <label htmlFor="src-file" className="text-sm" style={{ color: C.primaryDark }}>Video locale (mp4, mov…)</label>
+                        </div>
+                        <div className="mt-2">
+                          <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm" style={{ borderColor: C.gold, color: C.primaryDark }}>
+                            <Upload className="h-4 w-4" />
+                            <input
+                              type="file"
+                              accept="video/*"
+                              onChange={(e) => setForm(f => ({ ...f, file: e.target.files?.[0] || null }))}
+                              className="w-full"
                             />
                           </div>
                         </div>
-
-                        <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
-                          <Label>Carica file dal PC</Label>
-                          <div className="flex items-center gap-2">
-                            <input type="radio" id="src-file" checked={form.source === "file"} onChange={() => setForm(f => ({ ...f, source: "file" }))} />
-                            <label htmlFor="src-file" className="text-sm" style={{ color: C.primaryDark }}>Video locale (mp4, mov…)</label>
-                          </div>
-                          <div className="mt-2">
-                            <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm" style={{ borderColor: C.gold, color: C.primaryDark }}>
-                              <Upload className="h-4 w-4" />
-                              <input
-                                type="file"
-                                accept="video/*"
-                                onChange={(e) => setForm(f => ({ ...f, file: e.target.files?.[0] || null }))}
-                                className="w-full"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Anteprima incorporata, nessun redirect */}
-                      <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
-                        <Label>Anteprima</Label>
-                        {form.source === "link" && !!form.url ? (
-                          <EmbedCard
-                            url={form.url}
-                            title={form.title || "Anteprima"}
-                            caption={(isInstagram(form.url) || isTikTok(form.url) || isYouTube(form.url))
-                              ? "Il contenuto è riprodotto qui tramite embed ufficiale: resti sulla piattaforma."
-                              : "Riproduzione incorporata in piattaforma."}
-                          />
-                        ) : null}
-
-                        {form.source === "file" && form.file ? (
-                          <div className="mt-2">
-                            <video src={previewUrl} controls playsInline className="w-full rounded-xl border" style={{ borderColor: C.gold }} />
-                          </div>
-                        ) : null}
-
-                        {!form.url && !form.file && (
-                          <div className="text-sm" style={{ color: C.primaryDark }}>
-                            Inserisci un link (YouTube/Instagram/TikTok) oppure seleziona un file dal tuo PC per vedere l’anteprima.
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <Label>Tag (facoltativi, separati da virgola)</Label>
-                        <input
-                          value={form.tags}
-                          onChange={(e) => setForm(f => ({ ...f, tags: e.target.value }))}
-                          className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none"
-                          style={{ borderColor: C.gold, color: C.primaryDark }}
-                          placeholder="es. natura, cammini, borgo"
-                        />
-                      </div>
-
-                      <div>
-                        <Label>Miniatura (auto)</Label>
-                        <img
-                          src={form.thumbnail}
-                          alt="thumbnail"
-                          className="aspect-video w-full rounded-xl border object-cover"
-                          style={{ borderColor: C.gold }}
-                          onError={(e) => (e.currentTarget.src = FALLBACK_IMG)}
-                        />
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <BtnOutline onClick={() => saveAs("draft")}>{form.id ? "Aggiorna bozza" : "Salva come bozza"}</BtnOutline>
-                        <BtnOutline onClick={() => saveAs("scheduled")}>{form.id ? "Ripianifica" : "Programma"}</BtnOutline>
-                        <BtnPrimary onClick={() => saveAs("published")}>Pubblica (+20)</BtnPrimary>
                       </div>
                     </div>
 
-                    {/* Statistiche base */}
-                    <div className="space-y-3">
-                      <div className="rounded-xl border p-3 text-sm" style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
-                        <div className="mb-2 font-medium">Statistiche base</div>
-                        <RowStat icon={Film} label="Video totali" value={stats.total} />
-                        <RowStat icon={BarChart2} label="Visualizzazioni" value={stats.views} />
-                      </div>
+                    {/* Anteprima */}
+                    <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
+                      <Label>Anteprima</Label>
+                      {form.source === "link" && !!form.url ? (
+                        <EmbedCard
+                          url={form.url}
+                          title={form.title || "Anteprima"}
+                          caption={(isInstagram(form.url) || isTikTok(form.url) || isYouTube(form.url))
+                            ? "Il contenuto è riprodotto qui tramite embed ufficiale: resti sulla piattaforma."
+                            : "Riproduzione incorporata in piattaforma."}
+                        />
+                      ) : null}
+
+                      {form.source === "file" && form.file ? (
+                        <div className="mt-2">
+                          <video src={previewUrl} controls playsInline className="w-full rounded-xl border" style={{ borderColor: C.gold }} />
+                        </div>
+                      ) : null}
+
+                      {!form.url && !form.file && (
+                        <div className="text-sm" style={{ color: C.primaryDark }}>
+                          Inserisci un link (YouTube/Instagram/TikTok) oppure seleziona un file dal tuo PC per vedere l’anteprima.
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <Label>Tag (facoltativi, separati da virgola)</Label>
+                      <input
+                        value={form.tags}
+                        onChange={(e) => setForm(f => ({ ...f, tags: e.target.value }))}
+                        className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none"
+                        style={{ borderColor: C.gold, color: C.primaryDark }}
+                        placeholder="es. natura, cammini, borgo"
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Miniatura (auto)</Label>
+                      <img
+                        src={form.thumbnail}
+                        alt="thumbnail"
+                        className="aspect-video w-full rounded-xl border object-cover"
+                        style={{ borderColor: C.gold }}
+                        onError={(e) => (e.currentTarget.src = FALLBACK_IMG)}
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <BtnOutline onClick={() => saveAs("draft")}>{form.id ? "Aggiorna bozza" : "Salva come bozza"}</BtnOutline>
+                      <BtnOutline onClick={() => saveAs("scheduled")}>{form.id ? "Ripianifica" : "Programma"}</BtnOutline>
+                      <BtnPrimary onClick={() => saveAs("published")}>Pubblica (+20)</BtnPrimary>
+                    </div>
+                  </div>
+
+                  {/* Statistiche base */}
+                  <div className="space-y-3">
+                    <div className="rounded-xl border p-3 text-sm" style={{ borderColor: C.gold, backgroundColor: C.cream, color: C.primaryDark }}>
+                      <div className="mb-2 font-medium">Statistiche base</div>
+                      <RowStat icon={Film} label="Video totali" value={stats.total} />
+                      <RowStat icon={BarChart2} label="Visualizzazioni" value={stats.views} />
                     </div>
                   </div>
                 </div>
-              )}
+              </AccordionSection>
 
-              {/* Riquadri Creator */}
+              {/* Liste Creator */}
               <div className="grid gap-4 md:grid-cols-3">
                 <ContentColumn title="Bozze" items={videos.drafts} empty="Nessuna bozza." onEdit={onEditVideo} />
                 <ContentColumn title="Programmato" items={videos.scheduled} empty="Nessun video programmato." onEdit={onEditVideo} />
@@ -918,12 +768,26 @@ export default function Onboarding() {
               </div>
             </>
           )}
+
+          {/* Suggerisci itinerario – card pulita */}
+          <div className="mt-4">
+            <div className="rounded-xl border p-4 sm:p-5 flex items-center justify-between gap-3"
+                 style={{ borderColor: C.gold, backgroundColor: "#fff" }}>
+              <div className="text-sm" style={{ color: C.primaryDark }}>
+                Vuoi un consiglio personalizzato? Crea un itinerario in pochi click.
+              </div>
+              <SuggestItineraryBtn />
+            </div>
+          </div>
         </section>
 
         {/* COLONNA DX */}
         <aside className="mt-6 space-y-6 lg:mt-0">
-          <div className="rounded-2xl border bg-white p-4" style={{ borderColor: C.gold }}>
-            <div className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Attività recente</div>
+          <AccordionSection
+            title={`Attività recenti${recent.length ? ` (${recent.length})` : ""}`}
+            open={openRecent}
+            setOpen={setOpenRecent}
+          >
             <ul className="space-y-2 text-sm">
               {recent.length ? recent.map((a, i) => (
                 <li
@@ -936,17 +800,19 @@ export default function Onboarding() {
                 </li>
               )) : <li style={{ color: C.primaryDark }}>Ancora nessuna attività.</li>}
             </ul>
-          </div>
+          </AccordionSection>
 
-          <div id="classifiche" className="rounded-2xl border bg-white p-4" style={{ borderColor: C.gold }}>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>Classifiche</h3>
-            </div>
+          <AccordionSection
+            id="classifiche"
+            title="Classifiche"
+            open={openRanks}
+            setOpen={setOpenRanks}
+          >
             <div className="grid gap-4 md:grid-cols-2">
               <LeaderboardCard title="Regionale" icon={Crown} items={leaderboardRegional} mePoints={user.points} />
               <LeaderboardCard title="Nazionale" icon={BarChart2} items={leaderboardNational} mePoints={user.points} />
             </div>
-          </div>
+          </AccordionSection>
         </aside>
       </main>
 
@@ -1017,7 +883,32 @@ function RowStat({ icon: Icon, label, value }) {
 }
 
 /* =======================
-   FAVORITES SECTION (scroll orizzontale)
+   ACCORDION
+======================= */
+function AccordionSection({ id, title, open, setOpen, rightEl, children }) {
+  return (
+    <div id={id} className="rounded-2xl border bg-white" style={{ borderColor: C.gold }}>
+      <div className="sticky top-[60px] z-10 flex items-center justify-between gap-3 border-b px-4 py-3" style={{ background: "rgba(255,255,255,0.96)", borderColor: C.gold, backdropFilter: "blur(6px)" }}>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setOpen(!open)}
+            className="rounded-lg border px-2 py-1 text-sm hover:bg-neutral-50"
+            style={{ borderColor: C.gold, color: C.primaryDark }}
+            aria-expanded={open}
+          >
+            {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          <h3 className="text-base font-semibold" style={{ color: C.primaryDark }}>{title}</h3>
+        </div>
+        {rightEl}
+      </div>
+      {open && <div className="p-4 sm:p-6">{children}</div>}
+    </div>
+  );
+}
+
+/* =======================
+   FAVORITES SECTION
 ======================= */
 function FavSection({ title, items = [], onRemove, onAdd }) {
   if (!items.length) return null;
@@ -1035,7 +926,7 @@ function FavSection({ title, items = [], onRemove, onAdd }) {
         </button>
       </div>
 
-      {/* Mobile: 2.5 card visibili; Desktop: 3 card visibili */}
+      {/* Mobile: 2.5 card; Desktop: 3 card */}
       <ul className="flex gap-3 overflow-x-auto snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none]"
           style={{ scrollbarWidth: "none" }}>
         {items.map((f) => (
@@ -1057,9 +948,7 @@ function FavSection({ title, items = [], onRemove, onAdd }) {
 }
 
 /* =======================
-   CONTENUTI LISTE (bozze / programmati / pubblicati)
-   - anteprima sempre visibile (embed per link, <video> per file)
-   - modifica sempre consentita
+   CONTENUTI LISTE
 ======================= */
 function ContentColumn({ title, items, empty, showPoints, onEdit }) {
   return (
@@ -1069,7 +958,9 @@ function ContentColumn({ title, items, empty, showPoints, onEdit }) {
         <span className="text-xs" style={{ color: C.primaryDark }}>{items.length}</span>
       </div>
       <div className="space-y-2">
-        {items.map(v => <VideoCard key={v.id} v={v} showPoints={showPoints} onEdit={() => onEdit(v)} />)}
+        {items.map(v => (
+          <VideoCard key={v.id} v={v} showPoints={showPoints} onEdit={() => onEdit(v)} />
+        ))}
         {!items.length && <EmptyCard text={empty} />}
       </div>
     </div>
@@ -1105,9 +996,7 @@ function VideoCard({ v, showPoints = false, onEdit }) {
           </div>
         )}
         <div className="mt-2 flex gap-2">
-          <BtnOutline onClick={onEdit} className="!px-3 !py-1.5 text-xs">
-            <Edit3 className="h-3.5 w-3.5 mr-1" /> Modifica
-          </BtnOutline>
+          <BtnOutline onClick={onEdit} className="!px-3 !py-1.5 text-xs"><Edit3 className="h-3.5 w-3.5 mr-1" /> Modifica</BtnOutline>
           <a
             href={isLink ? v.url : "#"}
             target={isLink ? "_blank" : undefined}
@@ -1206,27 +1095,17 @@ function Select({ label, value, onChange, options, disabled }) {
   );
 }
 
-/* --- Bottoni riutilizzabili (LOCAL) --- */
+/* --- Bottoni --- */
 function BtnPrimary({ children, onClick, type = "button", className = "" }) {
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      className={`rounded-xl px-4 py-2 text-sm text-white hover:opacity-90 ${className}`}
-      style={{ backgroundColor: C.primary }}
-    >
+    <button type={type} onClick={onClick} className={`rounded-xl px-4 py-2 text-sm text-white hover:opacity-90 ${className}`} style={{ backgroundColor: C.primary }}>
       {children}
     </button>
   );
 }
 function BtnOutline({ children, onClick, type = "button", className = "" }) {
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      className={`rounded-xl border px-4 py-2 text-sm hover:opacity-90 ${className}`}
-      style={{ borderColor: C.gold, color: C.primaryDark }}
-    >
+    <button type={type} onClick={onClick} className={`rounded-xl border px-4 py-2 text-sm hover:opacity-90 ${className}`} style={{ borderColor: C.gold, color: C.primaryDark }}>
       {children}
     </button>
   );
@@ -1236,10 +1115,10 @@ function BtnOutline({ children, onClick, type = "button", className = "" }) {
 function PublicCreatorCard({ profile, stats, palette }) {
   const cover = profile.coverFile
     ? URL.createObjectURL(profile.coverFile)
-    : (profile.coverUrl || "https://images.unsplash.com/photo-1533750349088-cd871a92f312?q=80&w=1200&auto=format&fit=crop");
+    : "https://images.unsplash.com/photo-1533750349088-cd871a92f312?q=80&w=1200&auto=format&fit=crop";
   const avatar = profile.avatarFile
     ? URL.createObjectURL(profile.avatarFile)
-    : (profile.avatarUrl || "https://placehold.co/80x80?text=%20");
+    : "https://placehold.co/80x80?text=%20";
   const traits = profile.traits || [];
   const socials = profile.socials || {};
 
@@ -1271,16 +1150,10 @@ function PublicCreatorCard({ profile, stats, palette }) {
         <div className="font-semibold" style={{ color: palette.primaryDark }}>{profile.displayName || "creator"}</div>
 
         <div className="mt-2 flex flex-wrap gap-2">
-          <span
-            className="inline-flex items-center gap-1 text-xs rounded-full px-2 py-1"
-            style={{ backgroundColor: palette.cream, color: palette.primaryDark, border: `1px solid ${palette.gold}` }}
-          >
+          <span className="inline-flex items-center gap-1 text-xs rounded-full px-2 py-1" style={{ backgroundColor: palette.cream, color: palette.primaryDark, border: `1px solid ${palette.gold}` }}>
             <Film className="w-3 h-3" /> {stats.videos || 0} video
           </span>
-          <span
-            className="inline-flex items-center gap-1 text-xs rounded-full px-2 py-1"
-            style={{ backgroundColor: palette.cream, color: palette.primaryDark, border: `1px solid ${palette.gold}` }}
-          >
+          <span className="inline-flex items-center gap-1 text-xs rounded-full px-2 py-1" style={{ backgroundColor: palette.cream, color: palette.primaryDark, border: `1px solid ${palette.gold}` }}>
             <BarChart2 className="w-3 h-3" /> {stats.views || 0} views
           </span>
         </div>
@@ -1295,22 +1168,15 @@ function PublicCreatorCard({ profile, stats, palette }) {
           ))}
         </div>
 
-        {/* Social icons only */}
         <div className="mt-4 flex items-center gap-3">
           {socials.website   && <IconBtn href={socials.website}   title="Sito"><Globe className="w-5 h-5" /></IconBtn>}
           {socials.youtube   && <IconBtn href={socials.youtube}   title="YouTube"><Youtube className="w-5 h-5" /></IconBtn>}
           {socials.instagram && <IconBtn href={socials.instagram} title="Instagram"><Instagram className="w-5 h-5" /></IconBtn>}
-          {socials.tiktok    && <IconBtn href={socials.tiktok}    title="TikTok"><svg viewBox="0 0 256 256" className="w-5 h-5" fill="currentColor"><path d="M208 96a63.8 63.8 0 01-37-12v76a64 64 0 11-64-64v32a32 32 0 1032 32V32h32a64 64 0 0037 12z"/></svg></IconBtn>}
-        </div>
-
-        <div className="mt-4">
-          <Link
-            to="/creator/me/preview"
-            className="block rounded-xl border px-4 py-2 text-center text-sm hover:bg-neutral-50"
-            style={{ borderColor: palette.gold, color: palette.primaryDark }}
-          >
-            Vedi profilo
-          </Link>
+          {socials.tiktok    && (
+            <IconBtn href={socials.tiktok} title="TikTok">
+              <svg viewBox="0 0 256 256" className="w-5 h-5" fill="currentColor"><path d="M208 96a63.8 63.8 0 01-37-12v76a64 64 0 11-64-64v32a32 32 0 1032 32V32h32a64 64 0 0037 12z"/></svg>
+            </IconBtn>
+          )}
         </div>
       </div>
     </div>

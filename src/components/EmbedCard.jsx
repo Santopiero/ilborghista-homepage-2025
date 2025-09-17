@@ -1,134 +1,134 @@
 // src/components/EmbedCard.jsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 
-/** Carica uno script esterno una sola volta */
-function ensureScript(src, id) {
-  return new Promise((resolve, reject) => {
-    if (id && document.getElementById(id)) return resolve();
-    const s = document.createElement("script");
-    if (id) s.id = id;
-    s.src = src;
-    s.async = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error(`Impossibile caricare ${src}`));
-    document.body.appendChild(s);
-  });
-}
-
-/** Riconoscimento provider */
-const isYouTube   = (u="") => /(?:youtu\.be|youtube\.com)/i.test(u);
-const isInstagram = (u="") => /instagram\.com/i.test(u);
-const isTikTok    = (u="") => /tiktok\.com/i.test(u);
-
-/** Normalizza URL YouTube in embed */
-function toYouTubeEmbed(url) {
+function parseUrl(u) {
   try {
-    const u = new URL(url);
-    if (u.hostname === "youtu.be") {
-      return `https://www.youtube.com/embed/${u.pathname.slice(1)}`;
+    const url = new URL(u);
+    const host = url.hostname.replace(/^www\./, "");
+    const path = url.pathname;
+
+    if (host.includes("youtube.com")) {
+      const vid = url.searchParams.get("v");
+      return vid ? { type: "youtube", id: vid, url } : { type: "link", url };
     }
-    if (u.searchParams.get("v")) {
-      return `https://www.youtube.com/embed/${u.searchParams.get("v")}`;
+    if (host === "youtu.be") {
+      const vid = path.split("/").filter(Boolean)[0];
+      return vid ? { type: "youtube", id: vid, url } : { type: "link", url };
     }
-    // /shorts/ID → /embed/ID
-    const shorts = u.pathname.match(/\/shorts\/([^/]+)/);
-    if (shorts) return `https://www.youtube.com/embed/${shorts[1]}`;
-    return url;
+    if (host.includes("vimeo.com")) {
+      const id = path.split("/").filter(Boolean)[0];
+      return id ? { type: "vimeo", id, url } : { type: "link", url };
+    }
+    if (host.includes("tiktok.com")) {
+      const parts = path.split("/").filter(Boolean);
+      const idx = parts.indexOf("video");
+      const id = idx >= 0 ? parts[idx + 1] : null;
+      return id ? { type: "tiktok", id, url } : { type: "link", url };
+    }
+    if (host.includes("facebook.com")) {
+      if (path.includes("/videos/")) return { type: "facebookVideo", href: url.toString(), url };
+      return { type: "link", url };
+    }
+    if (host.includes("instagram.com")) {
+      return { type: "instagram", href: url.toString(), url };
+    }
+    return { type: "link", url };
   } catch {
-    return url;
+    return { type: "invalid" };
   }
 }
 
-/** Componente principale */
-export default function EmbedCard({ url, title = "Anteprima", caption }) {
-  const containerRef = useRef(null);
-  const [error, setError] = useState("");
-  const safeUrl = (url || "").trim();
+function IframeResponsive({ src, title }) {
+  return (
+    <div className="relative w-full overflow-hidden rounded-xl border bg-black/2" style={{ paddingTop: "56.25%" }}>
+      <iframe
+        src={src}
+        title={title || "embed"}
+        className="absolute inset-0 w-full h-full"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+        loading="lazy"
+      />
+    </div>
+  );
+}
 
-  const provider = useMemo(() => {
-    if (!safeUrl) return "unknown";
-    if (isYouTube(safeUrl)) return "youtube";
-    if (isInstagram(safeUrl)) return "instagram";
-    if (isTikTok(safeUrl)) return "tiktok";
-    return "unknown";
-  }, [safeUrl]);
+export default function EmbedCard({ url, title, caption }) {
+  const meta = useMemo(() => parseUrl(url), [url]);
 
-  // Render provider-specific
-  useEffect(() => {
-    if (!safeUrl) return;
-    setError("");
-
-    // Instagram
-    if (provider === "instagram") {
-      // Requisiti:
-      // 1) Post/Reel pubblico
-      // 2) Script embed caricato
-      // NB: dal 2020 l’oEmbed ufficiale richiede token, ma il render client con blockquote + script funziona.
-      ensureScript("https://www.instagram.com/embed.js", "ig-embed-js")
-        .then(() => {
-          // Pulizia e nuovo blockquote
-          const node = containerRef.current;
-          if (!node) return;
-          node.innerHTML = `
-            <blockquote class="instagram-media" data-instgrm-permalink="${safeUrl}" data-instgrm-version="14" style="margin:0 auto; max-width:540px; width:100%;"></blockquote>
-          `;
-          // Trigger parse
-          window.instgrm && window.instgrm.Embeds && window.instgrm.Embeds.process();
-        })
-        .catch(() => setError("Impossibile incorporare il post di Instagram. Verifica che sia pubblico."));
-      return;
-    }
-
-    // TikTok
-    if (provider === "tiktok") {
-      ensureScript("https://www.tiktok.com/embed.js", "tt-embed-js")
-        .then(() => {
-          const node = containerRef.current;
-          if (!node) return;
-          node.innerHTML = `
-            <blockquote class="tiktok-embed" cite="${safeUrl}" style="max-width:605px; min-width:325px;">
-              <section></section>
-            </blockquote>
-          `;
-          // lo script auto-parsa i blockquote
-        })
-        .catch(() => setError("Impossibile incorporare il video TikTok."));
-      return;
-    }
-
-    // YouTube non necessita script
-    if (provider === "youtube") {
-      const node = containerRef.current;
-      if (!node) return;
-      const src = toYouTubeEmbed(safeUrl);
-      node.innerHTML = `
-        <div style="position:relative; padding-top:56.25%;">
-          <iframe
-            src="${src}"
-            title="${title?.replace(/"/g, "&quot;") || "YouTube"}"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowfullscreen
-            style="position:absolute; inset:0; width:100%; height:100%; border:0; border-radius:12px;"
-          ></iframe>
-        </div>
-      `;
-      return;
-    }
-
-    // fallback
-    const node = containerRef.current;
-    if (node) node.innerHTML = "";
-    setError("Formato non supportato. Inserisci un link YouTube / Instagram / TikTok.");
-  }, [safeUrl, provider, title]);
+  if (meta.type === "invalid") {
+    return (
+      <div className="rounded-xl border p-3 text-sm text-red-800 bg-red-50">
+        URL non valido.
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full rounded-xl border p-3 bg-white" style={{ borderColor: "#E1B671" }}>
-      <div ref={containerRef} />
-      {error ? (
-        <p className="mt-2 text-sm text-red-600">{error}</p>
-      ) : caption ? (
-        <p className="mt-2 text-xs opacity-80">{caption}</p>
-      ) : null}
-    </div>
+    <figure className="rounded-2xl border p-3 bg-white">
+      <div className="mb-2">
+        <div className="text-sm font-semibold text-[#6B271A] truncate">
+          {title || "Contenuto incorporato"}
+        </div>
+        <a
+          href={typeof url === "string" ? url : "#"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-neutral-600 underline break-all"
+        >
+          {url}
+        </a>
+      </div>
+
+      <div className="space-y-2">
+        {meta.type === "youtube" && (
+          <IframeResponsive src={`https://www.youtube.com/embed/${meta.id}`} title={title || "YouTube"} />
+        )}
+        {meta.type === "vimeo" && (
+          <IframeResponsive src={`https://player.vimeo.com/video/${meta.id}`} title={title || "Vimeo"} />
+        )}
+        {meta.type === "tiktok" && (
+          <IframeResponsive src={`https://www.tiktok.com/embed/v2/${meta.id}`} title={title || "TikTok"} />
+        )}
+        {meta.type === "facebookVideo" && (
+          <IframeResponsive
+            src={`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(meta.href)}&show_text=false&width=560`}
+            title={title || "Facebook Video"}
+          />
+        )}
+        {meta.type === "instagram" && (
+          <div className="rounded-xl border bg-neutral-50 p-3 text-sm">
+            <div className="font-semibold mb-1">Post Instagram</div>
+            <p className="text-neutral-700 mb-2">
+              L’anteprima ufficiale richiede lo script Instagram. Apri il post:
+            </p>
+            <a
+              href={meta.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white hover:bg-neutral-50"
+            >
+              Apri su Instagram
+            </a>
+          </div>
+        )}
+        {meta.type === "link" && (
+          <div className="rounded-xl border bg-neutral-50 p-3 text-sm">
+            <div className="font-semibold mb-1">Anteprima non disponibile</div>
+            <p className="text-neutral-700">Apri il link in una nuova scheda:</p>
+            <a
+              href={typeof url === "string" ? url : "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white hover:bg-neutral-50"
+            >
+              Apri link
+            </a>
+          </div>
+        )}
+      </div>
+
+      {caption && <figcaption className="mt-2 text-xs text-neutral-600">{caption}</figcaption>}
+    </figure>
   );
 }

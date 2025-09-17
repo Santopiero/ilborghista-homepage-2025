@@ -14,6 +14,7 @@ import {
   MessageCircle,
   Crosshair,
   LogOut,
+  Play
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -26,6 +27,7 @@ import {
 } from "./lib/store";
 import { BORGI_INDEX, BORGI_BY_SLUG } from "./data/borghi";
 import { enableNotifications } from "./lib/pushClient";
+import SafeEmbed from "./components/SafeEmbed.jsx";
 
 /* =============================================================================
    UTILS
@@ -50,6 +52,18 @@ function useBodyLock(locked) {
     else document.body.style.overflow = "";
     return () => (document.body.style.overflow = prev || "");
   }, [locked]);
+}
+
+/* Helper: estrae la URL video dal record (gestisce varie chiavi possibili) */
+function getVideoUrl(v) {
+  return (
+    v?.url ||
+    v?.videoUrl ||
+    v?.link ||
+    v?.embed ||
+    v?.src ||
+    "" // se vuoto, SafeEmbed mostrerà errore elegante
+  );
 }
 
 /* =============================================================================
@@ -105,7 +119,7 @@ function FavoriteButton({ id, className = "" }) {
 }
 
 /* =============================================================================
-   NOTIFICHE (badge + pannello)
+   NOTIFICHE
 ============================================================================= */
 const NOTIF_KEY = "ilborghista:notifs:v1";
 const loadNotifs = () => {
@@ -143,45 +157,6 @@ function NotificationsBell() {
   }, []);
 
   const unread = list.length;
-
-  async function showOsNotification(title, body) {
-    try {
-      if (typeof Notification === "undefined") return;
-      if (Notification.permission === "default") {
-        const r = await Notification.requestPermission();
-        if (r !== "granted") return;
-      }
-      const reg = await navigator.serviceWorker?.getRegistration();
-      if (reg?.showNotification) {
-        reg.showNotification(title || "Il Borghista", {
-          body: body || "",
-          icon: "/icons/icon-192.png",
-          badge: "/icons/icon-192.png",
-          tag: "local-test",
-        });
-      } else {
-        new Notification(title || "Il Borghista", {
-          body: body || "",
-          icon: "/icons/icon-192.png",
-          tag: "local-test",
-        });
-      }
-    } catch {}
-  }
-  function onTestNotif() {
-    const n = {
-      id: Date.now(),
-      title: "Prova notifica",
-      body: "Questo è un test ✅",
-      ts: new Date().toISOString(),
-    };
-    setList((prev) => {
-      const next = [n, ...prev].slice(0, 100);
-      saveNotifs(next);
-      return next;
-    });
-    showOsNotification(n.title, n.body);
-  }
 
   return (
     <>
@@ -244,21 +219,15 @@ function NotificationsBell() {
               >
                 Svuota
               </button>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onTestNotif}
-                  className="text-sm bg-[#FAF5E0] px-3 py-1.5 rounded-lg border border-[#E1B671]"
-                >
-                  Test notifica
-                </button>
-                <button
-                  className="text-sm bg-[#D54E30] text-white px-3 py-1.5 rounded-lg"
-                  onClick={() => setOpen(false)}
-                >
-                  Chiudi
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  window.__ilb_addNotif?.("Prova notifica", "Questo è un test ✅")
+                }
+                className="text-sm bg-[#FAF5E0] px-3 py-1.5 rounded-lg border border-[#E1B671]"
+              >
+                Test notifica
+              </button>
             </div>
           </div>
         </div>
@@ -374,8 +343,8 @@ const REGIONS = [
 export default function HomepageMockup() {
   const navigate = useNavigate();
 
-  // ---------------- Search (mobile vs desktop) ----------------
-  const [searchOpen, setSearchOpen] = useState(false); // ONLY mobile
+  // Search
+  const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const debounceTimer = useRef(null);
@@ -404,11 +373,11 @@ export default function HomepageMockup() {
     setSearchOpen(false);
   }
 
-  // ---------------- Menu ----------------
+  // Menu
   const [menuOpen, setMenuOpen] = useState(false);
   useBodyLock(menuOpen);
 
-  // ---------------- Signup toast ----------------
+  // Signup toast
   const [signupSuccess, setSignupSuccess] = useState(false);
   useEffect(() => {
     try {
@@ -421,7 +390,7 @@ export default function HomepageMockup() {
     } catch {}
   }, []);
 
-  // ---------------- Geolocalizzazione ----------------
+  // Geolocalizzazione
   const LOC_KEY = "ilborghista:userLoc:v1";
   const [userLoc, setUserLoc] = useState(() => {
     try {
@@ -445,9 +414,7 @@ export default function HomepageMockup() {
       return;
     }
     if (!("geolocation" in navigator)) {
-      setGeoToast(
-        "Geolocalizzazione non disponibile sul dispositivo. Abilita il GPS o inserisci manualmente la località."
-      );
+      setGeoToast("Geolocalizzazione non disponibile sul dispositivo.");
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -463,12 +430,7 @@ export default function HomepageMockup() {
         setGeoToast("");
         window.__ilb_addNotif?.("Posizione attivata", `Raggio impostato a ${DEFAULT_RADIUS_KM} km`);
       },
-      (err) => {
-        console.warn("Geolocation error", err);
-        setGeoToast(
-          "Permesso negato. Abilita i permessi del browser (Impostazioni → Privacy/Posizione) e riprova."
-        );
-      },
+      () => setGeoToast("Permesso negato. Abilita i permessi del browser e riprova."),
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     );
   }
@@ -479,7 +441,7 @@ export default function HomepageMockup() {
     } catch {}
   }
 
-  // ---------------- Region Filter (URL + localStorage) ----------------
+  // Region filter
   const REG_KEY = "ilborghista:regionFilter:v1";
   const [activeRegion, setActiveRegion] = useState(() => {
     try {
@@ -503,18 +465,14 @@ export default function HomepageMockup() {
     } catch {}
   }, [activeRegion]);
 
-  function toggleRegion(slug) {
-    setActiveRegion((prev) => (prev === slug ? "" : slug));
-  }
-
-  // ---------------- Supporto Push ----------------
+  // Push support
   const supportsPush =
     typeof window !== "undefined" &&
     "serviceWorker" in navigator &&
     "PushManager" in window &&
     "Notification" in window;
 
-  // ---------------- Dati mock UI ----------------
+  // Mock data
   const HERO_IMAGE_URL =
     "https://media.istockphoto.com/id/1018266964/it/foto/bellissime-spiagge-e-citt%C3%A0-della-calabria-scilla-vacanze-estive-italiane.jpg?s=2048x2048&w=is&k=20&c=tA7D595SPFMpvFSMGKvui-dkcPVT3pfyVV1ge0RtSr8=";
 
@@ -607,7 +565,29 @@ export default function HomepageMockup() {
     },
   ];
 
-  // ---------------- Subcomponents ----------------
+  /* =======================
+     MODAL per video embed
+  ======================== */
+  const [openVideo, setOpenVideo] = useState(false);
+  const [videoRec, setVideoRec] = useState(null);
+  useBodyLock(openVideo);
+
+  useEffect(() => {
+    function onEsc(e) {
+      if (e.key === "Escape") setOpenVideo(false);
+    }
+    if (openVideo) window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, [openVideo]);
+
+  function openVideoModal(v) {
+    setVideoRec(v);
+    setOpenVideo(true);
+  }
+
+  /* =======================
+     Subcomponents
+  ======================== */
   const BorgoCard = ({ b }) => {
     const extra = BORGI_EXTRA[b.slug] || {};
     const name = extra.borgoName || b.name;
@@ -634,7 +614,7 @@ export default function HomepageMockup() {
             className="w-full h-full object-cover"
             onError={onImgErr}
           />
-        <div className="absolute top-2 left-2 max-w-[82%] px-2.5 py-1 rounded-lg bg-white text-[#6B271A] text-sm font-semibold shadow">
+          <div className="absolute top-2 left-2 max-w-[82%] px-2.5 py-1 rounded-lg bg-white text-[#6B271A] text-sm font-semibold shadow">
             <span className="block truncate">{name}</span>
           </div>
           <FavoriteButton id={`borgo:${b.slug}`} className="absolute top-2 right-2" />
@@ -646,7 +626,7 @@ export default function HomepageMockup() {
               to={`/borghi/${b.slug}/eventi`}
               className="flex items-center gap-2 text-sm text-gray-700 hover:underline"
             >
-              <Clock size={16} className="text-[#6B271A]}" aria-hidden="true" />
+              <Clock size={16} className="text-[#6B271A]" aria-hidden="true" />
               <span>{currentEvent} – in corso</span>
             </Link>
           )}
@@ -697,7 +677,9 @@ export default function HomepageMockup() {
           <FavoriteButton id={favId} className="absolute top-2 right-2" />
         </div>
         <div className="p-4 space-y-2">
-          <h3 className="text-base font-extrabold text-[#6B271A] leading-snug line-clamp-2">{title}</h3>
+          <h3 className="text-base font-extrabold text-[#6B271A] leading-snug line-clamp-2">
+            {title}
+          </h3>
           {dateText && <div className="text-sm text-gray-700">{dateText}</div>}
           {placeText && (
             <div className="flex items-center gap-2 text-sm text-gray-700">
@@ -740,7 +722,7 @@ export default function HomepageMockup() {
     </article>
   );
 
-  // ---------------- HERO ----------------
+  // HERO
   const HeroHeader = () => (
     <section className="relative h-[58vh] md:h-[70vh]">
       <img
@@ -761,7 +743,7 @@ export default function HomepageMockup() {
     </section>
   );
 
-  // ---------------- Logout ----------------
+  // Logout
   function doLogout() {
     try {
       localStorage.removeItem(import.meta.env.VITE_AUTH_TOKEN_KEY || "ilborghista_token");
@@ -774,12 +756,10 @@ export default function HomepageMockup() {
   return (
     <>
       <style>{`
-        /* Mobile: nascondi scrollbar dove usiamo .no-scrollbar */
         @media (max-width: 767.98px){
           .no-scrollbar::-webkit-scrollbar { display: none; }
           .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         }
-        /* Desktop: mostra sempre una scrollbar sottile dove serve */
         @media (min-width: 768px){
           .show-scrollbar-desktop { scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: rgba(0,0,0,.3) transparent; }
           .show-scrollbar-desktop::-webkit-scrollbar { height: 8px; }
@@ -789,17 +769,14 @@ export default function HomepageMockup() {
       `}</style>
 
       <main className="space-y-10">
-        {/* TOP BAR (sticky) */}
+        {/* TOP BAR */}
         <header className="bg-white/90 backdrop-blur border-b sticky top-0 z-[60]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 grid grid-cols-[auto,1fr,auto] items-center gap-3">
-            {/* Logo */}
             <Link to="/" className="text-xl font-extrabold text-[#6B271A]" aria-label="Home">
               Il Borghista
             </Link>
 
-            {/* DESKTOP: barra esplosa | MOBILE: icone */}
             <div className="flex items-center justify-center">
-              {/* Desktop ≥ md: barra ricerca esplosa con placeholder */}
               <form
                 onSubmit={handleSearchSubmit}
                 className="hidden md:flex items-center gap-2 w-full max-w-xl"
@@ -826,10 +803,7 @@ export default function HomepageMockup() {
                     </button>
                   )}
                 </div>
-                <button
-                  type="submit"
-                  className="px-3 py-2 rounded-xl bg-[#D54E30] text-white font-semibold"
-                >
+                <button type="submit" className="px-3 py-2 rounded-xl bg-[#D54E30] text-white font-semibold">
                   Cerca
                 </button>
                 <button
@@ -843,7 +817,6 @@ export default function HomepageMockup() {
                 </button>
               </form>
 
-              {/* Mobile: icone lente + geolocalizza */}
               <div className="flex md:hidden items-center gap-2">
                 <button
                   type="button"
@@ -865,7 +838,6 @@ export default function HomepageMockup() {
               </div>
             </div>
 
-            {/* Destra: notifiche + menu */}
             <div className="flex items-center justify-end gap-2">
               <NotificationsBell />
               <button
@@ -878,7 +850,7 @@ export default function HomepageMockup() {
             </div>
           </div>
 
-          {/* Chip filtri attivi: Vicino a te */}
+          {/* Chip filtri attivi */}
           <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-3">
             <div className="flex flex-wrap items-center gap-2">
               {userLoc?.lat && userLoc?.lng && (
@@ -927,7 +899,6 @@ export default function HomepageMockup() {
                   )}
                 </label>
 
-                {/* Suggerimenti */}
                 <div className="max-h-[50vh] overflow-auto">
                   {debounced && suggestions.length === 0 && (
                     <div className="p-3 text-sm text-neutral-600">
@@ -960,9 +931,7 @@ export default function HomepageMockup() {
         {menuOpen && (
           <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="Menu">
             <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
-            <aside
-              className="absolute right-0 top-0 h.full w-[min(85vw,22rem)] bg-white shadow-2xl ring-1 ring-black/10 flex flex-col"
-            >
+            <aside className="absolute right-0 top-0 h-full w-[min(85vw,22rem)] bg-white shadow-2xl ring-1 ring-black/10 flex flex-col">
               <div className="flex items-center justify-between border-b p-4">
                 <span className="text-base font-bold text-[#6B271A]">Menu</span>
                 <button
@@ -1043,7 +1012,6 @@ export default function HomepageMockup() {
                 </ul>
               </nav>
 
-              {/* CTA “Diventa Creator” + Esci se loggato */}
               <div className="border-t p-3 mt-auto space-y-2">
                 <Link
                   to="/registrazione-creator"
@@ -1066,7 +1034,7 @@ export default function HomepageMockup() {
           </div>
         )}
 
-        {/* GEO Fallback toast */}
+        {/* GEO/Signup toasts */}
         {geoToast && (
           <div className="max-w-6xl mx-auto px-4 sm:px-6 -mt-6">
             <div className="rounded-xl bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 text-sm">
@@ -1074,8 +1042,6 @@ export default function HomepageMockup() {
             </div>
           </div>
         )}
-
-        {/* POST-SIGNUP TOAST */}
         {signupSuccess && (
           <div className="max-w-6xl mx-auto px-4 sm:px-6 -mt-6">
             <div className="rounded-xl bg-green-50 border border-green-200 text-green-800 px-4 py-3 text-sm">
@@ -1084,13 +1050,12 @@ export default function HomepageMockup() {
           </div>
         )}
 
-        {/* HERO molto grande */}
+        {/* HERO */}
         <HeroHeader />
 
         {/* REGIONS */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6 -mt-6">
           <h2 className="sr-only">Regioni</h2>
-
           {/* Mobile */}
           <div className="md:hidden relative">
             <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent rounded-l-2xl" />
@@ -1120,8 +1085,7 @@ export default function HomepageMockup() {
               })}
             </div>
           </div>
-
-          {/* Desktop: riga unica scrollabile, pillole adattive + scrollbar visibile */}
+          {/* Desktop */}
           <div
             className="hidden md:grid grid-flow-col auto-cols-max gap-2 overflow-x-auto show-scrollbar-desktop pb-1"
             role="toolbar"
@@ -1159,7 +1123,7 @@ export default function HomepageMockup() {
           )}
         </section>
 
-        {/* SERVIZI — (titolo rimosso per recuperare spazio) */}
+        {/* SERVIZI */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           {/* Mobile carousel */}
           <div className="relative md:hidden">
@@ -1219,7 +1183,7 @@ export default function HomepageMockup() {
           </div>
         </section>
 
-        {/* VIDEO CREATOR */}
+        {/* VIDEO DEI CREATOR — con SafeEmbed */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Video dei creator</h2>
@@ -1228,7 +1192,7 @@ export default function HomepageMockup() {
             </Link>
           </div>
 
-          {/* mobile scroll */}
+          {/* Mobile scroll */}
           <div className="mt-4 md:hidden">
             <div
               className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4"
@@ -1246,7 +1210,12 @@ export default function HomepageMockup() {
                     key={v.id}
                     className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition min-w-[300px] max-w-[300px] flex-shrink-0 snap-start relative"
                   >
-                    <div className="aspect-[16/9] overflow-hidden relative">
+                    <div
+                      className="aspect-[16/9] overflow-hidden relative cursor-pointer group"
+                      onClick={() => openVideoModal(v)}
+                      role="button"
+                      aria-label={`Guarda il video di ${name}`}
+                    >
                       <img
                         src={v.thumbnail || v.cover || FALLBACK_IMG}
                         alt={`Video di ${name}`}
@@ -1255,6 +1224,11 @@ export default function HomepageMockup() {
                         onError={onImgErr}
                       />
                       <FavoriteButton id={`vid:${v.id}`} className="absolute top-2 right-2" />
+                      <div className="absolute inset-0 grid place-items-center bg-black/0 group-hover:bg-black/20 transition">
+                        <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/95 text-[#6B271A] font-semibold shadow">
+                          <Play className="w-4 h-4" /> Guarda
+                        </span>
+                      </div>
                     </div>
                     <div className="p-4">
                       <div className="flex items-center justify-between gap-2">
@@ -1268,11 +1242,17 @@ export default function HomepageMockup() {
                           <MapPin size={16} className="text-[#D54E30]" /> {borgo.name}
                         </div>
                       )}
-                      <div className="mt-3 flex items-center justify-end">
+                      <div className="mt-3 flex items-center justify-between">
+                        <button
+                          onClick={() => openVideoModal(v)}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#D54E30] text-white"
+                        >
+                          <Play className="w-4 h-4" /> Guarda
+                        </button>
                         <Link
                           to={`/chat?to=${encodeURIComponent(idTo)}`}
                           aria-label={`Contatta ${name}`}
-                          className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#D54E30] text-white"
+                          className="inline-flex items-center justify-center w-9 h-9 rounded-lg border"
                         >
                           <User size={18} />
                         </Link>
@@ -1284,57 +1264,71 @@ export default function HomepageMockup() {
             </div>
           </div>
 
-          {/* desktop grid */}
+          {/* Desktop grid */}
           <div className="mt-4 hidden md:grid grid-cols-4 gap-5">
-            {listLatestVideos(24)
-              .slice(0, 4)
-              .map((v) => {
-                const c = getCreator(v.creatorId);
-                const name = v.creatorName || c?.name || "Creator";
-                const level = v.level || c?.level || "—";
-                const idTo = v.creatorId || v.id;
-                const borgo = BORGI_BY_SLUG[v.borgoSlug];
+            {listLatestVideos(24).slice(0, 4).map((v) => {
+              const c = getCreator(v.creatorId);
+              const name = v.creatorName || c?.name || "Creator";
+              const level = v.level || c?.level || "—";
+              const idTo = v.creatorId || v.id;
+              const borgo = BORGI_BY_SLUG[v.borgoSlug];
 
-                return (
-                  <article
-                    key={v.id}
-                    className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition relative"
+              return (
+                <article
+                  key={v.id}
+                  className="overflow-hidden rounded-2xl bg-white shadow-xl hover:shadow-2xl transition relative"
+                >
+                  <div
+                    className="aspect-[16/9] overflow-hidden relative cursor-pointer group"
+                    onClick={() => openVideoModal(v)}
+                    role="button"
+                    aria-label={`Guarda il video di ${name}`}
                   >
-                    <div className="aspect-[16/9] overflow-hidden relative">
-                      <img
-                        src={v.thumbnail || v.cover || FALLBACK_IMG}
-                        alt={`Video di ${name}`}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        onError={onImgErr}
-                      />
-                      <FavoriteButton id={`vid:${v.id}`} className="absolute top-2 right-2" />
+                    <img
+                      src={v.thumbnail || v.cover || FALLBACK_IMG}
+                      alt={`Video di ${name}`}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={onImgErr}
+                    />
+                    <FavoriteButton id={`vid:${v.id}`} className="absolute top-2 right-2" />
+                    <div className="absolute inset-0 grid place-items-center bg-black/0 group-hover:bg-black/20 transition">
+                      <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/95 text-[#6B271A] font-semibold shadow">
+                        <Play className="w-4 h-4" /> Guarda
+                      </span>
                     </div>
-                    <div className="p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-base font-extrabold text-[#6B271A] truncate">{name}</h3>
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] shrink-0">
-                          {level}
-                        </span>
-                      </div>
-                      {borgo && (
-                        <div className="mt-1 flex items-center gap-2 text-sm text-gray-700">
-                          <MapPin size={16} className="text-[#D54E30]" /> {borgo.name}
-                        </div>
-                      )}
-                      <div className="mt-3 flex items-center justify-end">
-                        <Link
-                          to={`/chat?to=${encodeURIComponent(idTo)}`}
-                          aria-label={`Contatta ${name}`}
-                          className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#D54E30] text-white"
-                        >
-                          <User size={18} />
-                        </Link>
-                      </div>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-base font-extrabold text-[#6B271A] truncate">{name}</h3>
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FAF5E0] text-[#6B271A] border border-[#E1B671] shrink-0">
+                        {level}
+                      </span>
                     </div>
-                  </article>
-                );
-              })}
+                    {borgo && (
+                      <div className="mt-1 flex items-center gap-2 text-sm text-gray-700">
+                        <MapPin size={16} className="text-[#D54E30]" /> {borgo.name}
+                      </div>
+                    )}
+                    <div className="mt-3 flex items-center justify-between">
+                      <button
+                        onClick={() => openVideoModal(v)}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#D54E30] text-white"
+                      >
+                        <Play className="w-4 h-4" /> Guarda
+                      </button>
+                      <Link
+                        to={`/chat?to=${encodeURIComponent(idTo)}`}
+                        aria-label={`Contatta ${name}`}
+                        className="inline-flex items-center justify-center w-9 h-9 rounded-lg border"
+                      >
+                        <User size={18} />
+                      </Link>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </section>
 
@@ -1380,7 +1374,7 @@ export default function HomepageMockup() {
         </section>
 
         {/* ESPERIENZE */}
-        <section className="max-w-6xl mx.auto px-4 sm:px-6">
+        <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Esperienze</h2>
             <Link to="/esperienze" className="text-sm font-semibold underline">
@@ -1401,9 +1395,6 @@ export default function HomepageMockup() {
         <section className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-extrabold text-[#6B271A]">Prodotti tipici</h2>
-            <a href="#" className="text-sm font-semibold underline">
-              Vedi tutti
-            </a>
           </div>
           <div
             className="mt-4 flex gap-5 overflow-x-auto show-scrollbar-desktop pb-4 snap-x snap-mandatory"
@@ -1489,19 +1480,43 @@ export default function HomepageMockup() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 text-sm text-gray-600 flex flex-col md:flex-row gap-2 md:items-center md:justify-between">
             <div>© {new Date().getFullYear()} Il Borghista — Tutti i diritti riservati</div>
             <div className="flex gap-4">
-              <a href="#" className="hover:underline">
-                Privacy
-              </a>
-              <a href="#" className="hover:underline">
-                Cookie
-              </a>
-              <Link to="/creator" className="hover:underline">
-                Creator
-              </Link>
+              <a href="#" className="hover:underline">Privacy</a>
+              <a href="#" className="hover:underline">Cookie</a>
+              <Link to="/creator" className="hover:underline">Creator</Link>
             </div>
           </div>
         </footer>
       </main>
+
+      {/* ===== MODAL EMBED VIDEO ===== */}
+      {openVideo && (
+        <div className="fixed inset-0 z-[90]" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setOpenVideo(false)} />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <div className="font-bold text-[#6B271A] truncate">
+                  {videoRec?.creatorName || getCreator(videoRec?.creatorId)?.name || "Video"}
+                </div>
+                <button
+                  aria-label="Chiudi"
+                  className="inline-flex w-9 h-9 items-center justify-center rounded-full border"
+                  onClick={() => setOpenVideo(false)}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-4">
+                <SafeEmbed
+                  url={getVideoUrl(videoRec)}
+                  title={videoRec?.title || videoRec?.creatorName || "Video del creator"}
+                  caption={BORGI_BY_SLUG[videoRec?.borgoSlug]?.name || ""}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

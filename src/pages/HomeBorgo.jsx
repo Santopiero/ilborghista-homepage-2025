@@ -10,12 +10,15 @@ import {
 } from "../lib/store";
 import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
 
-/* ====== NUOVO: prendo i video pubblicati dal modulo creatorVideos ====== */
+/* ====== Video creator ====== */
 import {
   getVideosByBorgo as getVideosByBorgoLocal,
-  getVideosByPoi as getVideosByPoiLocal,
+  getVideosByPoi as getVideosByPoiLocal, // eventualmente usabile in altre sezioni
   getPlayableUrl,
 } from "../lib/creatorVideos";
+
+/* ====== Safe embed ====== */
+import SafeEmbed from "../components/SafeEmbed.jsx";
 
 import {
   ChevronLeft, ChevronRight, Share2, Heart, Film, CalendarDays, Route, ShoppingBag,
@@ -370,7 +373,7 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
     <section className="relative">
       {/* Mobile invariato, desktop più alto */}
       <div
-        className="relative h-72 w-full overflow-hidden md:h-[560px] lg:h-[680px]"
+        className="relative h-72 w-full overflow-hidden md:h[560px] lg:h-[680px] md:h-[560px]"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
@@ -872,7 +875,7 @@ export default function HomeBorgo() {
   const infoHref = `/borghi/${slug}/info`;
   const donateHref = `/borghi/${slug}/sostieni`;
 
-  /* ====== Player interno (modal) per video link/file senza redirect ====== */
+  /* ====== Player interno (modal) per video ====== */
   const [openVid, setOpenVid] = useState(null);
   const [playUrl, setPlayUrl] = useState("");
 
@@ -893,10 +896,6 @@ export default function HomeBorgo() {
     setOpenVid(null);
     setPlayUrl("");
   }
-
-  const isInstagram = (u="") => /instagram\.com/i.test(u);
-  const isTikTok = (u="") => /tiktok\.com/i.test(u);
-  const isYouTube = (u="") => /(?:youtu\.be|youtube\.com)/i.test(u);
 
   return (
     <>
@@ -1033,42 +1032,19 @@ export default function HomeBorgo() {
             </div>
 
             <div className="relative aspect-video w-full overflow-hidden rounded-xl border bg-black/5" style={{borderColor:"#E1B671"}}>
-              {/* link esterni: resto in piattaforma */}
-              {openVid.source === "link" && isYouTube(playUrl) && (
-                <iframe
-                  src={`https://www.youtube.com/embed/${getYouTubeId(playUrl)}?rel=0`}
-                  title={openVid.title || "Video"}
-                  loading="lazy"
-                  className="absolute inset-0 h-full w-full"
-                  frameBorder="0"
-                  allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                  referrerPolicy="strict-origin-when-cross-origin"
-                />
-              )}
-              {openVid.source === "link" && (isInstagram(playUrl) || isTikTok(playUrl)) && (
-                // uso EmbedCard se già in pagina; qui semplifico: iframe non ufficiale è sconsigliato,
-                // quindi per coerenza potresti importare EmbedCard e usarlo. Manteniamo semplice:
-                <div className="absolute inset-0 overflow-auto p-2">
-                  {/* Per incorporare correttamente IG/TikTok, preferisci una pagina dedicata o un componente EmbedCard. */}
-                  <p className="text-sm text-center text-neutral-700">
-                    Questo contenuto viene incorporato con il player ufficiale nella pagina dei Creator.
-                  </p>
-                  <div className="mt-2">
-                    {/* se vuoi, rimpiazza questo paragrafo con <EmbedCard url={playUrl} aspect="16/9" /> */}
-                    <EmbedCard url={playUrl} title={openVid.title} aspect="16/9" />
-                  </div>
-                </div>
-              )}
-
-              {/* file locali */}
-              {openVid.source === "file" && (
+              {/* File locali: player nativo */}
+              {openVid.source === "file" ? (
                 <video
                   src={playUrl}
                   controls
                   playsInline
                   className="absolute inset-0 h-full w-full rounded-xl"
                 />
+              ) : (
+                // Link esterni: SafeEmbed (gestisce YouTube/Vimeo/TikTok/FB/Instagram + fallback)
+                <div className="absolute inset-0">
+                  <SafeEmbed url={playUrl} title={openVid.title} caption="" />
+                </div>
               )}
             </div>
           </div>

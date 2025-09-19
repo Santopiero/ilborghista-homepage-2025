@@ -1,8 +1,9 @@
 // src/pages/creator/Onboarding.jsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import SuggestItineraryBtn from "../../components/SuggestItineraryBtn";
-import EmbedCard from "../../components/EmbedCard";
+// ⬇️ Sostituisce EmbedCard
+import UniversalEmbed from "../../components/UniversalEmbed";
 import {
   Menu, X, LogOut, Flag, MessageCircle, Upload, Youtube,
   BarChart2, Clock, ChevronRight, Crown, List, Bell,
@@ -83,8 +84,6 @@ function useLevel(points) {
    DETECT provider link
 ======================= */
 const isYouTube = (u = "") => /(?:youtu\.be|youtube\.com)/i.test(u);
-const isInstagram = (u = "") => /instagram\.com/i.test(u);
-const isTikTok = (u = "") => /tiktok\.com/i.test(u);
 
 /* =======================
    UTILS: persist panel state
@@ -101,36 +100,6 @@ const loadOpen = (k, def = true) => {
 const saveOpen = (k, open) => {
   try { localStorage.setItem(k, open ? "1" : "0"); } catch {}
 };
-
-/* =======================
-   INSTAGRAM EMBED (script)
-======================= */
-function useInstagramEmbed(url) {
-  const processedForUrl = useRef("");
-  useEffect(() => {
-    if (!isInstagram(url)) return;
-    const ensureScript = () => {
-      if (typeof window === "undefined") return;
-      const id = "ig-embed-js";
-      if (!document.getElementById(id)) {
-        const s = document.createElement("script");
-        s.id = id;
-        s.async = true;
-        s.src = "https://www.instagram.com/embed.js";
-        document.body.appendChild(s);
-      }
-    };
-    ensureScript();
-    const process = () => {
-      try {
-        window.instgrm && window.instgrm.Embeds && window.instgrm.Embeds.process();
-        processedForUrl.current = url;
-      } catch {}
-    };
-    const t = setTimeout(process, 100);
-    return () => clearTimeout(t);
-  }, [url]);
-}
 
 /* =======================
    PAGINA ONBOARDING
@@ -194,7 +163,6 @@ export default function Onboarding() {
     avatarFile: null,
     socials: { website: "", youtube: "", instagram: "", tiktok: "" },
   });
-  const TRAIT_OPTS = ["Natura","Food","Storie locali","Cammini","Arte & Cultura","Family friendly","Drone","Vlog"];
 
   // selezione borgo/categoria/poi
   const [selectedBorgoSlug, setSelectedBorgoSlug] = useState("");
@@ -209,13 +177,13 @@ export default function Onboarding() {
     id: null,
     title: "",
     description: "",
-    category: "",      // NEW
+    category: "",
     poiId: "",
     tags: "",
     url: "",
     file: null,
     thumbnail: FALLBACK_IMG,
-    source: "link",    // link | file
+    source: "link", // link | file
   });
   const [previewUrl, setPreviewUrl] = useState("");
 
@@ -236,7 +204,7 @@ export default function Onboarding() {
     });
   };
 
-  // refresh preview
+  // refresh preview URL
   useEffect(() => {
     if (form.source === "link") setPreviewUrl(form.url || "");
     else if (form.source === "file" && form.file) {
@@ -245,9 +213,6 @@ export default function Onboarding() {
       return () => URL.revokeObjectURL(local);
     } else setPreviewUrl("");
   }, [form.source, form.url, form.file]);
-
-  // hook instagram quando serve
-  useInstagramEmbed(previewUrl);
 
   // classifiche (mock)
   const leaderboardRegional = [
@@ -656,8 +621,9 @@ export default function Onboarding() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Input label="Sito web" value={creatorProfile.socials.website} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, website: v } }))} placeholder="https://il-mi-sito.it" icon={<Globe className="h-4 w-4" style={{ color: C.primaryDark }} />} />
                       <Input label="YouTube" value={creatorProfile.socials.youtube} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, youtube: v } }))} placeholder="https://youtube.com/…" icon={<Youtube className="h-4 w-4" style={{ color: C.primaryDark }} />} />
-                      <Input label="Instagram" value={creatorProfile.socials.instagram} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p, instagram: v } }))} placeholder="https://instagram.com/…" icon={<Instagram className="h-4 w-4" style={{ color: C.primaryDark }} />} />
-                      <Input label="TikTok" value={creatorProfile.socials.tiktok} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p, tiktok: v } }))} placeholder="https://tiktok.com/@…" icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />} />
+                      {/* ⬇️ Fix: non sovrascrivere socials */}
+                      <Input label="Instagram" value={creatorProfile.socials.instagram} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, instagram: v } }))} placeholder="https://instagram.com/…" icon={<Instagram className="h-4 w-4" style={{ color: C.primaryDark }} />} />
+                      <Input label="TikTok" value={creatorProfile.socials.tiktok} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, tiktok: v } }))} placeholder="https://tiktok.com/@…" icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />} />
                     </div>
 
                     <div className="flex gap-2">
@@ -722,14 +688,14 @@ export default function Onboarding() {
                         <div className="grid gap-2">
                           <div className="flex items-center gap-2">
                             <input type="radio" id="src-link" checked={form.source === "link"} onChange={() => setForm(f => ({ ...f, source: "link" }))} />
-                            <label htmlFor="src-link" className="text-sm" style={{ color: C.primaryDark }}>YouTube / Instagram / TikTok</label>
+                            <label htmlFor="src-link" className="text-sm" style={{ color: C.primaryDark }}>YouTube / Instagram / TikTok / Facebook</label>
                           </div>
                           <Input
                             label="URL"
                             icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />}
                             value={form.url}
                             onChange={(v) => setForm(f => ({ ...f, url: v, thumbnail: isYouTube(v) ? (getYouTubeThumb?.(v) || FALLBACK_IMG) : f.thumbnail }))}
-                            placeholder="https://youtube.com/... oppure https://instagram.com/... oppure https://www.tiktok.com/..."
+                            placeholder="Incolla il permalink pubblico (YouTube, Instagram, TikTok, Facebook)"
                           />
                         </div>
                       </div>
@@ -754,37 +720,14 @@ export default function Onboarding() {
                       </div>
                     </div>
 
-                    {/* Anteprima */}
+                    {/* Anteprima: UniversalEmbed per tutti i link supportati */}
                     <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
                       <Label>Anteprima</Label>
 
-                      {/* INSTAGRAM: embed ufficiale */}
-                      {form.source === "link" && isInstagram(form.url) && (
-                        <div className="mt-1">
-                          <blockquote
-                            className="instagram-media"
-                            data-instgrm-permalink={form.url}
-                            data-instgrm-version="14"
-                            style={{ background: "#fff", border: 0, margin: 0, padding: 0, width: "100%" }}
-                          />
-                          <div className="mt-2 text-xs" style={{ color: C.primaryDark }}>
-                            Il contenuto è riprodotto qui tramite embed ufficiale: resti sulla piattaforma.
-                          </div>
-                        </div>
+                      {form.source === "link" && !!form.url && (
+                        <UniversalEmbed url={form.url} title={form.title || "Anteprima"} />
                       )}
 
-                      {/* ALTRI provider */}
-                      {form.source === "link" && !!form.url && !isInstagram(form.url) && (
-                        <EmbedCard
-                          url={form.url}
-                          title={form.title || "Anteprima"}
-                          caption={(isTikTok(form.url) || isYouTube(form.url))
-                            ? "Embed ufficiale: resti sulla piattaforma di origine."
-                            : "Riproduzione incorporata."}
-                        />
-                      )}
-
-                      {/* File locale */}
                       {form.source === "file" && form.file && (
                         <div className="mt-2">
                           <video src={previewUrl} controls playsInline className="w-full rounded-xl border" style={{ borderColor: C.gold }} />
@@ -793,7 +736,7 @@ export default function Onboarding() {
 
                       {!form.url && !form.file && (
                         <div className="text-sm" style={{ color: C.primaryDark }}>
-                          Inserisci un link (YouTube/Instagram/TikTok) oppure seleziona un file dal tuo PC per l’anteprima.
+                          Inserisci un link pubblico (YouTube/Instagram/TikTok/Facebook) oppure seleziona un file dal tuo PC per l’anteprima.
                         </div>
                       )}
                     </div>
@@ -1039,7 +982,13 @@ function VideoCard({ v, showPoints = false, onEdit }) {
     <div className="overflow-hidden rounded-xl border" style={{ borderColor: C.gold }}>
       <div className="aspect-video w-full bg-neutral-100">
         {isLink ? (
-          <EmbedCard url={v.url} title={v.title} caption="Preview incorporata" />
+          // Per la lista manteniamo la preview leggera (puoi sostituire con modal + UniversalEmbed)
+          <img
+            src={v.thumbnail || FALLBACK_IMG}
+            alt={v.title}
+            className="h-full w-full object-cover"
+            onError={(e) => (e.currentTarget.src = FALLBACK_IMG)}
+          />
         ) : (
           <img
             src={v.thumbnail || FALLBACK_IMG}
@@ -1068,7 +1017,7 @@ function VideoCard({ v, showPoints = false, onEdit }) {
         )}
         <div className="mt-2 flex gap-2">
           <BtnOutline onClick={onEdit} className="!px-3 !py-1.5 text-xs"><Edit3 className="h-3.5 w-3.5 mr-1" /> Modifica</BtnOutline>
-           <a
+          <a
             href={isLink ? v.url : "#"}
             target={isLink ? "_blank" : undefined}
             rel="noreferrer"

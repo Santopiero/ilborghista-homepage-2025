@@ -1,9 +1,9 @@
 // src/pages/creator/Onboarding.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import SuggestItineraryBtn from "../../components/SuggestItineraryBtn";
-// ⬇️ Sostituisce EmbedCard
-import UniversalEmbed from "../../components/UniversalEmbed";
+import EmbedCard from "../../components/EmbedCard";
+import SocialCompactCard from "../../components/SocialCompactCard";
 import {
   Menu, X, LogOut, Flag, MessageCircle, Upload, Youtube,
   BarChart2, Clock, ChevronRight, Crown, List, Bell,
@@ -84,6 +84,8 @@ function useLevel(points) {
    DETECT provider link
 ======================= */
 const isYouTube = (u = "") => /(?:youtu\.be|youtube\.com)/i.test(u);
+const isInstagram = (u = "") => /instagram\.com/i.test(u);
+const isTikTok = (u = "") => /tiktok\.com/i.test(u);
 
 /* =======================
    UTILS: persist panel state
@@ -100,6 +102,36 @@ const loadOpen = (k, def = true) => {
 const saveOpen = (k, open) => {
   try { localStorage.setItem(k, open ? "1" : "0"); } catch {}
 };
+
+/* =======================
+   INSTAGRAM EMBED (script)
+======================= */
+function useInstagramEmbed(url) {
+  const processedForUrl = useRef("");
+  useEffect(() => {
+    if (!isInstagram(url)) return;
+    const ensureScript = () => {
+      if (typeof window === "undefined") return;
+      const id = "ig-embed-js";
+      if (!document.getElementById(id)) {
+        const s = document.createElement("script");
+        s.id = id;
+        s.async = true;
+        s.src = "https://www.instagram.com/embed.js";
+        document.body.appendChild(s);
+      }
+    };
+    ensureScript();
+    const process = () => {
+      try {
+        window.instgrm && window.instgrm.Embeds && window.instgrm.Embeds.process();
+        processedForUrl.current = url;
+      } catch {}
+    };
+    const t = setTimeout(process, 100);
+    return () => clearTimeout(t);
+  }, [url]);
+}
 
 /* =======================
    PAGINA ONBOARDING
@@ -183,7 +215,7 @@ export default function Onboarding() {
     url: "",
     file: null,
     thumbnail: FALLBACK_IMG,
-    source: "link", // link | file
+    source: "link",    // link | file
   });
   const [previewUrl, setPreviewUrl] = useState("");
 
@@ -204,7 +236,7 @@ export default function Onboarding() {
     });
   };
 
-  // refresh preview URL
+  // refresh preview
   useEffect(() => {
     if (form.source === "link") setPreviewUrl(form.url || "");
     else if (form.source === "file" && form.file) {
@@ -213,6 +245,9 @@ export default function Onboarding() {
       return () => URL.revokeObjectURL(local);
     } else setPreviewUrl("");
   }, [form.source, form.url, form.file]);
+
+  // hook instagram quando serve
+  useInstagramEmbed(previewUrl);
 
   // classifiche (mock)
   const leaderboardRegional = [
@@ -372,6 +407,33 @@ export default function Onboarding() {
     setTimeout(() => document.getElementById("creator-tools")?.scrollIntoView({ behavior: "smooth" }), 150);
   };
 
+  /* ========== DEMO PER TEST LIGHTBOX ========== */
+  const demoVideos = [
+    {
+      url: "https://www.instagram.com/p/C9v0Xx4rabc/",
+      title: "Reel dal borgo",
+      thumb: "https://placehold.co/800x450?text=IG+Preview",
+      date: "Oggi",
+    },
+    {
+      url: "https://www.tiktok.com/@scuoladicucinaborghi/video/1234567890",
+      title: "Ricetta tipica",
+      thumb: "https://placehold.co/800x450?text=TT+Preview",
+      date: "Ieri",
+    },
+    {
+      url: "https://www.facebook.com/watch/?v=10153231379946729",
+      title: "Evento in piazza",
+      thumb: "https://placehold.co/800x450?text=FB+Preview",
+      date: "Settimana scorsa",
+    },
+    {
+      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      title: "Vlog YouTube",
+      date: "19/09/2025",
+    },
+  ];
+
   /* ================= HEADER ================= */
   return (
     <div className="min-h-screen" style={{ backgroundColor: C.cream }}>
@@ -473,7 +535,7 @@ export default function Onboarding() {
               <FavSection title="Prodotti tipici" items={fav.prodotti} onRemove={(id) => removeFav("prodotti", id)} onAdd={() => addDemoFav("prodotti")} />
             </div>
 
-            {/* Suggerisci itinerario */}
+            {/* Suggerisci itinerario – subito dopo i preferiti */}
             <div className="mt-6">
               <div className="rounded-xl border p-4 sm:p-5 flex items-center justify-between gap-3"
                    style={{ borderColor: C.gold, backgroundColor: "#fff" }}>
@@ -515,6 +577,18 @@ export default function Onboarding() {
               <QuickBtn icon={Flag} label="Segnala evento (+5)" onClick={doReportEvent} />
               <QuickBtn icon={MessageCircle} label="Lascia feedback (+3)" onClick={doFeedback} />
               <QuickBtn icon={Film} label="Diventa creator" onClick={openCreatorFlow} />
+            </div>
+          </div>
+
+          {/* ====== BLOCCO DI TEST: Compact + Lightbox ====== */}
+          <div className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
+            <div className="mb-3 text-sm font-medium" style={{ color: C.primaryDark }}>
+              Test player (compact + lightbox)
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {demoVideos.map((v, i) => (
+                <SocialCompactCard key={i} {...v} />
+              ))}
             </div>
           </div>
 
@@ -621,7 +695,6 @@ export default function Onboarding() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Input label="Sito web" value={creatorProfile.socials.website} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, website: v } }))} placeholder="https://il-mi-sito.it" icon={<Globe className="h-4 w-4" style={{ color: C.primaryDark }} />} />
                       <Input label="YouTube" value={creatorProfile.socials.youtube} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, youtube: v } }))} placeholder="https://youtube.com/…" icon={<Youtube className="h-4 w-4" style={{ color: C.primaryDark }} />} />
-                      {/* ⬇️ Fix: non sovrascrivere socials */}
                       <Input label="Instagram" value={creatorProfile.socials.instagram} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, instagram: v } }))} placeholder="https://instagram.com/…" icon={<Instagram className="h-4 w-4" style={{ color: C.primaryDark }} />} />
                       <Input label="TikTok" value={creatorProfile.socials.tiktok} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, tiktok: v } }))} placeholder="https://tiktok.com/@…" icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />} />
                     </div>
@@ -695,7 +768,7 @@ export default function Onboarding() {
                             icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />}
                             value={form.url}
                             onChange={(v) => setForm(f => ({ ...f, url: v, thumbnail: isYouTube(v) ? (getYouTubeThumb?.(v) || FALLBACK_IMG) : f.thumbnail }))}
-                            placeholder="Incolla il permalink pubblico (YouTube, Instagram, TikTok, Facebook)"
+                            placeholder="Incolla un URL pubblico (es. https://www.instagram.com/p/...  https://www.tiktok.com/...  https://www.facebook.com/...  https://www.youtube.com/watch?v=...)"
                           />
                         </div>
                       </div>
@@ -720,14 +793,37 @@ export default function Onboarding() {
                       </div>
                     </div>
 
-                    {/* Anteprima: UniversalEmbed per tutti i link supportati */}
+                    {/* Anteprima */}
                     <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
                       <Label>Anteprima</Label>
 
-                      {form.source === "link" && !!form.url && (
-                        <UniversalEmbed url={form.url} title={form.title || "Anteprima"} />
+                      {/* INSTAGRAM: embed ufficiale */}
+                      {form.source === "link" && isInstagram(form.url) && (
+                        <div className="mt-1">
+                          <blockquote
+                            className="instagram-media"
+                            data-instgrm-permalink={form.url}
+                            data-instgrm-version="14"
+                            style={{ background: "#fff", border: 0, margin: 0, padding: 0, width: "100%" }}
+                          />
+                          <div className="mt-2 text-xs" style={{ color: C.primaryDark }}>
+                            Il contenuto è riprodotto qui tramite embed ufficiale: resti sulla piattaforma.
+                          </div>
+                        </div>
                       )}
 
+                      {/* ALTRI provider */}
+                      {form.source === "link" && !!form.url && !isInstagram(form.url) && (
+                        <EmbedCard
+                          url={form.url}
+                          title={form.title || "Anteprima"}
+                          caption={(isTikTok(form.url) || isYouTube(form.url))
+                            ? "Embed ufficiale: resti sulla piattaforma di origine."
+                            : "Riproduzione incorporata."}
+                        />
+                      )}
+
+                      {/* File locale */}
                       {form.source === "file" && form.file && (
                         <div className="mt-2">
                           <video src={previewUrl} controls playsInline className="w-full rounded-xl border" style={{ borderColor: C.gold }} />
@@ -736,7 +832,7 @@ export default function Onboarding() {
 
                       {!form.url && !form.file && (
                         <div className="text-sm" style={{ color: C.primaryDark }}>
-                          Inserisci un link pubblico (YouTube/Instagram/TikTok/Facebook) oppure seleziona un file dal tuo PC per l’anteprima.
+                          Inserisci un link (YouTube/Instagram/TikTok/Facebook) oppure seleziona un file dal tuo PC per l’anteprima.
                         </div>
                       )}
                     </div>
@@ -982,13 +1078,7 @@ function VideoCard({ v, showPoints = false, onEdit }) {
     <div className="overflow-hidden rounded-xl border" style={{ borderColor: C.gold }}>
       <div className="aspect-video w-full bg-neutral-100">
         {isLink ? (
-          // Per la lista manteniamo la preview leggera (puoi sostituire con modal + UniversalEmbed)
-          <img
-            src={v.thumbnail || FALLBACK_IMG}
-            alt={v.title}
-            className="h-full w-full object-cover"
-            onError={(e) => (e.currentTarget.src = FALLBACK_IMG)}
-          />
+          <EmbedCard url={v.url} title={v.title} caption="Preview incorporata" />
         ) : (
           <img
             src={v.thumbnail || FALLBACK_IMG}

@@ -14,7 +14,6 @@ import { BORGI_BY_SLUG, BORGI_INDEX } from "../data/borghi";
 /* ====== Video creator ====== */
 import {
   getVideosByBorgo as getVideosByBorgoLocal,
-  // getVideosByPoi as getVideosByPoiLocal, // se servirà in altre sezioni
   getPlayableUrl,
 } from "../lib/creatorVideos";
 
@@ -22,7 +21,7 @@ import {
 import SafeEmbed from "../components/SafeEmbed.jsx";
 
 import {
-  ChevronLeft, ChevronRight, Share2, Heart, CalendarDays, Route, ShoppingBag,
+  ChevronLeft, ChevronRight, Share2, Heart, CalendarDays, Route as RouteIcon, ShoppingBag,
   List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Search, Menu, X,
   LogIn, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned,
   MapPin, Star, Bus, Info, HandHeart, User, Smartphone
@@ -47,14 +46,7 @@ const fmtPrice = (n) => {
   try { return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n); }
   catch { return `€ ${Math.round(n)}`; }
 };
-function withUtm(url, partner) {
-  if (!url) return "#";
-  const u = new URL(url, window.location.origin);
-  u.searchParams.set("utm_source", "ilborghista");
-  u.searchParams.set("utm_medium", "partner");
-  u.searchParams.set("utm_campaign", (partner || "esperienze").toLowerCase());
-  return u.toString();
-}
+
 function getYouTubeId(url = "") {
   try {
     const u = new URL(url);
@@ -84,7 +76,6 @@ function kmBetween(a, b) {
 
 /* ====== Helpers per ordinamento video ====== */
 function tsOf(v = {}) {
-  // prova vari campi; fallback a 0
   const candidates = [v.publishedAt, v.createdAt, v.updatedAt, v.ts, v.date];
   for (const c of candidates) {
     const t = +new Date(c || 0);
@@ -125,10 +116,6 @@ function TopBar({ slug }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [q, setQ] = useState("");
 
-  useEffect(() => {
-    try { console.info("TopBar v2 mounted"); } catch {}
-  }, []);
-
   const infoHref = `/borghi/${slug}/info`;
   const donateHref = `/borghi/${slug}/sostieni`;
 
@@ -155,6 +142,7 @@ function TopBar({ slug }) {
               onChange={(e) => setQ(e.target.value)}
               placeholder="Cerca luoghi, eventi, esperienze…"
               className="w-full rounded-full border px-4 py-2 pl-9 text-sm outline-none focus:border-[#6B271A]"
+              aria-label="Cerca su Il Borghista"
             />
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
           </form>
@@ -192,6 +180,7 @@ function TopBar({ slug }) {
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Cerca nel borgo…"
                   className="w-full rounded-xl border px-4 py-2 pl-9 text-sm outline-none focus:border-[#6B271A]"
+                  aria-label="Cerca nel borgo"
                 />
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
               </div>
@@ -362,7 +351,6 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
   const hasMany = n > 1;
   const current = n ? gallery[i] : { src: fallback, name: title };
 
-  // Preferiti del borgo
   const [isFav, onFavToggle] = useFavorite(favType, favId, favData);
 
   // Swipe mobile
@@ -435,7 +423,7 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-extrabold text-white drop-shadow md:text-4xl">{title}</h1>
             <div className="hidden md:flex items-center gap-2">
-              {/* extras vengono passati dal parent */}
+              {leftExtras /* ← ora vengono davvero renderizzati */}
             </div>
           </div>
           <div className="hidden items-center gap-2 sm:flex">
@@ -443,10 +431,11 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
               <Share2 className="h-4 w-4" /> Condividi
             </button>
             <button
-              onClick={() => {}}
+              onClick={onFavToggle}
               className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 bg-white/90 text-[#6B271A] hover:bg-white`}
+              aria-pressed={isFav}
             >
-              <Heart className="h-4 w-4" /> Salva
+              <Heart className="h-4 w-4" /> {isFav ? "Salvato" : "Salva"}
             </button>
           </div>
         </div>
@@ -482,7 +471,8 @@ function NavBall({ to, label, icon: Icon, bg, color }) {
     </Link>
   );
 }
-function NavTileMobile({ to, label, icon: Icon, bg, color, gradient }) {
+
+function NavTileMobile({ to, label, icon: Icon, bg, color }) {
   return (
     <Link
       to={to}
@@ -491,9 +481,8 @@ function NavTileMobile({ to, label, icon: Icon, bg, color, gradient }) {
     >
       <span
         className="relative inline-flex h-11 w-11 items-center justify-center rounded-full shadow ring-1 ring-black/5"
-        style={{ background: gradient ? undefined : bg, color }}
+        style={{ background: bg, color }}
       >
-        {gradient ? <span className="absolute inset-0 rounded-full" style={{ background: colors.esperienze.bg }} /> : null}
         <Icon className="h-5 w-5 relative" aria-hidden="true" />
       </span>
       <span className="text-[15px] leading-tight font-extrabold text-[#5B2A1F]">
@@ -502,6 +491,7 @@ function NavTileMobile({ to, label, icon: Icon, bg, color, gradient }) {
     </Link>
   );
 }
+
 const Divider = () => <span className="mx-1 hidden h-6 w-px bg-neutral-200 sm:inline-block" />;
 
 /* ================= Descrizione (solo testo) ================= */
@@ -549,6 +539,7 @@ function SmallGallery({ items = [] }) {
     </div>
   );
 }
+
 function InBreve({ meta, borgo, slug }) {
   const regione = borgo?.regione || meta?.regione || meta?.region;
   const provincia = borgo?.provincia || meta?.provincia || meta?.province;
@@ -583,7 +574,7 @@ function CreatorCardHM({ v, borgoName, onOpen }) {
 
   return (
     <article
-      className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+      className="snap-center shrink-0 w-[80%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
       <button
         type="button"
         onClick={() => onOpen?.(v)}
@@ -627,7 +618,7 @@ function DiscoverBorgoCardHM({ b, distanceKm }) {
   return (
     <Link
       to={`/borghi/${b.slug}`}
-      className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-[28px] bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5"
+      className="snap-center shrink-0 w-[80%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-[28px] bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5"
     >
       <div className="relative aspect-[16/9] w-full overflow-hidden rounded-t-[28px]">
         <img src={b.hero} alt={b.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
@@ -661,7 +652,7 @@ function HMEventPosterCard({ ev }) {
   const eventId = ev.id || slugify(ev.title + (ev.date || ""));
   const [fav, toggleFav] = useFavorite("evento", eventId, { id: eventId, title: ev.title, img: ev.img, date: ev.date, place: ev.place });
   return (
-    <article className="snap-center shrink-0 w-[68%] xs:w-[54%] sm:w-[38%] md:w-[28%] lg:w-[22%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+    <article className="snap-center shrink-0 w-[68%] sm:w-[38%] md:w-[28%] lg:w-[22%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
       <div className="relative aspect-[2/3] w-full overflow-hidden">
         <img
           src={ev.img}
@@ -703,7 +694,7 @@ function HMProductCard({ p }) {
   const prodId = p.id || slugify(p.title);
   const [fav, toggleFav] = useFavorite("prodotto", prodId, { id: prodId, title: p.title, img: p.img, location: p.location, priceFrom: p.priceFrom });
   return (
-    <article className="snap-center shrink-0 w-[80%] xs:w-[70%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+    <article className="snap-center shrink-0 w-[80%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
       <div className="relative aspect-[16/9] w-full overflow-hidden rounded-3xl rounded-b-none">
         <img src={p.img} alt={p.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
         {p.priceFrom != null && (
@@ -883,7 +874,7 @@ export default function HomeBorgo() {
     { key: "eventi",     label: "Eventi e Sagre",         to: `/borghi/${slug}/eventi`,          icon: CalendarDays, ...colors.eventi },
     { key: "artigiani",  label: "Artigiani",              to: `/borghi/${slug}/artigiani`,       icon: Hammer,     ...colors.artigiani },
     { key: "trasporti",  label: "Trasporti",              to: `/borghi/${slug}/trasporti`,       icon: Bus,        ...colors.trasporti },
-    { key: "esperienze", label: "Esperienze e Itinerari", to: `/borghi/${slug}/esperienze`,      icon: Route,      ...colors.esperienze },
+    { key: "esperienze", label: "Esperienze e Itinerari", to: `/borghi/${slug}/esperienze`,      icon: RouteIcon,  ...colors.esperienze },
     { key: "dormire",    label: "Dormire",                to: `/borghi/${slug}/dormire`,         icon: BedDouble,  ...colors.dormire },
     { key: "prodotti",   label: "Prodotti tipici",        to: `/borghi/${slug}/prodotti-tipici`, icon: ShoppingBag, ...colors.prodotti },
   ];
@@ -912,6 +903,12 @@ export default function HomeBorgo() {
     setOpenVid(null);
     setPlayUrl("");
   }
+  // chiusura con ESC
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") closeVideo(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     <>
@@ -944,13 +941,13 @@ export default function HomeBorgo() {
         <section className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
           <div className="grid grid-cols-2 gap-2 sm:hidden">
             {navBase.map((n) => (
-              <NavTileMobile key={n.key} to={n.to} label={n.label} icon={n.icon} bg={n.bg} color={n.color} gradient={n.gradient} />
+              <NavTileMobile key={n.key} to={n.to} label={n.label} icon={n.icon} bg={n.bg} color={n.color} />
             ))}
           </div>
           <div className="hidden items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex" style={{ WebkitOverflowScrolling: "touch" }}>
             {navBase.map((n, i) => (
               <React.Fragment key={n.key}>
-                <NavBall to={n.to} label={n.label} icon={n.icon} bg={n.gradient ? undefined : n.bg} color={n.color} />
+                <NavBall to={n.to} label={n.label} icon={n.icon} bg={n.bg} color={n.color} />
                 {i < navBase.length - 1 ? <Divider /> : null}
               </React.Fragment>
             ))}

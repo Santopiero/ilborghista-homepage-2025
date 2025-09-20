@@ -69,6 +69,31 @@ export function getYouTubeThumb(url = "") {
   return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : null;
 }
 
+/* >>>>>>>>>>>>>>>>>>> ADD: validazione specifica YouTube <<<<<<<<<<<<<<<<<< */
+export function isValidYouTubeUrl(url = "") {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    if (!/youtube\.com|youtu\.be/.test(host)) return false;
+
+    if (host.includes("youtu.be")) {
+      // youtu.be/<ID>
+      return u.pathname.replace("/", "").length > 0;
+    }
+    if (host.includes("youtube.com")) {
+      // watch?v=<ID>
+      if (u.searchParams.get("v")) return true;
+      // /shorts/<ID> o /embed/<ID>
+      if (/\/shorts\/[^/]+/.test(u.pathname)) return true;
+      if (/\/embed\/[^/]+/.test(u.pathname)) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+/* >>>>>>>>>>>>>>>>>>> END ADD <<<<<<<<<<<<<<<<<< */
+
 /* ============================== Liste/letture ============================== */
 export function listByOwner(userId) {
   const all = loadAll();

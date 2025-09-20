@@ -555,7 +555,7 @@ export default function Onboarding() {
             >
               <div className="grid items-center gap-6 sm:grid-cols-3">
                 <div className="sm:col-span-2">
-                  <h3 className="text-lg sm:text-xl font-semibold text-white">Carica il tuo primo video e diventa Creator</h3>
+                  <h3 className="text-lg sm:text-xl font-semibold text-white">Diventa Creator</h3>
                   <p className="mt-1 text-white/90 text-sm">Racconta i tuoi borghi, ottieni <b>+20 punti</b> subito.</p>
                 </div>
                 <button

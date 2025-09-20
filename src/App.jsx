@@ -26,7 +26,6 @@ class RouteErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
-
 function Fallback() { return <div style={{ padding: 16 }}>Caricamento…</div>; }
 
 /* ======================= Lazy imports ======================= */
@@ -34,7 +33,6 @@ const HomepageMockup = lazy(() => import("./HomepageMockup"));
 const Registrazione = lazy(() => import("./pages/Registrazione"));
 const RegistrazioneBorgo = lazy(() => import("./pages/RegistrazioneBorgo"));
 const RegistrazioneAttivita = lazy(() => import("./pages/RegistrazioneAttivita"));
-// ⛔ rimosso RegistrazioneUtente
 const Dormire = lazy(() => import("./pages/attivita/Dormire"));
 const Mangiare = lazy(() => import("./pages/attivita/Mangiare"));
 const Artigiani = lazy(() => import("./pages/attivita/Artigiani"));
@@ -50,14 +48,13 @@ const Regione = lazy(() => import("./pages/Regione.jsx"));
 const Esperienze = lazy(() => import("./pages/Esperienze"));
 const ItinerariConsigliati = lazy(() => import("./pages/ItinerariConsigliati"));
 const ItineraryWizard = lazy(() => import("./pages/ItineraryWizard"));
-/* ✅ Nuova pagina: Video del borgo */
 const VideoBorgo = lazy(() => import("./pages/VideoBorgo.jsx"));
 
-/* ✅ NUOVE PAGINE: Cosa fare (lista) + Dettaglio POI */
+/* Nuove pagine */
 const CosaFareList = lazy(() => import("./pages/CosaFareList.jsx"));
 const PoiDetail = lazy(() => import("./pages/PoiDetail.jsx"));
 
-/* ✅ Layout con Topbar DRY */
+/* Layout con Topbar */
 const AppLayout = lazy(() => import("./layouts/AppLayout.jsx"));
 
 function SectionPlaceholder({ title, note }) {
@@ -65,8 +62,7 @@ function SectionPlaceholder({ title, note }) {
     <main style={{ padding: "24px" }}>
       <h1 style={{ margin: 0, color: "#6B271A" }}>{title}</h1>
       <p style={{ marginTop: 8, color: "#374151" }}>
-        {note ||
-          "Sezione in preparazione. Questa rotta è attiva per i test di navigazione."}
+        {note || "Sezione in preparazione. Questa rotta è attiva per i test di navigazione."}
       </p>
       <div style={{ marginTop: 16 }}>
         <a href="/" style={{ color: "#6B271A", textDecoration: "underline" }}>
@@ -77,7 +73,7 @@ function SectionPlaceholder({ title, note }) {
   );
 }
 
-/* Retro-compat: vecchia rotta /borghi/:slug/poi/:id → nuova con :poiId */
+/* Retro-compat: /borghi/:slug/poi/:id -> nuova :poiId */
 function PoiParamRedirect() {
   const { slug, id } = useParams();
   return <Navigate to={`/borghi/${slug}/poi/${id}`} replace />;
@@ -88,352 +84,83 @@ export default function App() {
   return (
     <RouteErrorBoundary>
       <ModalInstallApp />
-
       <Suspense fallback={<Fallback />}>
         <Routes>
           {/* Home (ha già la sua topbar interna) */}
-          <Route
-            path="/"
-            element={
-              <RouteErrorBoundary>
-                <HomepageMockup />
-              </RouteErrorBoundary>
-            }
-          />
+          <Route path="/" element={<RouteErrorBoundary><HomepageMockup /></RouteErrorBoundary>} />
 
           {/* Registrazioni principali (UI "pulita", fuori layout) */}
-          <Route
-            path="/registrazione"
-            element={
-              <RouteErrorBoundary>
-                <Registrazione />
-              </RouteErrorBoundary>
-            }
-          />
-          <Route
-            path="/registrati"
-            element={<Navigate to="/registrazione" replace />}
-          />
-          <Route
-            path="/registrazione-comune"
-            element={
-              <RouteErrorBoundary>
-                <Registrazione />
-              </RouteErrorBoundary>
-            }
-          />
-
-          <Route
-            path="/registrazione-borgo"
-            element={
-              <RouteErrorBoundary>
-                <RegistrazioneBorgo />
-              </RouteErrorBoundary>
-            }
-          />
-          {/* retro-compatibilità: vecchia pagina -> auth */}
+          <Route path="/registrazione" element={<RouteErrorBoundary><Registrazione /></RouteErrorBoundary>} />
+          <Route path="/registrati" element={<Navigate to="/registrazione" replace />} />
+          <Route path="/registrazione-comune" element={<RouteErrorBoundary><Registrazione /></RouteErrorBoundary>} />
+          <Route path="/registrazione-borgo" element={<RouteErrorBoundary><RegistrazioneBorgo /></RouteErrorBoundary>} />
           <Route path="/registrazione-utente" element={<Navigate to="/auth" replace />} />
-          <Route
-            path="/registrazione-attivita"
-            element={
-              <RouteErrorBoundary>
-                <RegistrazioneAttivita />
-              </RouteErrorBoundary>
-            }
-          />
+          <Route path="/registrazione-attivita" element={<RouteErrorBoundary><RegistrazioneAttivita /></RouteErrorBoundary>} />
 
           {/* Attività > categorie (fuori layout) */}
-          <Route
-            path="/registrazione-attivita/dormire"
-            element={
-              <RouteErrorBoundary>
-                <Dormire />
-              </RouteErrorBoundary>
-            }
-          />
-          <Route
-            path="/registrazione-attivita/mangiare"
-            element={
-              <RouteErrorBoundary>
-                <Mangiare />
-              </RouteErrorBoundary>
-            }
-          />
-          <Route
-            path="/registrazione-attivita/artigiani"
-            element={
-              <RouteErrorBoundary>
-                <Artigiani />
-              </RouteErrorBoundary>
-            }
-          />
-          <Route
-            path="/registrazione-attivita/trasporti"
-            element={
-              <RouteErrorBoundary>
-                <Trasporti />
-              </RouteErrorBoundary>
-            }
-          />
-          <Route
-            path="/dormire"
-            element={<Navigate to="/registrazione-attivita/dormire" replace />}
-          />
-          <Route
-            path="/mangiare"
-            element={<Navigate to="/registrazione-attivita/mangiare" replace />}
-          />
-          <Route
-            path="/artigiani"
-            element={<Navigate to="/registrazione-attivita/artigiani" replace />}
-          />
-          <Route
-            path="/trasporti"
-            element={<Navigate to="/registrazione-attivita/trasporti" replace />}
-          />
+          <Route path="/registrazione-attivita/dormire" element={<RouteErrorBoundary><Dormire /></RouteErrorBoundary>} />
+          <Route path="/registrazione-attivita/mangiare" element={<RouteErrorBoundary><Mangiare /></RouteErrorBoundary>} />
+          <Route path="/registrazione-attivita/artigiani" element={<RouteErrorBoundary><Artigiani /></RouteErrorBoundary>} />
+          <Route path="/registrazione-attivita/trasporti" element={<RouteErrorBoundary><Trasporti /></RouteErrorBoundary>} />
+          <Route path="/dormire" element={<Navigate to="/registrazione-attivita/dormire" replace />} />
+          <Route path="/mangiare" element={<Navigate to="/registrazione-attivita/mangiare" replace />} />
+          <Route path="/artigiani" element={<Navigate to="/registrazione-attivita/artigiani" replace />} />
+          <Route path="/trasporti" element={<Navigate to="/registrazione-attivita/trasporti" replace />} />
 
           {/* Creator (pubblico + area creator) */}
-          <Route
-            path="/registrazione-creator"
-            element={
-              <RouteErrorBoundary>
-                <CreatorAuth />
-              </RouteErrorBoundary>
-            }
-          />
+          <Route path="/registrazione-creator" element={<RouteErrorBoundary><CreatorAuth /></RouteErrorBoundary>} />
           <Route path="/creator/onboarding" element={<Navigate to="/creator/me" replace />} />
-          <Route
-            path="/creator/me"
-            element={
-              <RouteErrorBoundary>
-                <CreatorOnboarding />
-              </RouteErrorBoundary>
-            }
-          />
-          {/* area contenuti */}
-          <Route
-            path="/creator/contenuti"
-            element={
-              <RouteErrorBoundary>
-                <CreatorOnboarding />
-              </RouteErrorBoundary>
-            }
-          />
-          {/* profilo pubblico/preview */}
-          <Route
-            path="/creator/me/preview"
-            element={
-              <RouteErrorBoundary>
-                <CreatorProfile />
-              </RouteErrorBoundary>
-            }
-          />
-          <Route
-            path="/creator"
-            element={
-              <RouteErrorBoundary>
-                <CreatorIndex />
-              </RouteErrorBoundary>
-            }
-          />
-          <Route
-            path="/creator/:id"
-            element={
-              <RouteErrorBoundary>
-                <CreatorProfile />
-              </RouteErrorBoundary>
-            }
-          />
+          <Route path="/creator/me" element={<RouteErrorBoundary><CreatorOnboarding /></RouteErrorBoundary>} />
+          <Route path="/creator/contenuti" element={<RouteErrorBoundary><CreatorOnboarding /></RouteErrorBoundary>} />
+          <Route path="/creator/me/preview" element={<RouteErrorBoundary><CreatorProfile /></RouteErrorBoundary>} />
+          <Route path="/creator" element={<RouteErrorBoundary><CreatorIndex /></RouteErrorBoundary>} />
+          <Route path="/creator/:id" element={<RouteErrorBoundary><CreatorProfile /></RouteErrorBoundary>} />
           <Route path="/creator/upload" element={<Navigate to="/creator/me?step=2" replace />} />
 
           {/* Chat */}
-          <Route
-            path="/chat/:threadId"
-            element={
-              <RouteErrorBoundary>
-                <Thread />
-              </RouteErrorBoundary>
-            }
-          />
+          <Route path="/chat/:threadId" element={<RouteErrorBoundary><Thread /></RouteErrorBoundary>} />
 
           {/* =================== SITO con TOPBAR (DRY) =================== */}
           <Route element={<AppLayout />}>
-            {/* Ricerca & dettagli */}
-            <Route
-              path="/cerca"
-              element={
-                <RouteErrorBoundary>
-                  <SearchResults />
-                </RouteErrorBoundary>
-              }
-            />
+            {/* Ricerca & Dettaglio */}
+            <Route path="/cerca" element={<RouteErrorBoundary><SearchResults /></RouteErrorBoundary>} />
 
-            {/* ✅ Dettaglio POI (nuova rotta) */}
-            <Route
-              path="/borghi/:slug/poi/:poiId"
-              element={
-                <RouteErrorBoundary>
-                  <PoiDetail />
-                </RouteErrorBoundary>
-              }
-            />
-            {/* ♻️ retro-compat (vecchio :id) */}
+            {/* ✅ Nuovo dettaglio POI + retro-compat */}
+            <Route path="/borghi/:slug/poi/:poiId" element={<RouteErrorBoundary><PoiDetail /></RouteErrorBoundary>} />
             <Route path="/borghi/:slug/poi/:id" element={<PoiParamRedirect />} />
 
-            {/* Home Borgo */}
-            <Route
-              path="/borghi/:slug"
-              element={
-                <RouteErrorBoundary>
-                  <HomeBorgo />
-                </RouteErrorBoundary>
-              }
-            />
-
-            {/* Panoramica “Cosa fare” */}
-            <Route
-              path="/borghi/:slug/cosa-fare"
-              element={
-                <RouteErrorBoundary>
-                  <CosaFareList />
-                </RouteErrorBoundary>
-              }
-            />
+            {/* Home Borgo + Panoramiche */}
+            <Route path="/borghi/:slug" element={<RouteErrorBoundary><HomeBorgo /></RouteErrorBoundary>} />
+            <Route path="/borghi/:slug/cosa-fare" element={<RouteErrorBoundary><CosaFareList /></RouteErrorBoundary>} />
 
             {/* Esperienze & Regioni */}
-            <Route
-              path="/borghi/:slug/esperienze"
-              element={
-                <RouteErrorBoundary>
-                  <Esperienze />
-                </RouteErrorBoundary>
-              }
-            />
-            <Route
-              path="/regioni/:slug"
-              element={
-                <RouteErrorBoundary>
-                  <Regione />
-                </RouteErrorBoundary>
-              }
-            />
+            <Route path="/borghi/:slug/esperienze" element={<RouteErrorBoundary><Esperienze /></RouteErrorBoundary>} />
+            <Route path="/regioni/:slug" element={<RouteErrorBoundary><Regione /></RouteErrorBoundary>} />
 
             {/* Itinerari */}
-            <Route
-              path="/itinerari"
-              element={
-                <RouteErrorBoundary>
-                  <ItinerariConsigliati />
-                </RouteErrorBoundary>
-              }
-            />
-            <Route
-              path="/itinerari/nuovo"
-              element={
-                <RouteErrorBoundary>
-                  <ItineraryWizard />
-                </RouteErrorBoundary>
-              }
-            />
-            <Route
-              path="/itinerari/:id/edit"
-              element={
-                <RouteErrorBoundary>
-                  <ItineraryWizard />
-                </RouteErrorBoundary>
-              }
-            />
+            <Route path="/itinerari" element={<RouteErrorBoundary><ItinerariConsigliati /></RouteErrorBoundary>} />
+            <Route path="/itinerari/nuovo" element={<RouteErrorBoundary><ItineraryWizard /></RouteErrorBoundary>} />
+            <Route path="/itinerari/:id/edit" element={<RouteErrorBoundary><ItineraryWizard /></RouteErrorBoundary>} />
 
-            {/* Pillole (altre sezioni del borgo) */}
-            <Route
-              path="/borghi/:slug/eventi"
-              element={
-                <RouteErrorBoundary>
-                  <SectionPlaceholder title="Eventi e Sagre" />
-                </RouteErrorBoundary>
-              }
-            />
-            <Route
-              path="/borghi/:slug/prodotti-tipici"
-              element={
-                <RouteErrorBoundary>
-                  <SectionPlaceholder title="Prodotti Tipici" />
-                </RouteErrorBoundary>
-              }
-            />
-            <Route
-              path="/borghi/:slug/artigiani"
-              element={
-                <RouteErrorBoundary>
-                  <SectionPlaceholder title="Artigiani" />
-                </RouteErrorBoundary>
-              }
-            />
-            <Route
-              path="/borghi/:slug/mangiare-bere"
-              element={
-                <RouteErrorBoundary>
-                  <SectionPlaceholder title="Dove Mangiare" />
-                </RouteErrorBoundary>
-              }
-            />
-            <Route
-              path="/borghi/:slug/dormire"
-              element={
-                <RouteErrorBoundary>
-                  <SectionPlaceholder title="Dove Dormire" />
-                </RouteErrorBoundary>
-              }
-            />
-            {/* (cosa-fare già gestita sopra) */}
-            <Route
-              path="/borghi/:slug/info-utili"
-              element={
-                <RouteErrorBoundary>
-                  <SectionPlaceholder title="Info Utili" />
-                </RouteErrorBoundary>
-              }
-            />
+            {/* Altre sezioni del borgo */}
+            <Route path="/borghi/:slug/eventi" element={<RouteErrorBoundary><SectionPlaceholder title="Eventi e Sagre" /></RouteErrorBoundary>} />
+            <Route path="/borghi/:slug/prodotti-tipici" element={<RouteErrorBoundary><SectionPlaceholder title="Prodotti Tipici" /></RouteErrorBoundary>} />
+            <Route path="/borghi/:slug/artigiani" element={<RouteErrorBoundary><SectionPlaceholder title="Artigiani" /></RouteErrorBoundary>} />
+            <Route path="/borghi/:slug/mangiare-bere" element={<RouteErrorBoundary><SectionPlaceholder title="Dove Mangiare" /></RouteErrorBoundary>} />
+            <Route path="/borghi/:slug/dormire" element={<RouteErrorBoundary><SectionPlaceholder title="Dove Dormire" /></RouteErrorBoundary>} />
+            <Route path="/borghi/:slug/info-utili" element={<RouteErrorBoundary><SectionPlaceholder title="Info Utili" /></RouteErrorBoundary>} />
 
-            {/* ✅ Video del borgo (NUOVA PAGINA) */}
-            <Route
-              path="/borghi/:slug/video"
-              element={
-                <RouteErrorBoundary>
-                  <VideoBorgo />
-                </RouteErrorBoundary>
-              }
-            />
+            {/* Video borgo */}
+            <Route path="/borghi/:slug/video" element={<RouteErrorBoundary><VideoBorgo /></RouteErrorBoundary>} />
 
-            {/* Placeholder per link del menu a panino */}
-            <Route
-              path="/notifiche"
-              element={
-                <RouteErrorBoundary>
-                  <SectionPlaceholder title="Notifiche" />
-                </RouteErrorBoundary>
-              }
-            />
-            <Route
-              path="/livelli"
-              element={
-                <RouteErrorBoundary>
-                  <SectionPlaceholder title="Livelli & Obiettivi" />
-                </RouteErrorBoundary>
-              }
-            />
+            {/* Menu extra */}
+            <Route path="/notifiche" element={<RouteErrorBoundary><SectionPlaceholder title="Notifiche" /></RouteErrorBoundary>} />
+            <Route path="/livelli" element={<RouteErrorBoundary><SectionPlaceholder title="Livelli & Obiettivi" /></RouteErrorBoundary>} />
           </Route>
           {/* ================= FINE SITO con TOPBAR ================= */}
 
-          {/* ✅ Auth utente/creator e onboarding */}
-          <Route
-            path="/auth"
-            element={
-              <RouteErrorBoundary>
-                <CreatorAuth />
-              </RouteErrorBoundary>
-            }
-          />
+          {/* Auth utente/creator */}
+          <Route path="/auth" element={<RouteErrorBoundary><CreatorAuth /></RouteErrorBoundary>} />
           <Route path="/onboarding" element={<Navigate to="/creator/me" replace />} />
 
           {/* Fallback */}

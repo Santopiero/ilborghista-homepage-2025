@@ -1,10 +1,9 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useLocation } from "react-router-dom";
 import {
   ListChecks, UtensilsCrossed, CalendarDays, Hammer, Bus,
   Route, BedDouble, PackageOpen
 } from "lucide-react";
 
-/* Categorie -> icona + colore */
 const CATS = [
   { type: "cosa-fare", label: "Cosa fare", Icon: ListChecks, color: "bg-green-700" },
   { type: "mangiare-bere", label: "Mangiare e Bere", Icon: UtensilsCrossed, color: "bg-rose-600" },
@@ -18,9 +17,11 @@ const CATS = [
 
 export default function PallotteBar({ activeType }) {
   const { slug } = useParams();
+  const { pathname } = useLocation();
+
   return (
     <div className="sticky top-14 z-30 bg-white/90 backdrop-blur border-b">
-      <div className="max-w-6xl mx-auto px-4 py-2 flex gap-4 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="max-w-6xl mx-auto px-3 py-2 flex gap-3 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {CATS.map(({ type, label, Icon, color }) => {
           const href =
             type === "cosa-fare" ? `/borghi/${slug}/cosa-fare`
@@ -32,29 +33,35 @@ export default function PallotteBar({ activeType }) {
             : type === "dormire" ? `/borghi/${slug}/dormire`
             : `/borghi/${slug}/prodotti-tipici`;
 
-          const active = activeType === type;
+          // attivo se il type passato coincide o se l'URL contiene la rotta della categoria
+          const urlActive =
+            pathname.includes(`/borghi/${slug}/${type}`) ||
+            pathname.includes(`/borghi/${slug}/poi`) && activeType === type;
+          const active = urlActive || activeType === type;
+
           return (
-            <Link key={type} to={href} className="flex items-center gap-2 shrink-0">
-              <span className={`inline-flex items-center justify-center h-8 w-8 rounded-full text-white ${color} ${active ? "ring-2 ring-offset-2 ring-amber-300" : ""}`}>
+            <Link
+              key={type}
+              to={href}
+              aria-label={label}
+              title={label}
+              className="flex items-center gap-2 shrink-0"
+            >
+              <span
+                className={[
+                  "inline-flex items-center justify-center h-8 w-8 rounded-full text-white transition",
+                  color,
+                  active ? "ring-2 ring-amber-400 ring-offset-2 scale-105" : "opacity-90 hover:opacity-100",
+                ].join(" ")}
+              >
                 <Icon className="h-4 w-4" />
               </span>
-              <span className={`text-sm ${active ? "font-medium" : "text-gray-700"}`}>{label}</span>
+              {/* testo visibile solo da sm in su */}
+              <span className={`hidden sm:inline text-sm ${active ? "font-medium" : "text-gray-700"}`}>{label}</span>
             </Link>
           );
         })}
       </div>
     </div>
-  );
-}
-
-/* Badge categoria accanto al titolo */
-export function CategoryBadge({ type, className = "" }) {
-  const item = CATS.find(c => c.type === type);
-  if (!item) return null;
-  const { Icon, color, label } = item;
-  return (
-    <span className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-white text-xs ${color} ${className}`}>
-      <Icon className="h-4 w-4" /> {label}
-    </span>
   );
 }

@@ -1,10 +1,9 @@
 import { useMemo, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { POI_BY_BORGO } from "../data/poi.js";
-import { MapPin, Share2, Compass, Clock, ChevronLeft, Heart, Play } from "lucide-react";
-import PallotteBar, { CategoryBadge } from "../components/PallotteBar.jsx";
+import { MapPin, Share2, Compass, Clock, ChevronLeft, Heart, Play, ChevronDown, Languages } from "lucide-react";
+import PallotteBar from "../components/PallotteBar.jsx";
 
-/* preferiti */
 function useFav(id) {
   const KEY = "ib_favs";
   const [fav, setFav] = useState(() => {
@@ -24,10 +23,9 @@ function useFav(id) {
   ];
 }
 
-/* mini card per consigliati */
 function MiniCard({ title, img, href }) {
   return (
-    <Link to={href} className="w-44 shrink-0 rounded-xl overflow-hidden border bg-white hover:shadow transition">
+    <Link to={href} className="w-40 sm:w-44 shrink-0 rounded-xl overflow-hidden border bg-white hover:shadow transition">
       <div className="aspect-video w-full overflow-hidden">
         <img src={img} alt={title} className="w-full h-full object-cover" loading="lazy" />
       </div>
@@ -44,19 +42,17 @@ export default function PoiDetail() {
   const [active, setActive] = useState("descrizione");
   const [expanded, setExpanded] = useState(false);
   const [lang, setLang] = useState("it"); // it, en, es, de, zh
+  const [langOpen, setLangOpen] = useState(false);
   const [fav, toggleFav] = useFav(`poi:${poiId}`);
   const videoRef = useRef(null);
 
-  const L = (field) =>
-    data?.i18n?.[lang]?.[field] ??
-    data?.[field] ??
-    "";
-
   const directionsUrl = useMemo(() => {
     if (!data) return "#";
-    const q = encodeURIComponent(`${L("title")} ${data.address || data.locationName}`);
+    const q = encodeURIComponent(`${data.title} ${data.address || data.locationName}`);
     return `https://www.google.com/maps/search/?api=1&query=${q}`;
-  }, [data, lang]);
+  }, [data]);
+
+  const L = (field) => data?.i18n?.[lang]?.[field] ?? data?.[field] ?? "";
 
   if (!data) {
     return (
@@ -69,67 +65,42 @@ export default function PoiDetail() {
     );
   }
 
-  const otherExperiences = (POI_BY_BORGO[slug] || []).filter(
-    (p) => p.type === "esperienze-itinerari"
-  );
+  const otherExperiences = (POI_BY_BORGO[slug] || []).filter((p) => p.type === "esperienze-itinerari");
 
   return (
     <main className="max-w-6xl mx-auto px-4 pt-14 pb-16">
-      {/* Barra “Pallotte” sticky */}
+      {/* Pallotte sticky */}
       <PallotteBar activeType={data.type} />
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 mt-3">
-        <div className="min-w-0">
-          <Link to={`/borghi/${slug}/cosa-fare`} className="inline-flex items-center gap-1 text-sm text-blue-700">
-            <ChevronLeft className="h-4 w-4" /> Cosa fare a {slug}
-          </Link>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold">{L("title") || data.name}</h1>
-            <CategoryBadge type={data.type} />
-          </div>
-          <div className="text-sm text-gray-600">{data.category}</div>
-        </div>
+      {/* Header compatto */}
+      <div className="flex items-center justify-between gap-2 mt-2">
+        <Link to={`/borghi/${slug}/cosa-fare`} className="inline-flex items-center gap-1 text-sm text-blue-700">
+          <ChevronLeft className="h-4 w-4" /> <span className="hidden sm:inline">Cosa fare a {slug}</span><span className="sm:hidden">Indietro</span>
+        </Link>
 
-        {/* Lingue + preferiti */}
-        <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-xl border overflow-hidden">
-            {[
-              { k: "it", label: "IT" },
-              { k: "en", label: "EN" },
-              { k: "es", label: "ES" },
-              { k: "de", label: "DE" },
-              { k: "zh", label: "中文" },
-            ].map(({ k, label }) => (
-              <button
-                key={k}
-                onClick={() => setLang(k)}
-                className={`px-2.5 py-1 text-sm ${lang === k ? "bg-amber-100 font-medium" : "bg-white"}`}
-                title={label}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={toggleFav}
-            className={`ml-1 inline-flex items-center justify-center h-9 w-9 rounded-full border ${fav ? "bg-rose-100 text-rose-600" : "bg-white"}`}
-            aria-label="Aggiungi ai preferiti"
-            title="Aggiungi ai preferiti"
-          >
-            <Heart className={`h-4 w-4 ${fav ? "fill-current" : ""}`} />
-          </button>
-        </div>
+        {/* ❤️ sempre visibile */}
+        <button
+          onClick={toggleFav}
+          className={`inline-flex items-center justify-center h-9 w-9 rounded-full border ${fav ? "bg-rose-100 text-rose-600" : "bg-white"}`}
+          aria-label="Aggiungi ai preferiti"
+          title="Aggiungi ai preferiti"
+        >
+          <Heart className={`h-4 w-4 ${fav ? "fill-current" : ""}`} />
+        </button>
       </div>
 
-      {/* HERO gallery */}
+      {/* Titolo */}
+      <div className="mt-2">
+        <h1 className="text-xl sm:text-3xl font-bold">{L("title") || data.name}</h1>
+        <div className="text-sm text-gray-600">{data.category}</div>
+      </div>
+
+      {/* HERO */}
       <section className="relative mt-3">
         <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {data.images?.map((src, i) => (
             <div key={i} className="snap-start shrink-0 basis-full sm:basis-[75%] lg:basis-[60%] rounded-2xl overflow-hidden relative">
-              <img src={src} alt={`${L("title")} ${i + 1}`} className="w-full h-[220px] sm:h-[320px] object-cover" />
-              {/* icona video sulla foto (sostituisce il bottone "Video" pill) */}
+              <img src={src} alt={`${L("title")} ${i + 1}`} className="w-full h-[200px] sm:h-[320px] object-cover" />
               {data.video?.youtubeId && (
                 <button
                   onClick={() => {
@@ -147,7 +118,7 @@ export default function PoiDetail() {
           ))}
         </div>
 
-        {/* Quick actions — solo icone su mobile, testo su sm+ */}
+        {/* Quick actions (solo icone su mobile) */}
         <div className="absolute left-3 bottom-3 flex gap-2">
           <a
             href={directionsUrl}
@@ -177,25 +148,47 @@ export default function PoiDetail() {
         </div>
       </section>
 
-      {/* Meta card */}
-      <section className="mt-4 rounded-2xl border p-4">
-        <div className="flex flex-wrap gap-4 text-sm text-gray-700">
-          <span className="inline-flex items-center gap-1">
-            <MapPin className="h-4 w-4" /> {data.locationName}
-          </span>
-          {data.duration && (
-            <span className="inline-flex items-center gap-1">
-              <Clock className="h-4 w-4" /> {data.duration}
-            </span>
-          )}
-          {data.info?.costo && <span className="inline-flex items-center gap-1">💶 {data.info.costo}</span>}
-        </div>
-        {data.address && <div className="mt-2 text-sm text-gray-600">{data.address}</div>}
-      </section>
+      {/* TABS sticky con LINGUA-PILL PRIMA DI “DESCRIZIONE” */}
+      <div className="sticky top-[112px] sm:top-14 z-20 bg-white/90 backdrop-blur mt-4 border-b">
+        <nav className="flex items-center gap-2 overflow-x-auto px-1 py-2">
+          {/* Pill lingua */}
+          <div className="relative">
+            <button
+              onClick={() => setLangOpen((v) => !v)}
+              onBlur={() => setTimeout(() => setLangOpen(false), 150)}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-full text-sm border bg-white"
+              aria-haspopup="listbox"
+              aria-expanded={langOpen}
+              title="Lingua"
+            >
+              <Languages className="h-4 w-4" />
+              {lang.toUpperCase() === "ZH" ? "中文" : lang.toUpperCase()}
+              <ChevronDown className="h-4 w-4" />
+            </button>
 
-      {/* Tabs sticky */}
-      <div className="sticky top-[56px] z-20 bg-white/90 backdrop-blur mt-4 border-b">
-        <nav className="flex gap-2 overflow-x-auto px-1 py-2">
+            {langOpen && (
+              <ul
+                role="listbox"
+                className="absolute left-0 mt-1 w-28 rounded-xl border bg-white shadow z-10 overflow-hidden"
+              >
+                {["it","en","es","de","zh"].map((k) => (
+                  <li key={k}>
+                    <button
+                      role="option"
+                      aria-selected={lang === k}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { setLang(k); setLangOpen(false); }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${lang===k?"font-medium bg-amber-50":""}`}
+                    >
+                      {k === "zh" ? "中文" : k.toUpperCase()}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Tabs contenuti */}
           {["descrizione", "curiosita", "info", "mappa", "video"].map((t) => (
             <button
               key={t}
@@ -214,7 +207,7 @@ export default function PoiDetail() {
         </nav>
       </div>
 
-      {/* DESCRIZIONE con fade */}
+      {/* DESCRIZIONE con fade + consigliati */}
       {active === "descrizione" && (
         <section className="mt-4">
           <div className={`relative transition-all ${expanded ? "" : "max-h-40 overflow-hidden"}`}>
@@ -235,7 +228,6 @@ export default function PoiDetail() {
             </button>
           </div>
 
-          {/* Itinerari & Esperienze consigliate - carosello orizzontale */}
           <div className="mt-6">
             <h2 className="text-lg font-semibold mb-2">Itinerari & Esperienze consigliate</h2>
             <div className="flex gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -308,12 +300,7 @@ export default function PoiDetail() {
               src={`https://www.google.com/maps?q=${encodeURIComponent(data.lat + "," + data.lng)}&hl=it&z=15&output=embed`}
             />
           </div>
-          <a
-            href={directionsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm"
-          >
+          <a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm">
             Apri in Google Maps
           </a>
         </section>

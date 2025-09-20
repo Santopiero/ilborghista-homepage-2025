@@ -1,22 +1,25 @@
 // src/pages/creator/Onboarding.jsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import SuggestItineraryBtn from "../../components/SuggestItineraryBtn";
 import EmbedCard from "../../components/EmbedCard";
-import SocialCompactCard from "../../components/SocialCompactCard";
+// SocialCompactCard rimosso (non più necessario per IG/TT/FB)
+
 import {
-  Menu, X, LogOut, Flag, MessageCircle, Upload, Youtube,
+  Menu, X, LogOut, Flag, MessageCircle, Youtube,
   BarChart2, Clock, ChevronRight, Crown, List, Bell,
   Compass, Map, Star, Medal, Trophy, Film,
-  Globe, Instagram, Link2, MapPin, CheckCircle2, Edit3, Play,
+  Globe, Link2, MapPin, CheckCircle2, Edit3, Play, Trash2,
   ChevronDown, ChevronUp
 } from "lucide-react";
+
 import {
   createVideoDraft,
   updateVideo,
   publishVideo,
   scheduleVideo,
   listByOwner,
+  removeVideo,            // <— nuovo: elimina
   // helpers dal lib aggiornato
   detectPlatform,
   isValidPublicUrl,
@@ -62,8 +65,6 @@ const LEVELS = [
   { key: 5, name: "Il Borghista",  min: 901, max: 999999, Icon: Crown },
 ];
 const POINTS = { checkin: 2, event: 5, feedback: 3, video: 20 };
-const FALLBACK_IMG =
-  "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop";
 
 /* =======================
    HOOK: livello
@@ -81,13 +82,6 @@ function useLevel(points) {
 }
 
 /* =======================
-   DETECT provider link
-======================= */
-const isYouTube = (u = "") => /(?:youtu\.be|youtube\.com)/i.test(u);
-const isInstagram = (u = "") => /instagram\.com/i.test(u);
-const isTikTok = (u = "") => /tiktok\.com/i.test(u);
-
-/* =======================
    UTILS: persist panel state
 ======================= */
 const PANEL_KEYS = {
@@ -102,36 +96,6 @@ const loadOpen = (k, def = true) => {
 const saveOpen = (k, open) => {
   try { localStorage.setItem(k, open ? "1" : "0"); } catch {}
 };
-
-/* =======================
-   INSTAGRAM EMBED (script)
-======================= */
-function useInstagramEmbed(url) {
-  const processedForUrl = useRef("");
-  useEffect(() => {
-    if (!isInstagram(url)) return;
-    const ensureScript = () => {
-      if (typeof window === "undefined") return;
-      const id = "ig-embed-js";
-      if (!document.getElementById(id)) {
-        const s = document.createElement("script");
-        s.id = id;
-        s.async = true;
-        s.src = "https://www.instagram.com/embed.js";
-        document.body.appendChild(s);
-      }
-    };
-    ensureScript();
-    const process = () => {
-      try {
-        window.instgrm && window.instgrm.Embeds && window.instgrm.Embeds.process();
-        processedForUrl.current = url;
-      } catch {}
-    };
-    const t = setTimeout(process, 100);
-    return () => clearTimeout(t);
-  }, [url]);
-}
 
 /* =======================
    PAGINA ONBOARDING
@@ -167,7 +131,7 @@ export default function Onboarding() {
     prodotti: [],
   });
   const addDemoFav = (cat) => {
-    const demo = { id: `${cat}:${Date.now()}`, label: "Preferito demo", thumb: FALLBACK_IMG };
+    const demo = { id: `${cat}:${Date.now()}`, label: "Preferito demo", thumb: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop" };
     setFav((f) => ({ ...f, [cat]: [demo, ...(f[cat] || [])] }));
   };
   const removeFav = (cat, id) => setFav((f) => ({ ...f, [cat]: (f[cat] || []).filter((x) => x.id !== id) }));
@@ -185,7 +149,7 @@ export default function Onboarding() {
   useEffect(() => saveOpen(PANEL_KEYS.recent, openRecent), [openRecent]);
   useEffect(() => saveOpen(PANEL_KEYS.ranks, openRanks), [openRanks]);
 
-  // profilo creator (solo file upload)
+  // profilo creator
   const [creatorProfile, setCreatorProfile] = useState({
     displayName: "",
     bio: "",
@@ -204,7 +168,7 @@ export default function Onboarding() {
   );
   const poiOptions = useMemo(() => listPoiByBorgo(selectedBorgoSlug) || [], [selectedBorgoSlug]);
 
-  // form video
+  // form video (YouTube-only)
   const [form, setForm] = useState({
     id: null,
     title: "",
@@ -212,12 +176,9 @@ export default function Onboarding() {
     category: "",
     poiId: "",
     tags: "",
-    url: "",
-    file: null,
-    thumbnail: FALLBACK_IMG,
-    source: "link",    // link | file
+    url: "",           // YouTube obbligatorio
   });
-  const [previewUrl, setPreviewUrl] = useState("");
+  const [urlError, setUrlError] = useState("");
 
   // contenuti (caricati da storage)
   const [videos, setVideos] = useState({ drafts: [], scheduled: [], published: [] });
@@ -236,52 +197,17 @@ export default function Onboarding() {
     });
   };
 
-  // refresh preview
-  useEffect(() => {
-    if (form.source === "link") setPreviewUrl(form.url || "");
-    else if (form.source === "file" && form.file) {
-      const local = URL.createObjectURL(form.file);
-      setPreviewUrl(local);
-      return () => URL.revokeObjectURL(local);
-    } else setPreviewUrl("");
-  }, [form.source, form.url, form.file]);
-
-  // hook instagram quando serve
-  useInstagramEmbed(previewUrl);
-
-  // classifiche (mock)
-  const leaderboardRegional = [
-    { name: "Paolo V.", level: "Ambasciatore", points: 740 },
-    { name: "Anna S.",  level: "Viaggiatore",  points: 520 },
-    { name: "Giorgio L.", level: "Esploratore", points: 300 },
-  ];
-  const leaderboardNational = [
-    { name: "Lucia R.", level: "Il Borghista", points: 1400 },
-    { name: "Marco D.", level: "Ambasciatore", points: 960 },
-    { name: "Ilaria F.", level: "Viaggiatore", points: 650 },
-  ];
-
-  // stats
-  const stats = useMemo(() => {
-    const all = [...videos.drafts, ...videos.scheduled, ...videos.published];
-    return {
-      total: all.length,
-      views: all.reduce((s, v) => s + (v.views || 0), 0),
-      likes: all.reduce((s, v) => s + (v.likes || 0), 0),
-    };
-  }, [videos]);
-
-  // attività recente
-  const [recent, setRecent] = useState([]);
-  const pushActivity = (label, points) => {
-    setRecent(r => [{ label, points, ts: Date.now() }, ...r].slice(0, 8));
-    if (points) setUser(u => ({ ...u, points: u.points + points }));
+  // validazione URL YouTube
+  const isYouTubeUrl = (u = "") => {
+    if (!u || !isValidPublicUrl(u)) return false;
+    return detectPlatform(u) === "youtube";
   };
-
-  // azioni rapide
-  const doCheckin = () => { setUser(u => ({ ...u, streakDays: u.streakDays + 1 })); pushActivity("Check-in giornaliero", POINTS.checkin); };
-  const doReportEvent = () => { setUser(u => ({ ...u, eventsReported: u.eventsReported + 1 })); pushActivity("Segnalazione evento", POINTS.event); };
-  const doFeedback = () => { setUser(u => ({ ...u,feedbackGiven: u.feedbackGiven + 1 })); pushActivity("Feedback lasciato", POINTS.feedback); };
+  useEffect(() => {
+    if (!form.url) { setUrlError(""); return; }
+    if (!isValidPublicUrl(form.url)) { setUrlError("Inserisci un URL valido (http/https)."); return; }
+    if (!isYouTubeUrl(form.url)) { setUrlError("Accettiamo solo link YouTube."); return; }
+    setUrlError("");
+  }, [form.url]);
 
   const openCreatorFlow = () => {
     setUser(u => ({ ...u, isCreator: true }));
@@ -293,8 +219,7 @@ export default function Onboarding() {
 
   const parseTags = (s = "") => s.split(",").map(t => t.trim()).filter(Boolean);
   const resetForm = () => setForm({
-    id: null, title: "", description: "", category: "", poiId: "",
-    tags: "", url: "", file: null, thumbnail: FALLBACK_IMG, source: "link",
+    id: null, title: "", description: "", category: "", poiId: "", tags: "", url: ""
   });
 
   /* =======================
@@ -314,12 +239,8 @@ export default function Onboarding() {
   };
 
   /* =======================
-     AZIONI VIDEO
+     AZIONI VIDEO (YouTube-only)
   ======================== */
-  function deriveThumbnail(url, currentThumb) {
-    if (isYouTube(url)) return getYouTubeThumb?.(url) || currentThumb || FALLBACK_IMG;
-    return currentThumb || FALLBACK_IMG;
-  }
   function selectedPoiName() {
     const p = poiOptions.find(p => String(p.id) === String(form.poiId));
     return p?.name || "";
@@ -330,14 +251,11 @@ export default function Onboarding() {
     if (!form.category) return alert("Seleziona una categoria.");
     if (!form.title.trim()) return alert("Inserisci un titolo.");
     if (!form.description.trim()) return alert("Inserisci una descrizione.");
-    if (form.source === "link") {
-      if (!form.url.trim()) return alert("Inserisci un link oppure carica un file.");
-      if (!isValidPublicUrl?.(form.url.trim())) return alert("Il link non sembra valido o pubblico.");
-    }
-    if (form.source === "file" && !form.file) return alert("Seleziona un file video dal tuo PC.");
+    if (!form.url.trim()) return alert("Inserisci il link YouTube.");
+    if (!isYouTubeUrl(form.url.trim())) return alert("Accettiamo solo link YouTube.");
 
-    const platform = form.source === "link" ? (detectPlatform?.(form.url) || "link") : "file";
-    const thumb = form.source === "link" ? deriveThumbnail(form.url, form.thumbnail) : form.thumbnail;
+    const platform = "youtube";
+    const thumb = getYouTubeThumb?.(form.url) || "";
 
     let id = form.id;
     if (id) {
@@ -348,9 +266,8 @@ export default function Onboarding() {
         category: form.category,
         poiId: form.poiId || "",
         activityName: selectedPoiName(),
-        url: form.source === "link" ? form.url.trim() : "",
-        file: form.source === "file" ? form.file : null,
-        source: form.source,
+        url: form.url.trim(),
+        source: "link",
         platform,
         thumbnail: thumb,
         tags: parseTags(form.tags),
@@ -364,9 +281,8 @@ export default function Onboarding() {
         category: form.category,
         poiId: form.poiId || "",
         activityName: selectedPoiName(),
-        url: form.source === "link" ? form.url.trim() : "",
-        file: form.source === "file" ? form.file : null,
-        source: form.source,
+        url: form.url.trim(),
+        source: "link",
         platform,
         thumbnail: thumb,
         tags: parseTags(form.tags),
@@ -400,41 +316,49 @@ export default function Onboarding() {
       poiId: v.poiId || "",
       tags: (v.tags || []).join(", "),
       url: v.url || "",
-      file: null,
-      thumbnail: v.thumbnail || FALLBACK_IMG,
-      source: v.source || (v.url ? "link" : "file"),
     });
     setTimeout(() => document.getElementById("creator-tools")?.scrollIntoView({ behavior: "smooth" }), 150);
   };
 
-  /* ========== DEMO PER TEST LIGHTBOX ========== */
-  const demoVideos = [
-    {
-      url: "https://www.instagram.com/p/C9v0Xx4rabc/",
-      title: "Reel dal borgo",
-      thumb: "https://placehold.co/800x450?text=IG+Preview",
-      date: "Oggi",
-    },
-    {
-      url: "https://www.tiktok.com/@scuoladicucinaborghi/video/1234567890",
-      title: "Ricetta tipica",
-      thumb: "https://placehold.co/800x450?text=TT+Preview",
-      date: "Ieri",
-    },
-    {
-      url: "https://www.facebook.com/watch/?v=10153231379946729",
-      title: "Evento in piazza",
-      thumb: "https://placehold.co/800x450?text=FB+Preview",
-      date: "Settimana scorsa",
-    },
-    {
-      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      title: "Vlog YouTube",
-      date: "19/09/2025",
-    },
+  const onDeleteVideo = async (v) => {
+    if (!confirm(`Eliminare definitivamente “${v.title}”?`)) return;
+    await removeVideo(v.id);
+    reloadMine();
+  };
+
+  // classifiche (mock)
+  const leaderboardRegional = [
+    { name: "Paolo V.", level: "Ambasciatore", points: 740 },
+    { name: "Anna S.",  level: "Viaggiatore",  points: 520 },
+    { name: "Giorgio L.", level: "Esploratore", points: 300 },
+  ];
+  const leaderboardNational = [
+    { name: "Lucia R.", level: "Il Borghista", points: 1400 },
+    { name: "Marco D.", level: "Ambasciatore", points: 960 },
+    { name: "Ilaria F.", level: "Viaggiatore", points: 650 },
   ];
 
-  /* ================= HEADER ================= */
+  // stats
+  const [recent, setRecent] = useState([]);
+  const pushActivity = (label, points) => {
+    setRecent(r => [{ label, points, ts: Date.now() }, ...r].slice(0, 8));
+    if (points) setUser(u => ({ ...u, points: u.points + points }));
+  };
+  const stats = useMemo(() => {
+    const all = [...videos.drafts, ...videos.scheduled, ...videos.published];
+    return {
+      total: all.length,
+      views: all.reduce((s, v) => s + (v.views || 0), 0),
+      likes: all.reduce((s, v) => s + (v.likes || 0), 0),
+    };
+  }, [videos]);
+
+  // azioni rapide
+  const doCheckin = () => { setUser(u => ({ ...u, streakDays: u.streakDays + 1 })); pushActivity("Check-in giornaliero", POINTS.checkin); };
+  const doReportEvent = () => { setUser(u => ({ ...u, eventsReported: u.eventsReported + 1 })); pushActivity("Segnalazione evento", POINTS.event); };
+  const doFeedback = () => { setUser(u => ({ ...u,feedbackGiven: u.feedbackGiven + 1 })); pushActivity("Feedback lasciato", POINTS.feedback); };
+
+  /* ================= HEADER (Topbar minimale già presente) ================= */
   return (
     <div className="min-h-screen" style={{ backgroundColor: C.cream }}>
       <header className="sticky top-0 z-40 border-b" style={{ borderColor: C.gold, backgroundColor: "rgba(250,245,224,0.96)", backdropFilter: "blur(6px)" }}>
@@ -535,7 +459,7 @@ export default function Onboarding() {
               <FavSection title="Prodotti tipici" items={fav.prodotti} onRemove={(id) => removeFav("prodotti", id)} onAdd={() => addDemoFav("prodotti")} />
             </div>
 
-            {/* Suggerisci itinerario – subito dopo i preferiti */}
+            {/* Suggerisci itinerario */}
             <div className="mt-6">
               <div className="rounded-xl border p-4 sm:p-5 flex items-center justify-between gap-3"
                    style={{ borderColor: C.gold, backgroundColor: "#fff" }}>
@@ -580,18 +504,6 @@ export default function Onboarding() {
             </div>
           </div>
 
-          {/* ====== BLOCCO DI TEST: Compact + Lightbox ====== */}
-          <div className="rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: C.gold }}>
-            <div className="mb-3 text-sm font-medium" style={{ color: C.primaryDark }}>
-              Test player (compact + lightbox)
-            </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              {demoVideos.map((v, i) => (
-                <SocialCompactCard key={i} {...v} />
-              ))}
-            </div>
-          </div>
-
           {/* SEZIONE CREATOR */}
           {(user.isCreator && (step >= 1)) && (
             <>
@@ -603,116 +515,19 @@ export default function Onboarding() {
                 setOpen={setOpenProfile}
                 rightEl={step === 2 ? <span className="inline-flex items-center gap-1 text-[13px] text-emerald-700"><CheckCircle2 className="h-4 w-4" /> salvato</span> : null}
               >
-                <div className="grid gap-4 lg:grid-cols-3">
-                  {/* form */}
-                  <div className="lg:col-span-2 space-y-3">
-                    {/* AVATAR */}
-                    <div>
-                      <Label>Avatar</Label>
-                      <div className="flex items-center gap-3">
-                        <div className="h-16 w-16 overflow-hidden rounded-full border" style={{ borderColor: C.gold }}>
-                          <img
-                            src={creatorProfile.avatarFile ? URL.createObjectURL(creatorProfile.avatarFile) : "https://placehold.co/80x80?text=%20"}
-                            alt="avatar"
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm" style={{ borderColor: C.gold, color: C.primaryDark }}>
-                            <Upload className="h-4 w-4" />
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0] || null;
-                                setCreatorProfile(p => ({ ...p, avatarFile: file }));
-                              }}
-                              className="w-full"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* COVER */}
-                    <div>
-                      <Label>Cover</Label>
-                      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.gold }}>
-                        <div className="aspect-[3/1] w-full bg-neutral-100">
-                          <img
-                            src={creatorProfile.coverFile ? URL.createObjectURL(creatorProfile.coverFile) : "https://images.unsplash.com/photo-1533750349088-cd871a92f312?q=80&w=1200&auto=format&fit=crop"}
-                            alt="cover"
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                      </div>
-                      <div className="mt-2 flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm" style={{ borderColor: C.gold, color: C.primaryDark }}>
-                        <Upload className="h-4 w-4" />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0] || null;
-                            setCreatorProfile(p => ({ ...p, coverFile: file }));
-                          }}
-                          className="w-full"
-                        />
-                      </div>
-                    </div>
-
-                    <Input label="Nome pubblico *" value={creatorProfile.displayName} onChange={(v) => setCreatorProfile(p => ({ ...p, displayName: v }))} placeholder="es. santopiero" />
-                    <Textarea label="Bio sintetica *" value={creatorProfile.bio} onChange={(v) => setCreatorProfile(p => ({ ...p, bio: v }))} placeholder="Racconto i borghi con focus su natura, cammini e sapori." maxLength={180} counter />
-                    <Input label="Regione *" value={creatorProfile.region} onChange={(v) => setCreatorProfile(p => ({ ...p, region: v }))} placeholder="Basilicata" icon={<MapPin className="h-4 w-4" style={{ color: C.primaryDark }} />} />
-
-                    <div>
-                      <Label>Caratteristiche (min 1)</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {["Natura","Food","Storie locali","Cammini","Arte & Cultura","Family friendly","Drone","Vlog"].map(t => {
-                          const active = (creatorProfile.traits || []).includes(t);
-                          return (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => setCreatorProfile(p => {
-                                const set = new Set(p.traits || []);
-                                set.has(t) ? set.delete(t) : set.add(t);
-                                return { ...p, traits: Array.from(set) };
-                              })}
-                              className="px-3 py-1.5 rounded-2xl text-sm border"
-                              style={{
-                                borderColor: active ? C.primary : C.gold,
-                                backgroundColor: active ? C.primary : "#fff",
-                                color: active ? "#fff" : C.primaryDark,
-                              }}
-                            >
-                              {t}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Input label="Sito web" value={creatorProfile.socials.website} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, website: v } }))} placeholder="https://il-mi-sito.it" icon={<Globe className="h-4 w-4" style={{ color: C.primaryDark }} />} />
-                      <Input label="YouTube" value={creatorProfile.socials.youtube} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, youtube: v } }))} placeholder="https://youtube.com/…" icon={<Youtube className="h-4 w-4" style={{ color: C.primaryDark }} />} />
-                      <Input label="Instagram" value={creatorProfile.socials.instagram} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, instagram: v } }))} placeholder="https://instagram.com/…" icon={<Instagram className="h-4 w-4" style={{ color: C.primaryDark }} />} />
-                      <Input label="TikTok" value={creatorProfile.socials.tiktok} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, tiktok: v } }))} placeholder="https://tiktok.com/@…" icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />} />
-                    </div>
-
-                    <div className="flex gap-2">
-                      <BtnPrimary onClick={handleSaveProfile}>Salva e continua</BtnPrimary>
-                    </div>
-                  </div>
-
-                  {/* Anteprima pubblica */}
-                  <div>
-                    <h4 className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Anteprima profilo</h4>
-                    <PublicCreatorCard profile={creatorProfile} stats={{ videos: stats.total, views: stats.views }} palette={C} />
-                  </div>
+                {/* — identico a prima (avatar/cover/bio/social) — */}
+                <CreatorProfileForm
+                  C={C}
+                  creatorProfile={creatorProfile}
+                  setCreatorProfile={setCreatorProfile}
+                  stats={{ videos: stats.total, views: stats.views }}
+                />
+                <div className="mt-4">
+                  <BtnPrimary onClick={handleSaveProfile}>Salva e continua</BtnPrimary>
                 </div>
               </AccordionSection>
 
-              {/* Strumenti upload video (STEP 2) */}
+              {/* Strumenti upload video (STEP 2) — YouTube only */}
               <AccordionSection
                 id="creator-tools"
                 title="Strumenti da Creator"
@@ -754,91 +569,38 @@ export default function Onboarding() {
                       />
                     </div>
 
-                    {/* switch sorgente */}
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
-                        <Label>Link esterno</Label>
-                        <div className="grid gap-2">
-                          <div className="flex items-center gap-2">
-                            <input type="radio" id="src-link" checked={form.source === "link"} onChange={() => setForm(f => ({ ...f, source: "link" }))} />
-                            <label htmlFor="src-link" className="text-sm" style={{ color: C.primaryDark }}>YouTube / Instagram / TikTok / Facebook</label>
-                          </div>
-                          <Input
-                            label="URL"
-                            icon={<Link2 className="h-4 w-4" style={{ color: C.primaryDark }} />}
-                            value={form.url}
-                            onChange={(v) => setForm(f => ({ ...f, url: v, thumbnail: isYouTube(v) ? (getYouTubeThumb?.(v) || FALLBACK_IMG) : f.thumbnail }))}
-                            placeholder="Incolla un URL pubblico (es. https://www.instagram.com/p/...  https://www.tiktok.com/...  https://www.facebook.com/...  https://www.youtube.com/watch?v=...)"
-                          />
-                        </div>
+                    {/* Link YouTube */}
+                    <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
+                      <label className="mb-1 block text-xs" style={{ color: C.primaryDark }}>Link YouTube *</label>
+                      <div
+                        className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm"
+                        style={{ borderColor: urlError ? "#dc2626" : C.gold, color: C.primaryDark }}
+                      >
+                        <Link2 className="h-4 w-4" />
+                        <input
+                          className="w-full outline-none"
+                          value={form.url}
+                          onChange={(e) => setForm(f => ({ ...f, url: e.target.value }))}
+                          placeholder="https://www.youtube.com/watch?v=..."
+                        />
                       </div>
-
-                      <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
-                        <Label>Carica file dal PC</Label>
-                        <div className="flex items-center gap-2">
-                          <input type="radio" id="src-file" checked={form.source === "file"} onChange={() => setForm(f => ({ ...f, source: "file" }))} />
-                          <label htmlFor="src-file" className="text-sm" style={{ color: C.primaryDark }}>Video locale (mp4, mov…)</label>
-                        </div>
-                        <div className="mt-2">
-                          <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm" style={{ borderColor: C.gold, color: C.primaryDark }}>
-                            <Upload className="h-4 w-4" />
-                            <input
-                              type="file"
-                              accept="video/*"
-                              onChange={(e) => setForm(f => ({ ...f, file: e.target.files?.[0] || null }))}
-                              className="w-full"
-                            />
-                          </div>
-                        </div>
-                      </div>
+                      {urlError && <div className="mt-1 text-xs text-red-600">{urlError}</div>}
                     </div>
 
                     {/* Anteprima */}
                     <div className="rounded-xl border p-3" style={{ borderColor: C.gold }}>
-                      <Label>Anteprima</Label>
-
-                      {/* INSTAGRAM: embed ufficiale */}
-                      {form.source === "link" && isInstagram(form.url) && (
-                        <div className="mt-1">
-                          <blockquote
-                            className="instagram-media"
-                            data-instgrm-permalink={form.url}
-                            data-instgrm-version="14"
-                            style={{ background: "#fff", border: 0, margin: 0, padding: 0, width: "100%" }}
-                          />
-                          <div className="mt-2 text-xs" style={{ color: C.primaryDark }}>
-                            Il contenuto è riprodotto qui tramite embed ufficiale: resti sulla piattaforma.
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ALTRI provider */}
-                      {form.source === "link" && !!form.url && !isInstagram(form.url) && (
-                        <EmbedCard
-                          url={form.url}
-                          title={form.title || "Anteprima"}
-                          caption={(isTikTok(form.url) || isYouTube(form.url))
-                            ? "Embed ufficiale: resti sulla piattaforma di origine."
-                            : "Riproduzione incorporata."}
-                        />
-                      )}
-
-                      {/* File locale */}
-                      {form.source === "file" && form.file && (
-                        <div className="mt-2">
-                          <video src={previewUrl} controls playsInline className="w-full rounded-xl border" style={{ borderColor: C.gold }} />
-                        </div>
-                      )}
-
-                      {!form.url && !form.file && (
+                      <label className="mb-1 block text-xs" style={{ color: C.primaryDark }}>Anteprima</label>
+                      {isYouTubeUrl(form.url) ? (
+                        <EmbedCard url={form.url} title={form.title || "Anteprima"} caption="Anteprima incorporata da YouTube" />
+                      ) : (
                         <div className="text-sm" style={{ color: C.primaryDark }}>
-                          Inserisci un link (YouTube/Instagram/TikTok/Facebook) oppure seleziona un file dal tuo PC per l’anteprima.
+                          Incolla un link <b>YouTube</b> per vedere l’anteprima.
                         </div>
                       )}
                     </div>
 
                     <div>
-                      <Label>Tag (facoltativi, separati da virgola)</Label>
+                      <label className="mb-1 block text-xs" style={{ color: C.primaryDark }}>Tag (facoltativi, separati da virgola)</label>
                       <input
                         value={form.tags}
                         onChange={(e) => setForm(f => ({ ...f, tags: e.target.value }))}
@@ -848,21 +610,29 @@ export default function Onboarding() {
                       />
                     </div>
 
-                    <div>
-                      <Label>Miniatura</Label>
-                      <img
-                        src={form.thumbnail}
-                        alt="thumbnail"
-                        className="aspect-video w-full rounded-xl border object-cover"
-                        style={{ borderColor: C.gold }}
-                        onError={(e) => (e.currentTarget.src = FALLBACK_IMG)}
-                      />
-                    </div>
-
                     <div className="flex flex-wrap gap-2 pt-1">
-                      <BtnOutline onClick={() => saveAs("draft")}>{form.id ? "Aggiorna bozza" : "Salva come bozza"}</BtnOutline>
-                      <BtnOutline onClick={() => saveAs("scheduled")}>{form.id ? "Ripianifica" : "Programma"}</BtnOutline>
-                      <BtnPrimary onClick={() => saveAs("published")}>Pubblica (+20)</BtnPrimary>
+                      <BtnOutline
+                        onClick={() => saveAs("draft")}
+                        className="disabled:opacity-60"
+                        type="button"
+                      >
+                        {form.id ? "Aggiorna bozza" : "Salva come bozza"}
+                      </BtnOutline>
+                      <BtnOutline
+                        onClick={() => saveAs("scheduled")}
+                        className="disabled:opacity-60"
+                        type="button"
+                      >
+                        {form.id ? "Ripianifica" : "Programma"}
+                      </BtnOutline>
+                      <BtnPrimary
+                        onClick={() => saveAs("published")}
+                        className="disabled:opacity-60"
+                        type="button"
+                        disabled={!isYouTubeUrl(form.url) || !form.title.trim() || !form.description.trim() || !selectedBorgo || !form.category}
+                      >
+                        Pubblica (+20)
+                      </BtnPrimary>
                     </div>
                   </div>
 
@@ -879,9 +649,9 @@ export default function Onboarding() {
 
               {/* Liste Creator */}
               <div className="grid gap-4 md:grid-cols-3">
-                <ContentColumn title="Bozze" items={videos.drafts} empty="Nessuna bozza." onEdit={onEditVideo} />
-                <ContentColumn title="Programmato" items={videos.scheduled} empty="Nessun video programmato." onEdit={onEditVideo} />
-                <ContentColumn title="Pubblicati" items={videos.published} empty="Nessun video pubblicato." onEdit={onEditVideo} showPoints />
+                <ContentColumn title="Bozze" items={videos.drafts} empty="Nessuna bozza." onEdit={onEditVideo} onDelete={onDeleteVideo} />
+                <ContentColumn title="Programmato" items={videos.scheduled} empty="Nessun video programmato." onEdit={onEditVideo} onDelete={onDeleteVideo} />
+                <ContentColumn title="Pubblicati" items={videos.published} empty="Nessun video pubblicato." onEdit={onEditVideo} onDelete={onDeleteVideo} showPoints />
               </div>
             </>
           )}
@@ -1056,7 +826,7 @@ function FavSection({ title, items = [], onRemove, onAdd }) {
 /* =======================
    CONTENUTI LISTE
 ======================= */
-function ContentColumn({ title, items, empty, showPoints, onEdit }) {
+function ContentColumn({ title, items, empty, showPoints, onEdit, onDelete }) {
   return (
     <div className="rounded-2xl border bg-white p-3" style={{ borderColor: C.gold }}>
       <div className="mb-2 flex items-center justify-between">
@@ -1065,27 +835,22 @@ function ContentColumn({ title, items, empty, showPoints, onEdit }) {
       </div>
       <div className="space-y-2">
         {items.map(v => (
-          <VideoCard key={v.id} v={v} showPoints={showPoints} onEdit={() => onEdit(v)} />
+          <VideoCard key={v.id} v={v} showPoints={showPoints} onEdit={() => onEdit(v)} onDelete={() => onDelete(v)} />
         ))}
         {!items.length && <EmptyCard text={empty} />}
       </div>
     </div>
   );
 }
-function VideoCard({ v, showPoints = false, onEdit }) {
+function VideoCard({ v, showPoints = false, onEdit, onDelete }) {
   const isLink = !!v.url;
   return (
     <div className="overflow-hidden rounded-xl border" style={{ borderColor: C.gold }}>
       <div className="aspect-video w-full bg-neutral-100">
         {isLink ? (
-          <EmbedCard url={v.url} title={v.title} caption="Preview incorporata" />
+          <EmbedCard url={v.url} title={v.title} caption="Anteprima YouTube" />
         ) : (
-          <img
-            src={v.thumbnail || FALLBACK_IMG}
-            alt={v.title}
-            className="h-full w-full object-cover"
-            onError={(e) => (e.currentTarget.src = FALLBACK_IMG)}
-          />
+          <div className="h-full w-full flex items-center justify-center text-sm" style={{ color: C.primaryDark }}>Nessun link</div>
         )}
       </div>
       <div className="p-2">
@@ -1113,10 +878,18 @@ function VideoCard({ v, showPoints = false, onEdit }) {
             rel="noreferrer"
             className="rounded-xl border px-3 py-1.5 text-xs hover:opacity-90 inline-flex items-center"
             style={{ borderColor: C.gold, color: C.primaryDark, pointerEvents: isLink ? "auto" : "none", opacity: isLink ? 1 : 0.6 }}
-            title={isLink ? "Apri link sorgente" : "Anteprima solo interna"}
+            title={isLink ? "Apri su YouTube" : "Nessun link"}
           >
             <Play className="h-3.5 w-3.5 mr-1" /> Apri
           </a>
+          <button
+            onClick={onDelete}
+            className="rounded-xl border px-3 py-1.5 text-xs inline-flex items-center hover:bg-red-50"
+            style={{ borderColor: C.gold, color: "#b91c1c" }}
+            title="Elimina"
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> Elimina
+          </button>
         </div>
       </div>
     </div>
@@ -1232,14 +1005,13 @@ function Select({ label, value, onChange, options, disabled }) {
     </div>
   );
 }
-
-/* --- Bottoni --- */
-function BtnPrimary({ children, onClick, type = "button", className = "" }) {
+function BtnPrimary({ children, onClick, type = "button", className = "", disabled }) {
   return (
     <button
       type={type}
       onClick={onClick}
-      className={`rounded-xl px-4 py-2 text-sm text-white hover:opacity-90 ${className}`}
+      disabled={disabled}
+      className={`rounded-xl px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-60 ${className}`}
       style={{ backgroundColor: C.primary }}
     >
       {children}
@@ -1259,7 +1031,112 @@ function BtnOutline({ children, onClick, type = "button", className = "" }) {
   );
 }
 
-/* --- Card anteprima pubblica creator --- */
+/* --- Sottocomponente: form profilo + anteprima --- */
+function CreatorProfileForm({ C, creatorProfile, setCreatorProfile, stats }) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-3">
+      {/* form */}
+      <div className="lg:col-span-2 space-y-3">
+        {/* AVATAR */}
+        <div>
+          <Label>Avatar</Label>
+          <div className="flex items-center gap-3">
+            <div className="h-16 w-16 overflow-hidden rounded-full border" style={{ borderColor: C.gold }}>
+              <img
+                src={creatorProfile.avatarFile ? URL.createObjectURL(creatorProfile.avatarFile) : "https://placehold.co/80x80?text=%20"}
+                alt="avatar"
+                className="h-full w-full object-cover"
+              />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm" style={{ borderColor: C.gold, color: C.primaryDark }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setCreatorProfile(p => ({ ...p, avatarFile: file }));
+                  }}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* COVER */}
+        <div>
+          <Label>Cover</Label>
+          <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.gold }}>
+            <div className="aspect-[3/1] w-full bg-neutral-100">
+              <img
+                src={creatorProfile.coverFile ? URL.createObjectURL(creatorProfile.coverFile) : "https://images.unsplash.com/photo-1533750349088-cd871a92f312?q=80&w=1200&auto=format&fit=crop"}
+                alt="cover"
+                className="h-full w-full object-cover"
+              />
+            </div>
+          </div>
+          <div className="mt-2 flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm" style={{ borderColor: C.gold, color: C.primaryDark }}>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                setCreatorProfile(p => ({ ...p, coverFile: file }));
+              }}
+              className="w-full"
+            />
+          </div>
+        </div>
+
+        <Input label="Nome pubblico *" value={creatorProfile.displayName} onChange={(v) => setCreatorProfile(p => ({ ...p, displayName: v }))} placeholder="es. santopiero" />
+        <Textarea label="Bio sintetica *" value={creatorProfile.bio} onChange={(v) => setCreatorProfile(p => ({ ...p, bio: v }))} placeholder="Racconto i borghi con focus su natura, cammini e sapori." maxLength={180} counter />
+        <Input label="Regione *" value={creatorProfile.region} onChange={(v) => setCreatorProfile(p => ({ ...p, region: v }))} placeholder="Basilicata" icon={<MapPin className="h-4 w-4" style={{ color: C.primaryDark }} />} />
+
+        <div>
+          <Label>Caratteristiche (min 1)</Label>
+          <div className="flex flex-wrap gap-2">
+            {["Natura","Food","Storie locali","Cammini","Arte & Cultura","Family friendly","Drone","Vlog"].map(t => {
+              const active = (creatorProfile.traits || []).includes(t);
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setCreatorProfile(p => {
+                    const set = new Set(p.traits || []);
+                    set.has(t) ? set.delete(t) : set.add(t);
+                    return { ...p, traits: Array.from(set) };
+                  })}
+                  className="px-3 py-1.5 rounded-2xl text-sm border"
+                  style={{
+                    borderColor: active ? C.primary : C.gold,
+                    backgroundColor: active ? C.primary : "#fff",
+                    color: active ? "#fff" : C.primaryDark,
+                  }}
+                >
+                  {t}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input label="Sito web" value={creatorProfile.socials.website} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, website: v } }))} placeholder="https://il-mi-sito.it" icon={<Globe className="h-4 w-4" style={{ color: C.primaryDark }} />} />
+          <Input label="YouTube" value={creatorProfile.socials.youtube} onChange={(v) => setCreatorProfile(p => ({ ...p, socials: { ...p.socials, youtube: v } }))} placeholder="https://youtube.com/…" icon={<Youtube className="h-4 w-4" style={{ color: C.primaryDark }} />} />
+        </div>
+      </div>
+
+      {/* Anteprima pubblica */}
+      <div>
+        <h4 className="mb-2 text-sm font-medium" style={{ color: C.primaryDark }}>Anteprima profilo</h4>
+        <PublicCreatorCard profile={creatorProfile} stats={stats} palette={C} />
+      </div>
+    </div>
+  );
+}
+
+/* --- Card anteprima pubblica creator (immutata, ma senza Instagram/TikTok pulsanti se vuoti) --- */
 function PublicCreatorCard({ profile, stats, palette }) {
   const cover = profile.coverFile
     ? URL.createObjectURL(profile.coverFile)
@@ -1352,18 +1229,6 @@ function PublicCreatorCard({ profile, stats, palette }) {
           {socials.youtube && (
             <IconBtn href={socials.youtube} title="YouTube">
               <Youtube className="w-5 h-5" />
-            </IconBtn>
-          )}
-          {socials.instagram && (
-            <IconBtn href={socials.instagram} title="Instagram">
-              <Instagram className="w-5 h-5" />
-            </IconBtn>
-          )}
-          {socials.tiktok && (
-            <IconBtn href={socials.tiktok} title="TikTok">
-              <svg viewBox="0 0 256 256" className="w-5 h-5" fill="currentColor">
-                <path d="M208 96a63.8 63.8 0 01-37-12v76a64 64 0 11-64-64v32a32 32 0 1032 32V32h32a64 64 0 0037 12z" />
-              </svg>
             </IconBtn>
           )}
         </div>

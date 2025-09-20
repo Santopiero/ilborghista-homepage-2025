@@ -1,9 +1,14 @@
-import { useMemo, useRef, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+// src/pages/PoiDetail.jsx
+import React, { useMemo, useRef, useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { POI_BY_BORGO } from "../data/poi.js";
-import { MapPin, Share2, Compass, Clock, ChevronLeft, Heart, Play, ChevronDown, Languages } from "lucide-react";
+import {
+  MapPin, Share2, Compass, Clock, Heart, Play,
+  ChevronDown, Languages
+} from "lucide-react";
 import PallotteBar from "../components/PallotteBar.jsx";
 
+/* preferiti */
 function useFav(id) {
   const KEY = "ib_favs";
   const [fav, setFav] = useState(() => {
@@ -23,26 +28,34 @@ function useFav(id) {
   ];
 }
 
+/* mini card orizzontali */
 function MiniCard({ title, img, href }) {
   return (
-    <Link to={href} className="w-40 sm:w-44 shrink-0 rounded-xl overflow-hidden border bg-white hover:shadow transition">
+    <a
+      href={href}
+      className="w-40 sm:w-44 shrink-0 rounded-xl overflow-hidden border bg-white hover:shadow transition"
+    >
       <div className="aspect-video w-full overflow-hidden">
         <img src={img} alt={title} className="w-full h-full object-cover" loading="lazy" />
       </div>
       <div className="p-2">
         <div className="text-sm font-medium line-clamp-2">{title}</div>
       </div>
-    </Link>
+    </a>
   );
 }
 
 export default function PoiDetail() {
   const { slug, poiId } = useParams();
   const data = (POI_BY_BORGO[slug] || []).find((x) => x.id === poiId);
+
   const [active, setActive] = useState("descrizione");
   const [expanded, setExpanded] = useState(false);
+
   const [lang, setLang] = useState("it"); // it, en, es, de, zh
   const [langOpen, setLangOpen] = useState(false);
+  const langWrapRef = useRef(null); // per click-fuori
+
   const [fav, toggleFav] = useFav(`poi:${poiId}`);
   const videoRef = useRef(null);
 
@@ -54,31 +67,49 @@ export default function PoiDetail() {
 
   const L = (field) => data?.i18n?.[lang]?.[field] ?? data?.[field] ?? "";
 
+  // chiusura menu su click-fuori / ESC / scroll / resize
+  useEffect(() => {
+    if (!langOpen) return;
+    const onDown = (e) => {
+      if (langWrapRef.current && !langWrapRef.current.contains(e.target)) setLangOpen(false);
+    };
+    const onEsc = (e) => e.key === "Escape" && setLangOpen(false);
+    const onScroll = () => setLangOpen(false);
+    window.addEventListener("mousedown", onDown, true);
+    window.addEventListener("keydown", onEsc);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("mousedown", onDown, true);
+      window.removeEventListener("keydown", onEsc);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [langOpen]);
+
   if (!data) {
     return (
       <main className="max-w-3xl mx-auto px-4 pt-14 pb-16">
-        <Link to={`/borghi/${slug}/cosa-fare`} className="inline-flex items-center gap-1 text-sm text-blue-700">
-          <ChevronLeft className="h-4 w-4" /> Torna a “Cosa fare”
-        </Link>
         <h1 className="mt-6 text-2xl font-bold">Attività non trovata</h1>
       </main>
     );
   }
 
-  const otherExperiences = (POI_BY_BORGO[slug] || []).filter((p) => p.type === "esperienze-itinerari");
+  const otherExperiences = (POI_BY_BORGO[slug] || []).filter(
+    (p) => p.type === "esperienze-itinerari"
+  );
 
   return (
     <main className="max-w-6xl mx-auto px-4 pt-14 pb-16">
-      {/* Pallotte sticky */}
+      {/* Pallotte con casetta per tornare alla HomeBorgo */}
       <PallotteBar activeType={data.type} />
 
-      {/* Header compatto */}
-      <div className="flex items-center justify-between gap-2 mt-2">
-        <Link to={`/borghi/${slug}/cosa-fare`} className="inline-flex items-center gap-1 text-sm text-blue-700">
-          <ChevronLeft className="h-4 w-4" /> <span className="hidden sm:inline">Cosa fare a {slug}</span><span className="sm:hidden">Indietro</span>
-        </Link>
-
-        {/* ❤️ sempre visibile */}
+      {/* Titolo + preferiti */}
+      <div className="mt-3 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl sm:text-3xl font-bold">{L("title") || data.name}</h1>
+          <div className="text-sm text-gray-600">{data.category}</div>
+        </div>
         <button
           onClick={toggleFav}
           className={`inline-flex items-center justify-center h-9 w-9 rounded-full border ${fav ? "bg-rose-100 text-rose-600" : "bg-white"}`}
@@ -89,17 +120,14 @@ export default function PoiDetail() {
         </button>
       </div>
 
-      {/* Titolo */}
-      <div className="mt-2">
-        <h1 className="text-xl sm:text-3xl font-bold">{L("title") || data.name}</h1>
-        <div className="text-sm text-gray-600">{data.category}</div>
-      </div>
-
       {/* HERO */}
       <section className="relative mt-3">
         <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {data.images?.map((src, i) => (
-            <div key={i} className="snap-start shrink-0 basis-full sm:basis-[75%] lg:basis-[60%] rounded-2xl overflow-hidden relative">
+            <div
+              key={i}
+              className="snap-start shrink-0 basis-full sm:basis-[75%] lg:basis-[60%] rounded-2xl overflow-hidden relative"
+            >
               <img src={src} alt={`${L("title")} ${i + 1}`} className="w-full h-[200px] sm:h-[320px] object-cover" />
               {data.video?.youtubeId && (
                 <button
@@ -118,7 +146,7 @@ export default function PoiDetail() {
           ))}
         </div>
 
-        {/* Quick actions (solo icone su mobile) */}
+        {/* Quick actions (icone su mobile) */}
         <div className="absolute left-3 bottom-3 flex gap-2">
           <a
             href={directionsUrl}
@@ -148,14 +176,13 @@ export default function PoiDetail() {
         </div>
       </section>
 
-      {/* TABS sticky con LINGUA-PILL PRIMA DI “DESCRIZIONE” */}
-      <div className="sticky top-[112px] sm:top-14 z-20 bg-white/90 backdrop-blur mt-4 border-b">
-        <nav className="flex items-center gap-2 overflow-x-auto px-1 py-2">
+      {/* Tabs sticky con LINGUA-PILL PRIMA DI “DESCRIZIONE” – menu sopra ai contenuti */}
+      <div className="sticky top-[112px] sm:top-14 z-[2000] bg-white/90 backdrop-blur mt-4 border-b overflow-visible">
+        <nav className="relative flex items-center gap-2 overflow-x-auto overflow-y-visible px-1 py-2 z-[2000]">
           {/* Pill lingua */}
-          <div className="relative">
+          <div className="relative" ref={langWrapRef}>
             <button
               onClick={() => setLangOpen((v) => !v)}
-              onBlur={() => setTimeout(() => setLangOpen(false), 150)}
               className="inline-flex items-center gap-1 px-3 py-2 rounded-full text-sm border bg-white"
               aria-haspopup="listbox"
               aria-expanded={langOpen}
@@ -166,17 +193,17 @@ export default function PoiDetail() {
               <ChevronDown className="h-4 w-4" />
             </button>
 
+            {/* ✅ menu con z-index massimo (sempre davanti) */}
             {langOpen && (
               <ul
                 role="listbox"
-                className="absolute left-0 mt-1 w-28 rounded-xl border bg-white shadow z-10 overflow-hidden"
+                className="absolute left-0 top-full mt-1 w-28 rounded-xl border bg-white shadow z-[9999] overflow-hidden"
               >
                 {["it","en","es","de","zh"].map((k) => (
                   <li key={k}>
                     <button
                       role="option"
                       aria-selected={lang === k}
-                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => { setLang(k); setLangOpen(false); }}
                       className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${lang===k?"font-medium bg-amber-50":""}`}
                     >
@@ -188,7 +215,7 @@ export default function PoiDetail() {
             )}
           </div>
 
-          {/* Tabs contenuti */}
+          {/* Tabs contenuto */}
           {["descrizione", "curiosita", "info", "mappa", "video"].map((t) => (
             <button
               key={t}
@@ -207,7 +234,7 @@ export default function PoiDetail() {
         </nav>
       </div>
 
-      {/* DESCRIZIONE con fade + consigliati */}
+      {/* DESCRIZIONE + consigliati */}
       {active === "descrizione" && (
         <section className="mt-4">
           <div className={`relative transition-all ${expanded ? "" : "max-h-40 overflow-hidden"}`}>
@@ -300,7 +327,12 @@ export default function PoiDetail() {
               src={`https://www.google.com/maps?q=${encodeURIComponent(data.lat + "," + data.lng)}&hl=it&z=15&output=embed`}
             />
           </div>
-          <a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm">
+          <a
+            href={directionsUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm"
+          >
             Apri in Google Maps
           </a>
         </section>

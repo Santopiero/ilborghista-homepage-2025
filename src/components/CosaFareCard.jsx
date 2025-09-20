@@ -27,12 +27,14 @@ export default function CosaFareCard({ slug, item }) {
 
   return (
     <div className="relative bg-white rounded-2xl shadow-sm overflow-hidden hover:shadow-md transition">
+      {/* ❤️ sempre visibile */}
       <button
         onClick={toggleFav}
         className="absolute z-10 top-2 right-2 p-2 rounded-full bg-white/90"
         aria-label="Aggiungi ai preferiti"
+        title="Aggiungi ai preferiti"
       >
-        <Heart className={`h-5 w-5 ${fav ? "fill-current" : ""}`} />
+        <Heart className={`h-5 w-5 ${fav ? "fill-current text-rose-600" : ""}`} />
       </button>
 
       <Link to={href} className="block">

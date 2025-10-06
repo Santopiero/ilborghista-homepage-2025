@@ -53,6 +53,7 @@ const VideoBorgo = lazy(() => import("./pages/VideoBorgo.jsx"));
 /* Nuove pagine */
 const CosaFareList = lazy(() => import("./pages/CosaFareList.jsx"));
 const PoiDetail = lazy(() => import("./pages/PoiDetail.jsx"));
+const MangiareBere = lazy(() => import("./pages/MangiareBere.jsx")); // ⬅️ nuova pagina
 
 /* Layout con Topbar */
 const AppLayout = lazy(() => import("./layouts/AppLayout.jsx"));
@@ -146,7 +147,8 @@ export default function App() {
             <Route path="/borghi/:slug/eventi" element={<RouteErrorBoundary><SectionPlaceholder title="Eventi e Sagre" /></RouteErrorBoundary>} />
             <Route path="/borghi/:slug/prodotti-tipici" element={<RouteErrorBoundary><SectionPlaceholder title="Prodotti Tipici" /></RouteErrorBoundary>} />
             <Route path="/borghi/:slug/artigiani" element={<RouteErrorBoundary><SectionPlaceholder title="Artigiani" /></RouteErrorBoundary>} />
-            <Route path="/borghi/:slug/mangiare-bere" element={<RouteErrorBoundary><SectionPlaceholder title="Dove Mangiare" /></RouteErrorBoundary>} />
+            {/* ⬇️ Sostituito il placeholder con la pagina vera */}
+            <Route path="/borghi/:slug/mangiare-bere" element={<RouteErrorBoundary><MangiareBere /></RouteErrorBoundary>} />
             <Route path="/borghi/:slug/dormire" element={<RouteErrorBoundary><SectionPlaceholder title="Dove Dormire" /></RouteErrorBoundary>} />
             <Route path="/borghi/:slug/info-utili" element={<RouteErrorBoundary><SectionPlaceholder title="Info Utili" /></RouteErrorBoundary>} />
 

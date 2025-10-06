@@ -291,17 +291,17 @@ function Carousel({ images = [], heightClass = "h-40", rounded = "rounded-2xl" }
 
 const ServiceTile = ({ img, label, href = "#" }) => (
   <Link
-    to={href}
-    className="group relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition ring-1 ring-[#E1B671]/70 bg-white"
-    aria-label={label}
-  >
+  to={href}
+  className="group relative overflow-hidden rounded-xl shadow-xl hover:shadow-2xl transition ring-1 ring-[#E1B671]/70 bg-white"
+  aria-label={label}
+>
     <img
-      loading="lazy"
-      src={img}
-      alt={label}
-      className="absolute inset-0 w-full h-full object-cover duration-300 group-hover:scale-105"
-      onError={onImgErr}
-    />
+  loading="lazy"
+  src={img}
+  alt={label}
+  className="absolute inset-0 w-full h-full object-cover duration-300 group-hover:scale-105 rounded-inherit"
+  onError={onImgErr}
+/>
     <div className="absolute inset-0 bg-black/30" />
     <div className="relative grid place-items-center h-48 sm:h-56 p-6">
       <h3 className="text-2xl sm:text-3xl font-extrabold text-white drop-shadow text-center">

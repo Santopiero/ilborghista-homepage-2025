@@ -24,7 +24,7 @@ import {
   ChevronLeft, ChevronRight, Share2, Heart, CalendarDays, Route as RouteIcon, ShoppingBag,
   List as ListIcon, PlayCircle, Utensils, BedDouble, Hammer, Search, Menu, X,
   LogIn, Users, MessageCircle, Mail, CheckCircle2, AlertCircle, MapPinned,
-  MapPin, Star, Bus, Info, HandHeart, User, Smartphone, BadgeCheck
+  MapPin, Star, Bus, Info, HandHeart, User, Smartphone
 } from "lucide-react";
 
 /* ================= Helpers ================= */
@@ -74,7 +74,7 @@ function kmBetween(a, b) {
   return Math.round(d);
 }
 
-/* ====== Helpers video ====== */
+/* ====== Helpers per ordinamento video ====== */
 function tsOf(v = {}) {
   const candidates = [v.publishedAt, v.createdAt, v.updatedAt, v.ts, v.date];
   for (const c of candidates) {
@@ -85,13 +85,6 @@ function tsOf(v = {}) {
 }
 function orderVideosLatest(list = []) {
   return [...list].sort((a, b) => tsOf(b) - tsOf(a));
-}
-function fmtDate(d) {
-  try {
-    const t = new Date(d);
-    if (Number.isNaN(+t)) return null;
-    return t.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
-  } catch { return null; }
 }
 
 /* ================= Small Favorite Hook ================= */
@@ -351,7 +344,7 @@ function HeroOverlay({ mapsUrl }) {
   );
 }
 
-/* ================= Hero Gallery ================= */
+/* ================= Hero Gallery (altezza desktop ridotta) ================= */
 function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras = null, favType, favId, favData }) {
   const [i, setI] = useState(0);
   const n = gallery?.length || 0;
@@ -381,9 +374,9 @@ function HeroGallery({ title, gallery = [], fallback, overlay = null, leftExtras
 
   return (
     <section className="relative">
-      {/* Mobile invariato, desktop più alto */}
+      {/* Mobile invariato, desktop più basso */}
       <div
-        className="relative h-72 w-full overflow-hidden md:h-[560px] lg:h-[680px]"
+        className="relative h-72 w-full overflow-hidden md:h-[420px] lg:h-[520px]"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
@@ -524,45 +517,44 @@ function DescriptionBlock({ text, slug }) {
   );
 }
 
-/* ================= “In breve” ================= */
-function SmallGallery({ items = [] }) {
-  const ref = useRef(null);
-  const scrollBy = (dx) => ref.current && ref.current.scrollBy({ left: dx, behavior: "smooth" });
-  if (!items.length) return null;
-  return (
-    <div className="relative">
-      <div ref={ref} className="scrollbar-none mt-2 flex gap-2 overflow-x-auto snap-x snap-mandatory" style={{ WebkitOverflowScrolling: "touch" }}>
-        {items.map((it, idx) => (
-          <figure key={idx} className="snap-start shrink-0 w-40">
-            <img src={it.src} alt={it.name || `Foto ${idx + 1}`} className="h-24 w-40 rounded-xl object-cover ring-1 ring-black/5" loading="lazy" decoding="async" />
-            {it.name ? <figcaption className="mt-1 truncate text-xs text-neutral-600">{it.name}</figcaption> : null}
-          </figure>
-        ))}
-      </div>
-      <div className="mt-2 hidden justify-end gap-2 md:flex">
-        <button onClick={() => scrollBy(-300)} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5" aria-label="precedente"><ChevronLeft className="h-4 w-4" /></button>
-        <button onClick={() => scrollBy(300)} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow ring-1 ring-black/5" aria-label="successivo"><ChevronRight className="h-4 w-4" /></button>
-      </div>
-    </div>
-  );
-}
+/* ================= “In breve” di CHIUSURA: loghi + testo ================= */
+function InBreveChiusura({ meta, borgo, slug }) {
+  const text =
+    meta?.logosText ||
+    meta?.shortInfo?.text ||
+    "Grazie per la visita! Scopri servizi e informazioni utili sul portale del Comune.";
+  const logos = Array.isArray(meta?.logos) ? meta.logos : []; // array di URL o {src,alt}
 
-function InBreve({ meta, borgo, slug }) {
-  const regione = borgo?.regione || meta?.regione || meta?.region;
-  const provincia = borgo?.provincia || meta?.provincia || meta?.province;
-  const short = meta?.shortInfo || null;
-  if (!short && !regione && !provincia) return null;
   return (
-    <section className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
+    <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
       <div className="rounded-2xl border bg-[#FAF5E0] p-4">
-        <h3 className="text-sm font-bold text-[#6B271A]">In breve</h3>
-        <ul className="mt-2 space-y-1 text-sm text-gray-700">
-          {short?.text ? <li className="leading-relaxed">{short.text}</li> : null}
-          {regione ? <li><span className="font-semibold">Regione:</span> {regione}</li> : null}
-          {provincia ? <li><span className="font-semibold">Provincia:</span> {provincia}</li> : null}
-          <li><span className="font-semibold">Hashtag:</span> #{slug}</li>
-        </ul>
-        {Array.isArray(short?.gallery) && short.gallery.length ? <div className="mt-3"><SmallGallery items={short.gallery} /></div> : null}
+        <h3 className="text-base font-bold text-[#6B271A]">In breve</h3>
+
+        {/* Loghi istituzionali */}
+        {logos.length ? (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            {logos.map((lg, i) => {
+              const src = typeof lg === "string" ? lg : lg?.src;
+              const alt = typeof lg === "object" ? (lg.alt || "Logo") : "Logo";
+              return (
+                <div key={i} className="h-12 w-auto px-2 py-1 rounded bg-white ring-1 ring-black/10 flex items-center">
+                  {src ? (
+                    <img
+                      src={src}
+                      alt={alt}
+                      className="h-9 w-auto object-contain"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {/* Testo */}
+        <p className="mt-3 text-sm text-gray-800 leading-relaxed">{text}</p>
       </div>
     </section>
   );
@@ -576,7 +568,6 @@ function CreatorCardHM({ v, borgoName, onOpen }) {
   const creatorAvatar = v.creatorAvatar || null;
   const creatorLevel = v.creatorLevel || null;
   const category = v.category || "Esperienza"; // fallback
-  const pub = fmtDate(v.publishedAt || v.createdAt || v.updatedAt || v.ts || v.date);
 
   const [fav, toggleFav] = useFavorite("video", v.id, {
     id: v.id, title: v.title, thumbnail: th, url: v.youtubeUrl || v.url, borgoName
@@ -632,9 +623,6 @@ function CreatorCardHM({ v, borgoName, onOpen }) {
         <div className="p-4">
           <div className="font-extrabold text-[#5B2A1F] line-clamp-2">{title}</div>
 
-          {/* Data pubblicazione */}
-          {pub ? <div className="mt-0.5 text-[12px] text-neutral-500">Pubblicato il {pub}</div> : null}
-
           {/* Luogo */}
           <div className="mt-1 flex items-center gap-1 text-sm text-neutral-600">
             <MapPin className="h-4 w-4 text-[#D54E30]" />
@@ -663,98 +651,6 @@ function CreatorCardHM({ v, borgoName, onOpen }) {
           </div>
         </div>
       </button>
-    </article>
-  );
-}
-
-/* ================== CARD attività “Mangiare & Bere” (reale o rivendicabile) ================== */
-function EatDrinkCard({ item }) {
-  const isClaim = item.claimable === true;
-  const href = isClaim ? `/registrazione-attivita/mangiare?claim=${encodeURIComponent(item.id)}` : `/borghi/${item.borgoSlug}/poi/${item.id}`;
-
-  const [fav, toggleFav] = useFavorite("attivita", item.id, {
-    id: item.id, title: item.name, img: item.cover, location: item.location, tipo: "mangiare"
-  });
-
-  return (
-    <Link
-      to={href}
-      className="snap-center shrink-0 w-[80%] sm:w-[48%] md:w-[32%] lg:w-[24%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5"
-    >
-      <div className="relative aspect-[16/9] w-full overflow-hidden rounded-t-3xl">
-        <img src={item.cover} alt={item.name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-        {isClaim ? (
-          <span className="absolute left-3 top-3 rounded-full bg-cyan-50 px-3 py-1 text-[11px] font-bold text-cyan-800 ring-1 ring-cyan-200">
-            Da rivendicare
-          </span>
-        ) : (
-          <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-[11px] font-bold text-[#5B2A1F] ring-1 ring-black/5">
-            {item.fascia || "€€"}
-          </span>
-        )}
-        <button
-          aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
-          onClick={(e)=>{e.preventDefault(); toggleFav(e);}}
-          className={`absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
-        >
-          <Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} />
-        </button>
-      </div>
-      <div className="p-4">
-        <h3 className="font-extrabold text-[#5B2A1F] line-clamp-2">{item.name}</h3>
-        <div className="mt-1 inline-flex items-center gap-1 text-sm text-neutral-700">
-          <MapPin className="h-4 w-4 text-[#D54E30]" />
-          {item.location}
-        </div>
-        {isClaim ? (
-          <div className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-cyan-700">
-            <BadgeCheck className="h-4 w-4" /> Rivendica e completa la scheda
-          </div>
-        ) : null}
-      </div>
-    </Link>
-  );
-}
-
-/* ================== CARD Eventi ================== */
-function HMEventPosterCard({ ev }) {
-  const eventId = ev.id || slugify(ev.title + (ev.date || ""));
-  const [fav, toggleFav] = useFavorite("evento", eventId, { id: eventId, title: ev.title, img: ev.img, date: ev.date, place: ev.place });
-  return (
-    <article className="snap-center shrink-0 w-[68%] sm:w-[38%] md:w-[28%] lg:w-[22%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
-      <div className="relative aspect-[2/3] w-full overflow-hidden">
-        <img
-          src={ev.img}
-          alt={ev.title}
-          className="h-full w-full object-cover"
-          loading="lazy"
-          decoding="async"
-        />
-        {ev.tag && (
-          <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-extrabold text-[#5B2A1F] shadow ring-1 ring-black/5">
-            {ev.tag}
-          </span>
-        )}
-        <button
-          aria-label={fav ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"}
-          onClick={toggleFav}
-          className={`absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full shadow ring-1 ring-black/10 ${fav ? "bg-[#D54E30] text-white" : "bg-white/90 text-[#6B271A]"}`}
-        >
-          <Heart className="h-4 w-4" fill={fav ? "currentColor" : "none"} />
-        </button>
-      </div>
-
-      <div className="p-4">
-        <h3 className="font-extrabold text-[#5B2A1F]">{ev.title}</h3>
-        {ev.date && <div className="mt-2 text-sm text-neutral-700">{ev.date}</div>}
-        {ev.place && (
-          <div className="mt-1 inline-flex items-center gap-1 text-sm text-neutral-700">
-            <MapPin className="h-4 w-4 text-[#D54E30]" />
-            {ev.place}
-          </div>
-        )}
-        {ev.meta && <div className="mt-1 text-sm text-neutral-700">{ev.meta}</div>}
-      </div>
     </article>
   );
 }
@@ -910,30 +806,6 @@ function NewsletterCTA({ slug }) {
   );
 }
 
-/* ============== Claimable di default per Mangiare & Bere ============== */
-function buildClaimableEatDrink(slug, borgoName) {
-  return [
-    {
-      id: `claim-${slug}-1`,
-      borgoSlug: slug,
-      name: "Ristorante del Centro",
-      location: borgoName,
-      cover: "https://images.unsplash.com/photo-1559339352-11d035aa65de?q=80&w=1500&auto=format&fit=crop",
-      fascia: "€€",
-      claimable: true,
-    },
-    {
-      id: `claim-${slug}-2`,
-      borgoSlug: slug,
-      name: "Bar del Borgo",
-      location: borgoName,
-      cover: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1500&auto=format&fit=crop",
-      fascia: "€",
-      claimable: true,
-    },
-  ];
-}
-
 /* ================= Pagina ================= */
 export default function HomeBorgo() {
   const { slug } = useParams();
@@ -975,37 +847,10 @@ export default function HomeBorgo() {
   const videosLatest = useMemo(() => orderVideosLatest(videos).slice(0, 4), [videos]);
 
   const allPoi = useMemo(() => listPoiByBorgo(slug), [slug, syncTick]);
-  const eatDrinkRaw = useMemo(() => allPoi.filter(isFoodDrink), [allPoi]);
-  const sleepPoi = useMemo(() => allPoi.filter(isSleep), [allPoi]); // (non usato qui, ma manteniamo coerenza)
-  const artigiani = useMemo(() => allPoi.filter(isArtigiano), [allPoi]);
+  const eatDrink = useMemo(() => allPoi.filter(isFoodDrink), [allPoi]); // (non usato in Home)
+  const sleep = useMemo(() => allPoi.filter(isSleep), [allPoi]);        // (non usato qui)
+  const artigiani = useMemo(() => allPoi.filter(isArtigiano), [allPoi]); // (non usato qui)
   const thingsToDo = useMemo(() => allPoi.filter((p) => !isFoodDrink(p) && !isSleep(p) && !isArtigiano(p)), [allPoi]);
-
-  // Trasforma i POI ristorazione in card data
-  const eatDrinkReal = useMemo(() => {
-    const name = meta?.name || borgo?.name || slug;
-    return eatDrinkRaw.map((p) => ({
-      id: p.id,
-      borgoSlug: slug,
-      name: p.name || "Attività",
-      location: `${name}${p.localita ? " · " + p.localita : ""}`,
-      cover: p.cover || "https://images.unsplash.com/photo-1528605105345-5344ea20e269?q=80&w=1600&auto=format&fit=crop",
-      fascia: p.fascia || "€€",
-      claimable: false,
-    }));
-  }, [eatDrinkRaw, meta, borgo, slug]);
-
-  // Placeholder rivendicabili di default (ne vogliamo sempre due in totale minimo)
-  const claimables = useMemo(() => buildClaimableEatDrink(slug, meta?.name || borgo?.name || slug), [slug, meta, borgo]);
-
-  const eatDrinkCards = useMemo(() => {
-    const arr = [...eatDrinkReal];
-    if (arr.length < 2) {
-      // aggiungi claimables fino ad avere almeno 2 schede
-      const need = 2 - arr.length;
-      arr.push(...claimables.slice(0, Math.max(0, need)));
-    }
-    return arr.slice(0, 8); // limite vetrina
-  }, [eatDrinkReal, claimables]);
 
   const eventi = [
     { title: "La festa della Madonna Nera", img: "https://images.unsplash.com/photo-1553877522-43269d4ea984?q=80&w=1500&auto=format&fit=crop", tag: "SAGRA", date: "9–10 agosto 2025", place: "Viggiano (PZ) · Santuario", meta: "Ore 21:00 · Navette gratuite" },
@@ -1121,7 +966,7 @@ export default function HomeBorgo() {
         {/* DESCRIZIONE */}
         <DescriptionBlock text={descr} slug={slug} />
 
-        {/* ====== SEZIONI ====== */}
+        {/* ====== SEZIONI (NUOVO ORDINE) ====== */}
 
         {/* 1) Video dei creator — ultimi 4 ordinati per data */}
         {videosLatest?.length ? (
@@ -1137,11 +982,29 @@ export default function HomeBorgo() {
           </SectionHM>
         ) : null}
 
-        {/* 2) Mangiare & Bere — reali + rivendicabili di default */}
-        {eatDrinkCards?.length ? (
-          <SectionHM title="Mangiare e Bere" linkTo={`/borghi/${slug}/mangiare-bere`}>
-            {eatDrinkCards.map((it) => (
-              <EatDrinkCard key={it.id} item={it} />
+        {/* 2) Prossimi eventi */}
+        {eventi?.length ? (
+          <SectionHM title="Prossimi eventi" linkTo={`/borghi/${slug}/eventi`}>
+            {eventi.map((ev, i) => (
+              <article key={i} className="snap-center shrink-0 w-[68%] sm:w-[38%] md:w-[28%] lg:w-[22%] overflow-hidden rounded-3xl bg-white shadow-[0_10px_25px_-12px_rgba(0,0,0,0.15)] ring-1 ring-black/5">
+                <div className="relative aspect-[2/3] w-full overflow-hidden">
+                  <img src={ev.img} alt={ev.title} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                  {ev.tag && (
+                    <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-extrabold text-[#5B2A1F] shadow ring-1 ring-black/5">{ev.tag}</span>
+                  )}
+                </div>
+                <div className="p-4">
+                  <h3 className="font-extrabold text-[#5B2A1F]">{ev.title}</h3>
+                  {ev.date && <div className="mt-2 text-sm text-neutral-700">{ev.date}</div>}
+                  {ev.place && (
+                    <div className="mt-1 inline-flex items-center gap-1 text-sm text-neutral-700">
+                      <MapPin className="h-4 w-4 text-[#D54E30]" />
+                      {ev.place}
+                    </div>
+                  )}
+                  {ev.meta && <div className="mt-1 text-sm text-neutral-700">{ev.meta}</div>}
+                </div>
+              </article>
             ))}
           </SectionHM>
         ) : null}
@@ -1169,16 +1032,7 @@ export default function HomeBorgo() {
           </SectionHM>
         ) : null}
 
-        {/* 4) Prossimi eventi */}
-        {eventi?.length ? (
-          <SectionHM title="Prossimi eventi" linkTo={`/borghi/${slug}/eventi`}>
-            {eventi.map((ev, i) => (
-              <HMEventPosterCard key={i} ev={ev} />
-            ))}
-          </SectionHM>
-        ) : null}
-
-        {/* 5) Prodotti tipici */}
+        {/* 4) Prodotti tipici */}
         {prodottiTipici?.length ? (
           <SectionHM title="Prodotti tipici" linkTo={`/borghi/${slug}/prodotti-tipici`}>
             {prodottiTipici.map((p, i) => (
@@ -1187,10 +1041,10 @@ export default function HomeBorgo() {
           </SectionHM>
         ) : null}
 
-        {/* 6) In breve */}
-        <InBreve meta={meta} borgo={borgo} slug={slug} />
+        {/* 5) IN BREVE — chiusura con loghi + testo */}
+        <InBreveChiusura meta={meta} borgo={borgo} slug={slug} />
 
-        {/* 7) Borghi vicini */}
+        {/* 6) Borghi vicini (sempre alla fine) */}
         {nearby?.length ? (
           <SectionHM title="Borghi vicini" linkTo={`/cerca?tipo=borghi`}>
             {nearby.map((b) => (

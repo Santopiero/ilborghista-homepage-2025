@@ -7,23 +7,101 @@ import { BORGI_INDEX } from "../data/borghi";
 /* ====================== Utils & costanti base ====================== */
 
 const REGION_LABELS = {
-  abruzzo: "Abruzzo", basilicata: "Basilicata", calabria: "Calabria", campania: "Campania",
-  "emilia-romagna": "Emilia-Romagna", "friuli-venezia-giulia": "Friuli-Venezia Giulia", lazio: "Lazio",
-  liguria: "Liguria", lombardia: "Lombardia", marche: "Marche", molise: "Molise", piemonte: "Piemonte",
-  puglia: "Puglia", sardegna: "Sardegna", sicilia: "Sicilia", toscana: "Toscana",
-  "trentino-alto-adige": "Trentino-Alto Adige", umbria: "Umbria", "valle-d-aosta": "Valle d’Aosta", veneto: "Veneto",
+  abruzzo: "Abruzzo",
+  basilicata: "Basilicata",
+  calabria: "Calabria",
+  campania: "Campania",
+  "emilia-romagna": "Emilia-Romagna",
+  "friuli-venezia-giulia": "Friuli-Venezia Giulia",
+  lazio: "Lazio",
+  liguria: "Liguria",
+  lombardia: "Lombardia",
+  marche: "Marche",
+  molise: "Molise",
+  piemonte: "Piemonte",
+  puglia: "Puglia",
+  sardegna: "Sardegna",
+  sicilia: "Sicilia",
+  toscana: "Toscana",
+  "trentino-alto-adige": "Trentino-Alto Adige",
+  umbria: "Umbria",
+  "valle-d-aosta": "Valle d’Aosta",
+  veneto: "Veneto",
 };
 
+/* Normalizza gli slug con trattini verso chiavi “canoniche” senza trattini */
+const REGION_KEY_CANONICAL = {
+  "emilia-romagna": "emiliaromagna",
+  "friuli-venezia-giulia": "friuliveneziagiulia",
+  "trentino-alto-adige": "trentinoaltoadige",
+  "valle-d-aosta": "valledaosta",
+};
+
+/* Cover per ogni regione (URL funzionanti). Modifica liberamente. */
 const REGION_COVER = {
-  basilicata: "https://images.unsplash.com/photo-1583316058389-2a2a60e96c9d?q=80&w=1920&auto=format&fit=crop",
-  puglia: "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1920&auto=format&fit=crop",
-  toscana: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1920&auto=format&fit=crop",
+  abruzzo:
+    "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1920&auto=format&fit=crop",
+  basilicata:
+    "https://as2.ftcdn.net/v2/jpg/01/27/23/07/1000_F_127230793_2NgjKBHoJovswrQoAXTKcJJMVnBuWA5P.jpg", // Matera
+  calabria:
+    "https://images.unsplash.com/photo-1526481280698-8fcc13fdc0b0?q=80&w=1920&auto=format&fit=crop",
+  campania:
+    "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1920&auto=format&fit=crop",
+  emiliaromagna:
+    "https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=80&w=1920&auto=format&fit=crop",
+  friuliveneziagiulia:
+    "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1920&auto=format&fit=crop",
+  lazio:
+    "https://images.unsplash.com/photo-1503264116251-35a269479413?q=80&w=1920&auto=format&fit=crop",
+  liguria:
+    "https://images.unsplash.com/photo-1491553895911-0055eca6402d?q=80&w=1920&auto=format&fit=crop",
+  lombardia:
+    "https://images.unsplash.com/photo-1496568816309-51d7c20e7b09?q=80&w=1920&auto=format&fit=crop",
+  marche:
+    "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1920&auto=format&fit=crop",
+  molise:
+    "https://images.unsplash.com/photo-1534531688091-a458257992cb?q=80&w=1920&auto=format&fit=crop",
+  piemonte:
+    "https://images.unsplash.com/photo-1526481280698-8fcc13fdc0b0?q=80&w=1920&auto=format&fit=crop",
+  puglia:
+    "https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=1920&auto=format&fit=crop",
+  sardegna:
+    "https://images.unsplash.com/photo-1523482580672-c8fa2b35d7ec?q=80&w=1920&auto=format&fit=crop",
+  sicilia:
+    "https://images.unsplash.com/photo-1472396961693-142e6e269027?q=80&w=1920&auto=format&fit=crop",
+  toscana:
+    "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1920&auto=format&fit=crop",
+  trentinoaltoadige:
+    "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1920&auto=format&fit=crop",
+  umbria:
+    "https://images.unsplash.com/photo-1491553895911-0055eca6402d?q=80&w=1920&auto=format&fit=crop",
+  valledaosta:
+    "https://images.unsplash.com/photo-1503264116251-35a269479413?q=80&w=1920&auto=format&fit=crop",
+  veneto:
+    "https://images.unsplash.com/photo-1496568816309-51d7c20e7b09?q=80&w=1920&auto=format&fit=crop",
 };
 
 const REGION_SUBTITLE = {
+  abruzzo: "Monti, borghi e trabocchi",
   basilicata: "Borghi tra monti e calanchi",
+  calabria: "Mare cristallino e borghi arroccati",
+  campania: "Golfo, storia e sapori",
+  emiliaromagna: "Città d'arte e sapori della via Emilia",
+  friuliveneziagiulia: "Confini, montagne e laguna",
+  lazio: "Roma antica e borghi sul lago",
+  liguria: "Riviera, carruggi e parchi",
+  lombardia: "Laghi, montagne e città d'arte",
+  marche: "Colline, teatri e borghi diffusi",
+  molise: "Tradizioni, tratturi e silenzi",
+  piemonte: "Langhe, montagne e residenze reali",
   puglia: "Mare, trulli e masserie",
+  sardegna: "Spiagge, nuraghi e mare turchese",
+  sicilia: "Barocco, vulcani e tonnare",
   toscana: "Colline, arte e vino",
+  trentinoaltoadige: "Dolomiti, castelli e natura",
+  umbria: "Cuore verde, abbazie e sapori",
+  valledaosta: "Montagne maestose e castelli",
+  veneto: "Venezia, ville e colli",
 };
 
 const FALLBACK_IMG =
@@ -225,7 +303,7 @@ function FilterBar({
         </div>
       </div>
 
-      {/* SHEET “Cosa cerchi” (overlay fisso) */}
+      {/* SHEET “Cosa cerchi” */}
       {themesOpen && (
         <>
           <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setThemesOpen(false)} />
@@ -274,7 +352,7 @@ function FilterBar({
         </>
       )}
 
-      {/* SHEET “Periodo” (overlay fisso) */}
+      {/* SHEET “Periodo” */}
       {periodOpen && (
         <>
           <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setPeriodOpen(false)} />
@@ -414,8 +492,15 @@ function BorgoCard({ b }) {
 export default function Regione() {
   const { slug } = useParams();
   const label = REGION_LABELS[slug] || "Regione";
-  const cover = REGION_COVER[slug] || FALLBACK_IMG;
-  const subtitle = REGION_SUBTITLE[slug] || "";
+
+  // normalizza lo slug per accedere alle mappe REGION_COVER/REGION_SUBTITLE
+  const canon = REGION_KEY_CANONICAL[slug] || slug;
+
+  const cover = REGION_COVER[canon] || FALLBACK_IMG;
+  const subtitle = REGION_SUBTITLE[canon] || "";
+
+  // debug rapido (vedi in console)
+  console.debug("REGIONE PAGE:", { slug, canon, cover });
 
   // Borghi della regione
   const allBorghi = useMemo(
@@ -444,7 +529,7 @@ export default function Regione() {
   const [themeSet, setThemeSet] = useState(() => new Set()); // multi
   const [periodPreset, setPeriodPreset] = useState(""); // "", "weekend", "2weeks", "month"
   const [dateFrom, setDateFrom] = useState(""); // yyyy-mm-dd
-  const [dateTo, setDateTo] = useState("");     // yyyy-mm-dd
+  const [dateTo, setDateTo] = useState(""); // yyyy-mm-dd
   const [onlyVideo, setOnlyVideo] = useState(false);
   const [showMap, setShowMap] = useState(false);
 
@@ -572,7 +657,7 @@ export default function Regione() {
         </div>
       </section>
 
-      {/* LISTA BORGH I */}
+      {/* LISTA BORGHI */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 mt-8">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-extrabold text-[#6B271A]">Borghi in {label}</h2>

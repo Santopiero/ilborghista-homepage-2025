@@ -72,7 +72,7 @@ function BorgoCard({ b }) {
           onError={onImgErr}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-        <div className="absolute bottom-3 left-3 bg-white/90 px-3 py-1.5 rounded-lg shadow text-[#6B271A] font-semibold text-base">
+        <div className="absolute top-3 left-3 bg-white/90 px-3 py-1.5 rounded-lg shadow text-[#6B271A] font-semibold text-base">
           {b.nome}
         </div>
       </div>

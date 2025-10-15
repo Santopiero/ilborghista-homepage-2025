@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import axios from "axios";
-import { MapPin, Star, Camera, Heart } from "lucide-react";
+import { MapPin, Star, Camera } from "lucide-react";
 
 /* ====================== CONFIGURAZIONE ====================== */
 const API =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, "") ||
-  "http://localhost:1337";
+  "https://ilborghista-backend.onrender.com";
 
 const REGION_LABELS = {
   basilicata: "Basilicata",
@@ -18,6 +18,11 @@ const REGION_LABELS = {
   toscana: "Toscana",
   veneto: "Veneto",
   piemonte: "Piemonte",
+  lombardia: "Lombardia",
+  sicilia: "Sicilia",
+  sardegna: "Sardegna",
+  marche: "Marche",
+  umbria: "Umbria",
 };
 
 const REGION_COVER = {
@@ -25,6 +30,47 @@ const REGION_COVER = {
     "https://upload.wikimedia.org/wikipedia/commons/b/b5/Calanchi_di_Aliano_03.jpg",
   puglia:
     "https://upload.wikimedia.org/wikipedia/commons/d/d0/Polignano_a_Mare%2C_Puglia%2C_Italy.jpg",
+  campania:
+    "https://upload.wikimedia.org/wikipedia/commons/a/a8/Costiera_Amalfitana_-_panorama_da_Ravello.jpg",
+  lazio:
+    "https://upload.wikimedia.org/wikipedia/commons/2/23/Lago_di_Bolsena_veduta_dal_Belvedere_di_Montefiascone.jpg",
+  abruzzo:
+    "https://upload.wikimedia.org/wikipedia/commons/7/7e/Santo_Stefano_di_Sessanio_-_Abruzzo_-_Italy.jpg",
+  calabria:
+    "https://upload.wikimedia.org/wikipedia/commons/f/f2/Scilla_Calabria_Italy_2015.jpg",
+  toscana:
+    "https://upload.wikimedia.org/wikipedia/commons/9/9b/Tuscany_Landscape_Val_d%27Orcia_Siena_Italy.jpg",
+  veneto:
+    "https://upload.wikimedia.org/wikipedia/commons/1/14/Burano_-_Veneto_-_Italy.jpg",
+  piemonte:
+    "https://upload.wikimedia.org/wikipedia/commons/9/9f/Alba%2C_Langhe%2C_Piemonte%2C_Italy.jpg",
+  lombardia:
+    "https://upload.wikimedia.org/wikipedia/commons/6/64/Lago_di_Como_dal_Belvedere_di_Brunate.jpg",
+  sicilia:
+    "https://upload.wikimedia.org/wikipedia/commons/5/5b/Taormina%2C_Sicily.jpg",
+  sardegna:
+    "https://upload.wikimedia.org/wikipedia/commons/9/9b/Cala_Goloritz%C3%A9_-_Sardinia%2C_Italy.jpg",
+  marche:
+    "https://upload.wikimedia.org/wikipedia/commons/7/7c/Corinaldo_-_Marche%2C_Italy.jpg",
+  umbria:
+    "https://upload.wikimedia.org/wikipedia/commons/7/73/Spello_Umbria_Italy.jpg",
+};
+
+const REGION_SUBTITLE = {
+  basilicata: "Borghi tra monti e calanchi",
+  puglia: "Mare, trulli e tradizioni senza tempo",
+  campania: "Terra di sapori e meraviglie",
+  lazio: "Borghi tra storia e natura",
+  abruzzo: "Dove la montagna incontra il mare",
+  calabria: "Un cuore antico affacciato sul mare",
+  toscana: "Arte, colline e borghi senza tempo",
+  veneto: "Tra lagune, ville e montagne",
+  piemonte: "Colline, vini e borghi eleganti",
+  lombardia: "Laghetti alpini e città d’arte",
+  sicilia: "Un’isola di luce e cultura millenaria",
+  sardegna: "Mare cristallino e tradizioni autentiche",
+  marche: "Dalle colline al mare, un’anima gentile",
+  umbria: "Cuore verde d’Italia e terra di borghi mistici",
 };
 
 const FALLBACK_IMG =
@@ -51,7 +97,7 @@ function Hero({ image, title, subtitle }) {
           {title}
         </h1>
         <p className="mt-2 text-white/95 text-base sm:text-lg drop-shadow">
-          {subtitle || `Scopri i borghi più belli della ${title}`}
+          {subtitle}
         </p>
       </div>
     </section>
@@ -117,6 +163,7 @@ export default function Regione() {
   const { slug } = useParams();
   const label = REGION_LABELS[slug] || slug;
   const cover = REGION_COVER[slug] || FALLBACK_IMG;
+  const subtitle = REGION_SUBTITLE[slug] || `Scopri i borghi più belli della ${label}`;
 
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -142,21 +189,20 @@ export default function Regione() {
         const items =
           res.data?.data?.map((b) => {
             const coverUrl =
-              b.cover?.formats?.medium?.url ||
-              b.cover?.url ||
-              b.cover?.formats?.small?.url ||
+              b.attributes?.cover?.data?.attributes?.url ||
+              b.attributes?.cover?.data?.attributes?.formats?.medium?.url ||
+              b.attributes?.cover?.data?.attributes?.formats?.small?.url ||
               null;
 
             return {
               id: b.id,
-              slug: b.slug || "",
-              nome: b.nome || "Borgo senza nome",
-              payoff: b.payoff || "",
-              regione: b.regione || "",
-              categoria: b.categoria || "",
-              feedback: b.feedback || 0,
-              preferito: false,
-              galleryCount: b.gallery?.length || 0,
+              slug: b.attributes?.slug || "",
+              nome: b.attributes?.nome || "Borgo senza nome",
+              payoff: b.attributes?.payoff || "",
+              regione: b.attributes?.regione || "",
+              categoria: b.attributes?.categoria || "",
+              feedback: b.attributes?.feedback || 0,
+              galleryCount: b.attributes?.gallery?.data?.length || 0,
               coverUrl: coverUrl ? `${API}${coverUrl}` : null,
             };
           }) || [];
@@ -175,7 +221,7 @@ export default function Regione() {
 
   return (
     <main className="pb-12">
-      <Hero image={cover} title={label} subtitle="Borghi tra monti e calanchi" />
+      <Hero image={cover} title={label} subtitle={subtitle} />
 
       <section className="max-w-6xl mx-auto px-4 mt-8">
         <div className="flex items-center justify-between mb-4">
